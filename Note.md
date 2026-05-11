@@ -1,4 +1,30 @@
-tôi muốn giống như tngo, nạp tiền vào ví, rồi từng chuyến sẽ trừ tiền, có gói ngày gói tháng, xe mượn theo giờ, có quy tắc, vi phạm quy tắc sẽ bị phạt tiền. phần đăng kí đăng nhập cũng phải làm chặt vì mượn xe là vật có giá trị. UC handle bike maintainance request hiện tại có cả customer vào? customer tưởng chỉ báo cáo thôi mà? slide bạn có thể làm bằng pptx đẹp hơn được không? 
-UC là 1 cái thể hiện hệ thống của em cung cấp các chức năng nào, và tương tác với các actor như thế nào thông qua các chức năng đấy
-UC là 1 chuỗi các hành động tương tác qua lại giữa actor và hệ thống, mà để lại 1 cái kết quả nào đấy mà hệ thống và actor có thể quan sát được (nếu system chỉ push ra 1 noitification/dialouge thì không phải UC)
-để xem 1 việc là hành động hay chuỗi hành động (UC) thì thử hình dung khi code sẽ phải làm thế nào, nếu user chỉ chọn 1 action (bấm 1 nút) thì là 1 action 
+# Ghi chú phân tích use case
+
+## Nguồn yêu cầu hiện hành
+
+Nguồn yêu cầu hiện hành là `docs/đề.txt`: hệ thống Ecopark Bicycle Parking cho
+thuê-trả xe tại các điểm tập kết, đặt cọc 200k + CCCD/giấy tờ tùy thân, tính giá
+50k/giờ, 70k/2 giờ, 100k/3 giờ, phụ thu 30k/30 phút trả muộn và giảm 40% cho cư
+dân Ecopark.
+
+Các giả định cũ ở bản baseline trước không còn dùng cho bản phân tích hiện tại nếu
+không xuất hiện trong `docs/đề.txt`.
+
+## Quy tắc vẽ use case
+
+UC là một chức năng/mục tiêu mà hệ thống cung cấp và thể hiện tương tác giữa actor
+và hệ thống thông qua chức năng đó.
+
+UC là một chuỗi hành động tương tác qua lại giữa actor và hệ thống, để lại một kết
+quả mà hệ thống và actor có thể quan sát được. Nếu hệ thống chỉ push ra một
+notification/dialogue thì không nên xem đó là một UC độc lập.
+
+Để xem một việc là action hay UC, hình dung khi code sẽ phải làm thế nào: nếu user
+chỉ chọn một action như bấm một nút thì đó thường là một action, không phải UC.
+
+Khi khách hàng đang ở UC A mà có thể hoặc không sử dụng/chuyển sang UC B, từ A có
+thể vẽ mũi tên `extend` sang B.
+
+Resident Customer là actor chuyên biệt của Customer/User: cư dân thừa hưởng các
+use case của người dùng thuê xe thông thường và có thêm nhánh nộp thẻ cư dân để
+được giảm 40% giá thuê.
