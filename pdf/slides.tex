@@ -1,0 +1,189 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[english,vietnamese]{babel}
+\usepackage{mathptmx}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{positioning,shapes.geometric}
+
+\AtBeginDocument{\selectlanguage{vietnamese}}
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\title{Bike Sharing App}
+\subtitle{Requirement Analysis: Use-Case Analysis}
+\author{Nhóm dự án ứng dụng thuê xe đạp}
+\date{Tháng 5 năm 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Product Model}
+\begin{itemize}
+  \item Mô hình thuê xe giống dịch vụ đô thị: tài khoản xác thực, ví trả trước, thuê xe theo giờ.
+  \item Người dùng nạp tiền vào ví hoặc mua gói ngày/tháng trước khi thuê.
+  \item Mỗi chuyến kết thúc sẽ tính phí, áp dụng gói nếu hợp lệ và trừ tiền ví.
+  \item Vi phạm quy tắc sử dụng sẽ tạo khoản phạt; gói ngày/tháng không miễn tiền phạt.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{System Boundary and Actors}
+\begin{tabular}{p{0.26\textwidth}p{0.62\textwidth}}
+\toprule
+\textbf{Actor} & \textbf{Mục tiêu tương tác với hệ thống} \\
+\midrule
+Customer & Xác thực tài khoản, nạp ví, mua gói, thuê xe, kết thúc chuyến, báo sự cố. \\
+Admin / Operator & Quản lý vận hành, quy tắc, mức phạt và phân công bảo trì. \\
+Maintenance Staff & Kiểm tra, sửa chữa, cập nhật trạng thái xe. \\
+GPS / Map Service & Cung cấp dữ liệu vị trí/bản đồ cho thuê xe. \\
+Payment Gateway & Xử lý giao dịch nạp ví hoặc mua gói. \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3cm}
+\textbf{Không xem là actor:} front-end, back-end, database.
+\end{frame}
+
+\begin{frame}{Use-Case Overview}
+\centering
+\begin{tikzpicture}[
+  actor/.style={font=\scriptsize\bfseries,align=center},
+  uc/.style={ellipse,draw=green!45!black,thick,fill=green!10,minimum width=3.0cm,minimum height=0.9cm,align=center,font=\scriptsize},
+  line/.style={draw=black!65,thick}
+]
+\node[draw,minimum width=9.1cm,minimum height=5.3cm,anchor=north west,label={[font=\bfseries\scriptsize]north:Bike Sharing System}] (sys) at (0,0) {};
+\node[actor] (customer) at (-1.25,-2.0) {Customer};
+\node[actor] (admin) at (-1.25,-4.4) {Admin /\\Operator};
+\node[actor] (staff) at (10.4,-4.4) {Maintenance\\Staff};
+\node[actor] (map) at (10.4,-2.0) {GPS / Map\\Service};
+\node[actor] (pay) at (10.4,-0.9) {Payment\\Gateway};
+\node[uc] (uc1) at (2.5,-0.9) {UC001\\Register and\\Verify Account};
+\node[uc] (uc2) at (6.5,-0.9) {UC002\\Manage Wallet and\\Rental Packages};
+\node[uc] (uc3) at (2.5,-2.8) {UC003\\Rent Bike by Hour};
+\node[uc] (uc4) at (6.5,-2.8) {UC004\\End Ride and\\Settle Charges};
+\node[uc] (uc5) at (4.5,-4.5) {UC005\\Resolve Bike\\Maintenance Request};
+\draw[line] (customer) -- (uc1);
+\draw[line] (customer) -- (uc2);
+\draw[line] (customer) -- (uc3);
+\draw[line] (customer) -- (uc4);
+\draw[line] (pay) -- (uc2);
+\draw[line] (map) -- (uc3);
+\draw[line] (admin) -- (uc5);
+\draw[line] (staff) -- (uc5);
+\end{tikzpicture}
+\end{frame}
+
+\begin{frame}{Sub-Use Case Breakdown}
+\begin{tabular}{p{0.18\textwidth}p{0.70\textwidth}}
+\toprule
+\textbf{Main UC} & \textbf{Sub-use cases / related use cases} \\
+\midrule
+UC001 & Register Customer Account; Verify Contact Method; Submit Identity Verification; Log In Securely; Recover Account Access. \\
+UC002 & Top Up Wallet; Buy Day Pass; Buy Monthly Pass; View Wallet and Package History; Retry or Cancel Pending Payment. \\
+UC003 & Search Available Bikes; Scan Bike QR Code; Start Hourly Ride; Apply Active Package; View Active Ride. \\
+UC004 & Return Bike; Lock and End Ride; Report Bike Issue; Settle Ride Charge; View Receipt; Pay Outstanding Balance; Dispute Penalty. \\
+UC005 & Review Issue Report; Create or Merge Maintenance Request; Assign Maintenance Task; Update Repair Result; Release or Retire Bike. \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{Relational Schema Summary}
+\begin{tabular}{p{0.28\textwidth}p{0.60\textwidth}}
+\toprule
+\textbf{Area} & \textbf{Tables and relationships} \\
+\midrule
+Verified users & USERS 1--1 CUSTOMER\_PROFILES, USERS 1--1 STAFF. \\
+Wallet and pass & CUSTOMER\_PROFILES 1--1 WALLETS, 1--n CUSTOMER\_PACKAGES. \\
+Payment & WALLET\_TRANSACTIONS 1--0..1 PAYMENTS for top-up/package purchase. \\
+Ride lifecycle & CUSTOMER\_PROFILES 1--n RIDES, BIKES 1--n RIDES. \\
+Settlement & RIDES 1--1 RIDE\_CHARGES, RIDES 1--n PENALTIES. \\
+Maintenance & ISSUE\_REPORTS feed MAINTENANCE\_REQUESTS assigned to STAFF. \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}{UC001 and UC002}
+\begin{columns}[T]
+\begin{column}{0.49\textwidth}
+\textbf{UC001 Register and Verify Account}
+\begin{itemize}
+  \item Actor: Customer.
+  \item Goal: register, verify contact/identity, then log in securely.
+  \item Output: verified account and rental eligibility.
+  \item Key exception: weak identity evidence, locked account, unpaid debt.
+\end{itemize}
+\end{column}
+\begin{column}{0.49\textwidth}
+\textbf{UC002 Manage Wallet and Rental Packages}
+\begin{itemize}
+  \item Actors: Customer, Payment Gateway.
+  \item Goal: top up wallet or buy day/month package.
+  \item Output: wallet transaction, balance, active package.
+  \item Key exception: payment failed, package inactive.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{UC003 and UC004}
+\begin{columns}[T]
+\begin{column}{0.49\textwidth}
+\textbf{UC003 Rent Bike by Hour}
+\begin{itemize}
+  \item Actors: Customer, GPS / Map Service.
+  \item Goal: find bike, verify wallet/package and unlock bike.
+  \item Output: active ride and bike in use.
+  \item Key exception: insufficient wallet, active penalty, unlock failure.
+\end{itemize}
+\end{column}
+\begin{column}{0.49\textwidth}
+\textbf{UC004 End Ride and Settle Charges}
+\begin{itemize}
+  \item Actor: Customer.
+  \item Goal: end ride and deduct final amount from wallet.
+  \item Output: receipt, updated wallet, penalties if any.
+  \item Key exception: wrong return area, unlocked bike, insufficient balance.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{UC005 Resolve Bike Maintenance Request}
+\begin{itemize}
+  \item Actors: Admin / Operator, Maintenance Staff.
+  \item Customer is not a direct actor here; Customer only creates an issue report before this workflow.
+  \item Admin / Operator: reviews report, marks bike unavailable, sets priority and assigns staff.
+  \item Maintenance Staff: inspects, repairs, records result and closes/updates request.
+  \item Output: maintenance request status and bike status.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Rules and Penalties}
+\begin{itemize}
+  \item Rental is blocked if account is unverified, wallet is locked or unpaid penalty exists.
+  \item Valid return requires correct station/area and locked bike.
+  \item Package covers eligible riding time; overtime is charged from wallet.
+  \item Penalty examples: wrong return area, failure to lock, damage/loss, overdue debt.
+  \item Penalty records stay visible in ride receipt and wallet transaction history.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Admin and Staff Overlap}
+\begin{block}{Có giao nhau, nhưng không có Customer trong UC005}
+Admin / Operator và Maintenance Staff cùng tham gia UC005 vì cả hai đều cần thiết để xử lý xe lỗi. Customer chỉ báo cáo sự cố, không trực tiếp thực hiện nghiệp vụ bảo trì.
+\end{block}
+\begin{itemize}
+  \item Không tách các bước nhỏ như ``click assign'' hoặc ``update note'' thành use case.
+  \item Các bước nhỏ được mô tả trong Basic Flow và Alternative Flows của UC005.
+\end{itemize}
+\end{frame}
+
+\end{document}

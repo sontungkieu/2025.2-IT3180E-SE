@@ -1,0 +1,4 @@
+tôi muốn giống như tngo, nạp tiền vào ví, rồi từng chuyến sẽ trừ tiền, có gói ngày gói tháng, xe mượn theo giờ, có quy tắc, vi phạm quy tắc sẽ bị phạt tiền. phần đăng kí đăng nhập cũng phải làm chặt vì mượn xe là vật có giá trị. UC handle bike maintainance request hiện tại có cả customer vào? customer tưởng chỉ báo cáo thôi mà? slide bạn có thể làm bằng pptx đẹp hơn được không? 
+UC là 1 cái thể hiện hệ thống của em cung cấp các chức năng nào, và tương tác với các actor như thế nào thông qua các chức năng đấy
+UC là 1 chuỗi các hành động tương tác qua lại giữa actor và hệ thống, mà để lại 1 cái kết quả nào đấy mà hệ thống và actor có thể quan sát được (nếu system chỉ push ra 1 noitification/dialouge thì không phải UC)
+để xem 1 việc là hành động hay chuỗi hành động (UC) thì thử hình dung khi code sẽ phải làm thế nào, nếu user chỉ chọn 1 action (bấm 1 nút) thì là 1 action 
