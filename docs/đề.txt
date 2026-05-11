@@ -1,1 +1,43 @@
-6. Ecopark Bicycle Parking Giờ đây, việc di chuyển trong không gian rộng lớn của Ecopark với chi phí tiết kiệm sẽ đơn giản hơn nhiều, nhờ dịch vụ thuê xe đạp. Nhằm đem đến cho người dân và du khách trải nghiệm tốt nhất, Ecopark muốn xây dựng một hệ thống thông tin quản lý hoạt động cho khách thuê và trả xe đạp. Website này hỗ trợ quản lý thông tin các bãi xe, loại xe, số lượng, tự động cho thuê các loại xe đạp khác nhau tại các địa điểm gần khách thuê. Ecopark có nhiều điểm tập kết xe đạp. Mỗi bãi xe có nhiều xe đạp để cho khách du lịch có thể thuê. Mỗi xe đạp có một mã định danh duy nhất. Hệ thống cần cập nhật thông tin trạng thái hoạt động hiện tại của xe đạp: đang hoạt động tốt, đang bị hỏng cần sửa chữa hoặc đang được khách thuê. Người quản lý có thể truy xuất nhanh chóng thông tin về xe đạp thuộc trạm nào, tình trạng hoạt động của xe và đã được cho thuê hay chưa. Để thuê xe, người dùng chỉ cần có chứng minh thư/CCCD và địa chỉ email. Lần đầu thuê, khách sẽ cần tạo tài khoản. Trong đó có lưu trữ thông tin các lần thuê xe và các thông tin cá nhân như: CCCD, địa chỉ, số điện thoại liên hệ, v.v... Người dùng có thể đăng nhập, tìm đến bãi xe gần nhất có trong danh sách, chọn xe đang rảnh và chọn thuê. Thông tin về xe và người thuê sẽ được gửi lên hệ thống và người dùng sẽ gặp quản lý bãi xe để nhận xe đạp và trả phí đặt cọc 200k + CCCD hoặc các giấy tờ chứng minh nhân thân. Phí thuê xe như sau: 50k cho 1 giờ, 70k cho 2 giờ và 100k cho 3 giờ. Khách hàng có thể trả xe tại bất cứ địa điểm nào có bãi xe đạp của Ecopark, hệ thống sẽ cập nhật thông tin về tình trạng xe và vị trí hiện tại của xe đạp. Nếu trả xe quá thời gian quy định thì khách hàng cần trả thêm 30k cho 30 phút. Xe đạp của Ecopark không thể di chuyển ra khỏi phạm vi của Ecopark do các bảo vệ khu tại các cổng ra vào sẽ kiểm tra. Khi người dùng trả xe, hệ thống cần hiển thị thông tin giá tiền trên phiếu thuê xe cho người dùng, xuất vé, lưu lịch sử và số tiền thuê xe mỗi lần trong tài khoản của khách hàng. Hệ thống sẽ quản lý tập trung tất cả các lần thuê trả xe của tất cả các xe và các bãi xe của công ty để phục vụ việc thống kê theo ngày, theo tuần, theo tháng, theo xe. Đối với người dân của khu đô thị Ecopark, tài khoản người dùng có thêm thông tin địa chỉ và thẻ cư dân sẽ được giảm giá 40% phí thuê xe. Lưu ý: nhóm có thể đề xuất 2 apps cho hệ thống này, một là hệ thống web quản lý tập trung cho toàn bộ hệ thống, 2 là app eBicycle trên mobile cho người dùng sử dụng với các chức năng giới hạn liên quan tới việc thuê xe. Trong điều kiện không cho phép, nhóm có thể cài đặt 1 hệ thống thông suốt thông qua web đối với người quản lý và người dùng thông thường.
+Chủ đề: Ecopark Bicycle Parking
+
+Thành phố xanh Ecopark hiện đã là điểm đến nghỉ dưỡng ven đô Hà Nội, muốn đề xuất
+một hệ thống quản lý thông tin (website) thuê-trả xe của du khách, quản lý thông
+tin các bãi xe và các loại, số lượng xe khác nhau, có thể cho phép du khách thuê
+các loại xe khác nhau - theo sở thích, ở địa điểm bãi xe gần, một cách tự động.
+
+Mong muốn cụ thể về các chức năng như sau:
+
+- Có nhiều điểm tập kết xe, mỗi điểm tập kết có một số lượng xe cụ thể với ID là
+  duy nhất trên toàn bộ hệ thống. Với mỗi xe hệ thống cần cập nhật được trạng thái
+  hiện tại (đang hoạt động, đã bị hỏng/cần sửa chữa, đang được thuê). Người quản
+  lý khi cần tìm một xe sẽ có thể nhanh chóng truy xuất được thông tin như: xe đang
+  ở điểm tập kết nào, tình trạng ra sao, hoặc xe có đang được thuê sử dụng hay không.
+
+- Để thuê xe, người dùng cần phải có chứng minh thư hoặc CCCD và địa chỉ email.
+  Lần thuê xe đầu tiên bắt buộc phải tạo tài khoản. Trong tài khoản cần có lịch sử
+  thuê xe và thông tin cá nhân về CCCD, địa chỉ, số điện thoại liên hệ. Người dùng
+  có thể đăng nhập vào hệ thống, tìm kiếm khu vực tập kết xe gần mình nhất, lựa
+  chọn các xe sẵn có trong bãi và chọn thuê. Thông tin sẽ được gửi đến hệ thống và
+  người dùng có thể gặp cán bộ quản lý của bãi tập kết xe để nhận xe và đặt cọc
+  tiền thuê là 200k + CCCD hoặc giấy tờ tuỳ thân.
+
+  Giá thuê xe đạp là 50k/giờ, 70k/2 giờ, 100k/3 giờ. Có thể trả xe về bất cứ bãi
+  xe nào cũng được, hệ thống sẽ cập nhật tình trạng xe và cập nhật vị trí xe. Nếu
+  trả xe muộn, cần nộp thêm tiền là 30k/30 phút. Xe đạp của Ecopark không thể mang
+  ra khỏi khu vực do luôn có bảo vệ tại các chốt vào/ra.
+
+- Hệ thống cần hiển thị được thông tin giá vé cuối cùng khi người dùng trả xe, xuất
+  vé và lưu lại thông tin lịch sử thuê xe cũng như giá thành của từng lượt thuê xe
+  của khách hàng trong tài khoản của khách cũng như quản lý tập trung các lượt thuê
+  cho tất cả các xe trong các bãi tập kết để có thể dễ dàng thống kê theo ngày,
+  theo tuần, theo tháng và theo xe.
+
+- Đối với cư dân của Ecopark, khi tạo tài khoản, có thông tin về địa chỉ và thẻ cư
+  dân, sẽ được giảm giá 40% cho giá thuê xe.
+
+Nhóm phát triển có thể đề xuất phát triển hai ứng dụng, ứng dụng cho quản lý tập
+trung trên nền tảng web và ứng dụng eBicycle trên mobile cho người dùng sử dụng
+với các chức năng hạn chế chỉ dành cho người dùng để thuê xe. Tuy nhiên, nếu vấn
+đề kỹ thuật không cho phép, nhóm có thể lựa chọn phát triển toàn bộ hệ thống
+end-to-end trên nền tảng Web cho hai nhóm đối tượng người dùng: quản lý và người
+dùng thông thường.

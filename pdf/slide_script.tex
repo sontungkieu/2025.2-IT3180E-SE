@@ -1,0 +1,271 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[english,vietnamese]{babel}
+\usepackage{mathptmx}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\geometry{margin=2.2cm}
+\AtBeginDocument{\selectlanguage{vietnamese}}
+\setlist[itemize]{leftmargin=1.2cm,itemsep=2pt,topsep=2pt}
+\setlist[enumerate]{leftmargin=1.2cm,itemsep=2pt,topsep=2pt}
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue}
+
+\newcommand{\slide}[2]{%
+  \section*{Slide #1: #2}
+  \addcontentsline{toc}{section}{Slide #1: #2}
+}
+\newcommand{\talk}{\textbf{Lời nói đề xuất.} }
+\newcommand{\note}{\textbf{Ý cần nhấn mạnh.} }
+
+\title{\textbf{Speaker Script}\\Ecopark Bicycle Parking -- Use-Case Analysis}
+\author{Nhóm dự án hệ thống thuê xe đạp Ecopark}
+\date{Tháng 5 năm 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\slide{1}{Ecopark Bicycle Parking}
+\talk
+Chào thầy/cô và các bạn. Nhóm em trình bày phần phân tích use case cho hệ thống
+\textit{Ecopark Bicycle Parking}. Đây là hệ thống website hỗ trợ thuê và trả xe
+đạp tại các điểm tập kết trong Ecopark. Luồng nghiệp vụ chính đi từ tạo tài
+khoản, tìm trạm và chọn xe, đặt cọc nhận xe, sử dụng xe, trả xe và nhận vé
+thanh toán cuối cùng.
+
+\note
+Nói ngắn gọn phạm vi: không phải app gọi xe chung chung, mà là hệ thống thuê-trả
+xe đạp có quản lý trạm, xe, giấy tờ định danh, đặt cọc và lịch sử thuê.
+
+\slide{2}{Project Context and Rules}
+\talk
+Theo đề bài, hệ thống cần quản lý nhiều điểm tập kết xe trong Ecopark. Mỗi xe có
+mã định danh duy nhất toàn hệ thống và có trạng thái như sẵn sàng, đang được
+thuê hoặc hỏng cần sửa. Người dùng lần đầu thuê xe phải tạo tài khoản với email,
+số điện thoại, địa chỉ và CCCD hoặc giấy tờ định danh. Khi nhận xe, người dùng
+gặp nhân viên tại trạm để đặt cọc 200 nghìn và để lại giấy tờ tùy thân. Khi trả
+xe, hệ thống tính tiền theo gói giờ, cộng phí trễ nếu có, và lưu vé vào lịch sử.
+
+\note
+Nhấn mạnh quy tắc giảm giá 40\% cho cư dân có thẻ cư dân hợp lệ. Đồng thời nói
+rõ front-end, back-end, database và bảo vệ cổng không được xem là actor trong
+use-case diagram.
+
+\slide{3}{Actor Model}
+\talk
+Ở mô hình actor, nhóm em xác định năm actor chính. Customer/User là người thuê
+xe thông thường. Resident Customer là actor chuyên biệt kế thừa Customer/User,
+vì cư dân vẫn có toàn bộ chức năng của người thuê thông thường nhưng có thêm
+nhánh xác minh thẻ cư dân để được giảm giá. Station Staff hoặc Manager là nhân
+viên tại bãi, phụ trách kiểm tra giấy tờ, nhận cọc, giao xe và nhận xe trả.
+Admin hoặc Operator quản lý dữ liệu toàn hệ thống như bãi xe, xe, chính sách giá
+và báo cáo. GPS/Map Service là dịch vụ ngoài hỗ trợ tìm trạm gần nhất.
+
+\note
+Trả lời trước câu hỏi hay gặp: Admin không tự làm việc xác minh tài khoản cho
+tất cả user, nhưng có thể tham gia manual review khi hồ sơ đáng ngờ hoặc thẻ cư
+dân cần rà soát.
+
+\slide{4}{Use-Case Overview}
+\talk
+Slide này là bức tranh tổng quan của hệ thống. Nhóm em chọn năm use case quan
+trọng nhất vì chúng bao phủ toàn bộ vòng đời thuê xe. UC001 xử lý đăng ký và xác
+minh tài khoản. UC002 giúp người dùng tìm trạm, xem xe và gửi yêu cầu thuê.
+UC003 là nghiệp vụ nhận xe tại trạm, gồm kiểm tra giấy tờ, đặt cọc và bàn giao
+xe. UC004 là nghiệp vụ trả xe, tính phí và xuất vé. UC005 dành cho vận hành:
+quản lý xe, bãi xe, trạng thái và báo cáo.
+
+\note
+Nói rõ đây là use case cấp nghiệp vụ, không phải từng button hoặc từng bước UI.
+Các actor chỉ nối với các use case mà họ thật sự tương tác.
+
+\slide{5}{Relational Schema Summary}
+\talk
+Về dữ liệu, nhóm em dùng các nhóm bảng chính. Nhóm tài khoản gồm USERS,
+CUSTOMER\_PROFILES và RESIDENT\_CARDS để biểu diễn cả người dùng thường và cư
+dân. Nhóm đội xe gồm STATIONS, BIKE\_TYPES, BIKES và BIKE\_STATUS\_LOGS. Nhóm
+yêu cầu thuê gồm RENTAL\_REQUESTS. Khi nhận xe thành công, hệ thống tạo RENTALS
+và RENTAL\_DEPOSITS. Khi trả xe, hệ thống tạo RENTAL\_TICKETS. Cuối cùng,
+PRICING\_POLICIES lưu các mức giá theo giờ, phí trễ và tỷ lệ giảm giá cư dân.
+
+\note
+Nhấn mạnh schema không dùng ví điện tử hay gói ngày/tháng vì đề mới không yêu
+cầu; nhóm đã điều chỉnh theo đề bài hiện tại.
+
+\slide{6}{Include / Extend Notes for Diagram}
+\talk
+Trong sơ đồ chi tiết, nhóm em dùng include và extend ở mức vừa đủ. Include được
+dùng khi một use case con luôn là một phần bắt buộc của use case chính, ví dụ
+xác minh giấy tờ và nhận cọc trong nghiệp vụ bàn giao xe. Extend được dùng khi
+một nhánh chỉ xảy ra trong điều kiện nhất định, ví dụ nộp thẻ cư dân khi người
+dùng là cư dân, hoặc áp dụng phí trễ khi xe được trả muộn.
+
+\note
+Khi bị hỏi về ký hiệu, trả lời: mũi tên include/extend chỉ nối giữa use case với
+use case, không nối actor với actor hoặc actor với database.
+
+\slide{7}{UC001 Main Flow: Register and Verify Customer Account}
+\talk
+UC001 bắt đầu khi người dùng đăng ký hoặc đăng nhập. Hệ thống yêu cầu các thông
+tin bắt buộc gồm email, số điện thoại, địa chỉ, CCCD hoặc giấy tờ định danh. Sau
+khi người dùng gửi thông tin, hệ thống kiểm tra định dạng, trùng email hoặc số
+điện thoại, và độ mạnh mật khẩu. Nếu hợp lệ, hệ thống tạo tài khoản và hồ sơ
+khách hàng. Trước lần thuê đầu tiên, người dùng phải có thông tin định danh hợp
+lệ để được đánh dấu đủ điều kiện thuê. Nếu là cư dân, họ có thể nộp địa chỉ
+Ecopark và thẻ cư dân để được xét giảm giá.
+
+\note
+Nhấn mạnh mượn xe là tài sản có giá trị, nên phần đăng ký/đăng nhập phải chặt
+hơn một ứng dụng xem thông tin thông thường.
+
+\slide{8}{UC001 Alternative Flows}
+\talk
+Các luồng thay thế của UC001 chủ yếu xử lý dữ liệu không hợp lệ hoặc chưa đủ.
+Nếu thiếu email, số điện thoại, địa chỉ hoặc giấy tờ định danh, hệ thống không
+cho thuê và yêu cầu bổ sung. Nếu email hoặc số điện thoại đã tồn tại, hệ thống
+chặn đăng ký mới và gợi ý đăng nhập hoặc khôi phục tài khoản. Nếu giấy tờ bị sai
+hoặc bị khóa, người dùng không đủ điều kiện thuê. Với cư dân, nếu không có thẻ
+cư dân thì vẫn được thuê như khách thường, nhưng không được giảm 40\%. Nếu thẻ
+cư dân đáng ngờ, hồ sơ chuyển sang trạng thái chờ Admin/Operator rà soát.
+
+\note
+Đây là nơi giải thích vì sao Resident Customer kế thừa Customer/User: cư dân chỉ
+thêm nhánh giảm giá, không phải một hệ thống thuê xe riêng.
+
+\slide{9}{UC002 Main Flow: Find Station and Select Bicycle}
+\talk
+UC002 bắt đầu khi người dùng mở màn hình tìm trạm hoặc thuê xe. Hệ thống lấy vị
+trí hiện tại hoặc khu vực tìm kiếm thủ công. GPS/Map Service trả về vị trí hoặc
+khu vực, sau đó hệ thống liệt kê các trạm gần nhất cùng số lượng xe còn trống
+theo loại. Người dùng mở chi tiết trạm để xem mã xe, loại xe và trạng thái từng
+xe. Người dùng có thể lọc theo loại xe, chọn xe còn sẵn sàng, xác nhận thời
+lượng dự kiến và gửi yêu cầu thuê. Kết quả là một RentalRequest chờ xử lý tại
+trạm.
+
+\note
+Nói rõ “tìm trạm gần nhất”, “xem tồn kho xe”, “lọc loại xe” là các use case con
+hoặc nhánh trong mục tiêu lớn hơn, không nên tách thành các actor.
+
+\slide{10}{UC002 Alternative Flows}
+\talk
+Nếu người dùng từ chối cấp vị trí, hệ thống cho tìm trạm thủ công. Nếu GPS/Map
+Service không hoạt động, hệ thống cũng quay về tìm kiếm thủ công hoặc dùng khu
+vực gần nhất đã biết. Nếu không có trạm gần, hệ thống yêu cầu mở rộng phạm vi.
+Nếu loại xe mong muốn hết, người dùng có thể chọn loại khác hoặc trạm khác. Nếu
+xe vừa được người khác thuê hoặc chuyển sang trạng thái hỏng, hệ thống làm mới
+tồn kho và yêu cầu chọn lại. Nếu tài khoản thiếu thông tin định danh, hệ thống
+chuyển người dùng về UC001.
+
+\note
+Nhấn mạnh alternative flow không chỉ là lỗi kỹ thuật, mà còn là tình huống nghiệp
+vụ: hết xe, xe hỏng, trạm không hoạt động, tài khoản chưa đủ điều kiện.
+
+\slide{11}{UC003 Main Flow: Process Bicycle Rental and Deposit}
+\talk
+UC003 là bước nhận xe tại trạm. Người dùng đưa mã yêu cầu thuê cho Station
+Staff/Manager. Nhân viên tìm yêu cầu đang chờ xử lý trong hệ thống. Hệ thống
+hiển thị thông tin khách hàng, xe, trạm và thời lượng dự kiến. Nhân viên kiểm
+tra CCCD hoặc giấy tờ tùy thân và xác nhận giấy tờ khớp với tài khoản. Sau đó
+nhân viên nhận cọc 200 nghìn, ghi nhận loại giấy tờ đang giữ, kiểm tra lại trạng
+thái trạm và xe. Nếu mọi thứ hợp lệ, nhân viên giao đúng xe cho khách, hệ thống
+tạo Rental, ghi nhận tiền cọc, thời gian bắt đầu và chuyển xe sang trạng thái
+đang thuê.
+
+\note
+Customer chỉ báo cáo/yêu cầu thuê; nhân viên mới xử lý bàn giao và đặt cọc. Đây
+là điểm phân quyền quan trọng.
+
+\slide{12}{UC003 Alternative Flows}
+\talk
+Nếu mã yêu cầu thuê không tồn tại hoặc đã hết hạn, nhân viên từ chối bàn giao và
+yêu cầu người dùng tạo yêu cầu mới. Nếu yêu cầu thuộc trạm khác, trạm hiện tại
+không được xử lý. Nếu người dùng quên giấy tờ, giấy tờ không khớp, không đủ cọc
+hoặc từ chối để lại giấy tờ, xe không được bàn giao. Nếu xe đã hỏng, không còn ở
+trạm hoặc dữ liệu vị trí bị lệch, hệ thống chặn bàn giao và ghi nhận để vận hành
+xử lý. Nếu lưu rental hoặc deposit thất bại, xe không được đánh dấu là đang thuê.
+
+\note
+Kết luận ngắn: UC003 chỉ hoàn tất khi cả bốn điều kiện đều qua: request hợp lệ,
+identity hợp lệ, cọc hợp lệ và xe sẵn sàng.
+
+\slide{13}{UC004 Main Flow: Return Bicycle and Issue Ticket}
+\talk
+UC004 xảy ra khi người dùng mang xe tới bất kỳ trạm nào trong Ecopark để trả.
+Nhân viên tìm rental theo mã thuê, khách hàng hoặc mã xe. Hệ thống hiển thị
+thông tin chuyến thuê, trạm nhận xe ban đầu, thời gian bắt đầu, thời lượng dự
+kiến và thông tin cọc. Nhân viên kiểm tra tình trạng xe, xác nhận trạm trả và
+thời gian trả. Hệ thống tính thời lượng thực tế, tính phí cơ bản theo các mức
+50 nghìn một giờ, 70 nghìn hai giờ hoặc 100 nghìn ba giờ. Nếu khách là cư dân
+đủ điều kiện, hệ thống giảm 40\%. Nếu trả muộn, hệ thống cộng 30 nghìn cho mỗi
+30 phút. Cuối cùng hệ thống xuất vé, lưu lịch sử và cập nhật vị trí/trạng thái
+xe.
+
+\note
+Nói rõ đề bài cho phép trả xe ở bất kỳ trạm nào trong Ecopark, không bắt buộc
+trả đúng trạm đã nhận.
+
+\slide{14}{UC004 Alternative Flows}
+\talk
+Nếu trạm trả khác trạm nhận, hệ thống vẫn cho trả và cập nhật vị trí xe mới. Nếu
+không tìm thấy rental đang chạy, hệ thống chuyển sang rà soát thủ công. Nếu thông
+tin cọc bị lệch, cần đánh dấu để đối soát trước khi đóng. Nếu xe trả về bị hỏng,
+hệ thống chuyển trạng thái xe sang broken hoặc needs repair và không cho thuê
+tiếp. Nếu nhân viên nhập sai thời gian hoặc trạm trả, hệ thống cho sửa trước khi
+phát hành vé. Nếu khách tranh chấp phí trễ hoặc thời gian, vé vẫn được lưu nhưng
+đánh dấu cần Admin/Operator rà soát.
+
+\note
+Nhấn mạnh mọi trường hợp trả xe đều cần kết quả có thể audit: vé, lịch sử, trạng
+thái xe và lý do nếu cần review.
+
+\slide{15}{UC005 Main Flow: Manage Bikes, Stations and Rental Reports}
+\talk
+UC005 dành cho vận hành hệ thống. Admin/Operator hoặc Staff mở màn hình quản lý
+vận hành và chọn quản lý trạm, quản lý xe, cập nhật trạng thái, định vị xe hoặc
+xem báo cáo. Với trạm, actor có thể tạo hoặc cập nhật tên, địa chỉ, tọa độ, sức
+chứa và trạng thái hoạt động. Với xe, actor quản lý mã xe duy nhất, loại xe, vị
+trí hiện tại và trạng thái. Mọi thay đổi trạng thái hoặc vị trí đều được hệ
+thống ghi log với người thực hiện và lý do. Với báo cáo, Admin chọn khoảng thời
+gian, trạm, loại xe hoặc mã xe, sau đó hệ thống tổng hợp lượt thuê, doanh thu,
+phí trễ, lượt trả và trạng thái xe.
+
+\note
+Nói rõ Staff có thể tham gia vận hành ở phạm vi trạm, còn Admin/Operator có
+quyền toàn hệ thống và xem báo cáo tổng hợp.
+
+\slide{16}{UC005 Alternative Flows}
+\talk
+Nếu nhân viên trạm không có quyền toàn hệ thống, hệ thống giới hạn dữ liệu và
+hành động trong trạm được phân công. Nếu tạo trạm thiếu địa chỉ, tọa độ hoặc sức
+chứa, hệ thống từ chối lưu. Nếu sức chứa mới nhỏ hơn số xe đang có tại trạm, hệ
+thống không cho cập nhật. Nếu mã xe bị trùng, hệ thống từ chối tạo hoặc sửa xe.
+Nếu xe đang được thuê, hệ thống không cho đổi vị trí thủ công cho tới khi rental
+kết thúc. Nếu xe hỏng, xe bị loại khỏi danh sách có thể thuê; muốn mở lại phải
+có ghi chú kiểm tra hoặc sửa chữa. Nếu báo cáo không có dữ liệu, hệ thống hiển
+thị rỗng thay vì báo lỗi.
+
+\note
+Nhấn mạnh UC005 là use case vận hành trung tâm, giúp đảm bảo dữ liệu xe và báo
+cáo không bị sai lệch.
+
+\slide{17}{Presentation Checklist}
+\talk
+Để kết thúc, nhóm em sẽ trình bày theo thứ tự: bắt đầu từ bối cảnh và actor,
+sau đó đi vào sơ đồ use case tổng quan, giải thích schema quan hệ và lần lượt
+trình bày năm use case chính. Với mỗi use case, nhóm nêu actor, mục tiêu, kết
+quả quan sát được, main flow và alternative flow. Nhóm cũng đã tránh các lỗi mô
+hình hóa phổ biến như xem front-end, back-end hoặc database là actor, hoặc đặt
+tên use case như một bước UI quá nhỏ.
+
+\note
+Khi bị hỏi chi tiết, mở file specification A4 để chỉ bảng đầy đủ của từng UC:
+preconditions, postconditions, input, output, main flow, alternative flow và
+acceptance rules.
+
+\end{document}

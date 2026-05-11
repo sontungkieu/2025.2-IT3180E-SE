@@ -1,98 +1,140 @@
 \section{Phạm vi phân tích use case}
 
 \subsection{Hệ thống và actor}
-Hệ thống được phân tích là \textbf{Bike Sharing System}: ứng dụng thuê xe đạp theo mô hình gần với các dịch vụ như TNGO. Người dùng cần tài khoản đã xác thực, nạp tiền vào ví hoặc mua gói ngày/tháng, thuê xe theo giờ, kết thúc chuyến đi để hệ thống tính tiền và trừ ví. Nếu người dùng vi phạm quy tắc sử dụng, hệ thống ghi nhận khoản phạt và trừ vào ví theo quy định.
+Hệ thống được phân tích là \textbf{Ecopark Bicycle Parking}: hệ thống thông
+tin hỗ trợ khách thuê/trả xe đạp tại các điểm tập kết trong khu đô thị Ecopark.
+Hệ thống quản lý bãi xe, xe đạp, loại xe, trạng thái xe, yêu cầu thuê xe, nhận/trả
+xe tại bãi, phiếu thuê, lịch sử thuê và thống kê tập trung theo ngày, tuần, tháng,
+xe và bãi xe.
 
-Trong sơ đồ use case, front-end, back-end và database không được xem là actor vì chúng là thành phần kỹ thuật bên trong hệ thống.
+Phạm vi triển khai có thể gồm một website quản lý tập trung cho nhân sự vận hành
+và một app eBicycle/mobile cho khách thuê. Nếu nhóm chỉ triển khai một hệ thống
+web, hệ thống vẫn phải phục vụ được cả người quản lý và người dùng thông thường.
+
+Trong sơ đồ use case, front-end, back-end và database không được xem là actor vì
+chúng là thành phần kỹ thuật bên trong hệ thống. Bảo vệ cổng Ecopark cũng không
+được đưa vào sơ đồ use case của hệ thống này vì việc kiểm soát xe không ra khỏi
+Ecopark là quy tắc vận hành vật lý, không phải tương tác trực tiếp với phần mềm.
 
 \begin{longtable}{P{0.24\textwidth}P{0.68\textwidth}}
 \toprule
 \textbf{Actor} & \textbf{Vai trò trong hệ thống} \\
 \midrule
-Customer & Người dùng thuê xe: đăng ký/đăng nhập có xác thực, nạp ví, mua gói ngày/tháng, thuê xe, kết thúc chuyến, nhận hóa đơn và có thể báo cáo sự cố xe. \\
-Admin / Operator & Nhân sự vận hành: quản lý xe/trạm, chính sách giá, quy tắc sử dụng, mức phạt, phân loại sự cố và phân công bảo trì. \\
-Maintenance Staff & Nhân sự bảo trì: nhận việc kiểm tra xe, sửa xe, cập nhật kết quả bảo trì và trạng thái sẵn sàng của xe. \\
-GPS / Map Service & Dịch vụ bản đồ/vị trí bên ngoài hỗ trợ định vị người dùng, xe và trạm hợp lệ. \\
-Payment Gateway & Cổng thanh toán bên ngoài xử lý giao dịch nạp ví hoặc mua gói. \\
+Customer & Khách thuê xe: tạo tài khoản lần đầu, đăng nhập, tìm bãi xe gần nhất, xem xe rảnh, gửi yêu cầu thuê, nhận xe tại bãi, trả xe, xem phiếu thuê và lịch sử thuê. \\
+Resident Customer & Actor chuyên biệt của Customer/User: có đầy đủ hành vi của Customer và có thể khai báo địa chỉ/thẻ cư dân để được giảm 40\% phí thuê xe. \\
+Station Staff / Station Manager & Nhân sự tại bãi xe: kiểm tra thông tin người thuê, nhận đặt cọc 200k và giấy tờ định danh, giao xe, nhận xe trả, cập nhật vị trí/trạng thái xe tại bãi. \\
+Admin / Operator & Nhân sự quản trị/vận hành trung tâm: quản lý bãi xe, loại xe, xe đạp, chính sách giá, tài khoản cần rà soát, báo cáo thống kê và dữ liệu thuê trả toàn hệ thống. \\
+GPS / Map Service & Dịch vụ bản đồ/vị trí bên ngoài hỗ trợ xác định vị trí hiện tại của khách và gợi ý bãi xe gần nhất. \\
 \bottomrule
 \end{longtable}
 
 \subsection{Quy tắc nghiệp vụ chính}
 \begin{itemize}
-  \item Người dùng chỉ được thuê xe khi tài khoản đã xác thực, không bị khóa và không có chuyến đang chạy.
-  \item Người dùng cần có số dư ví tối thiểu hoặc gói ngày/tháng còn hiệu lực trước khi bắt đầu thuê.
-  \item Chuyến đi được tính theo thời gian thuê. Gói ngày/tháng có thể miễn hoặc giảm phí sử dụng trong phạm vi gói, nhưng không miễn các khoản phạt.
-  \item Khi kết thúc chuyến, hệ thống kiểm tra nơi trả xe, trạng thái khóa xe, thời lượng thuê và quy tắc sử dụng để tính phí cuối cùng.
-  \item Vi phạm như trả sai khu vực, không khóa xe, quá thời gian gói, làm hỏng/mất xe hoặc có khoản nợ chưa thanh toán sẽ phát sinh penalty.
+  \item Mỗi xe đạp có một mã định danh duy nhất trên toàn hệ thống.
+  \item Trạng thái xe tối thiểu gồm: đang hoạt động tốt/sẵn sàng thuê, đang được thuê, và đang hỏng/cần sửa chữa.
+  \item Lần đầu thuê xe, khách phải tạo tài khoản. Tài khoản lưu CCCD/chứng minh thư, email, địa chỉ, số điện thoại liên hệ, lịch sử thuê và chi phí từng lần thuê.
+  \item Khách gửi yêu cầu thuê trên hệ thống, sau đó gặp Station Staff / Station Manager tại bãi xe để nhận xe.
+  \item Khi nhận xe, khách phải đặt cọc 200k và gửi CCCD hoặc giấy tờ chứng minh nhân thân theo quy định vận hành.
+  \item Bảng giá thuê: 50k cho 1 giờ, 70k cho 2 giờ, 100k cho 3 giờ.
+  \item Nếu trả xe quá thời gian quy định, khách trả thêm 30k cho mỗi 30 phút phát sinh.
+  \item Khách có thể trả xe tại bất kỳ bãi xe Ecopark nào; hệ thống phải cập nhật bãi hiện tại và trạng thái mới của xe.
+  \item Cư dân Ecopark có địa chỉ và thẻ cư dân hợp lệ được giảm 40\% phí thuê xe. Tài liệu này giả định khoản giảm áp dụng cho phí thuê cơ bản, không áp dụng cho đặt cọc hoặc phụ thu trễ nếu không có chính sách khác.
+  \item Khi trả xe, hệ thống hiển thị giá tiền trên phiếu thuê, xuất phiếu và lưu lịch sử thuê trong tài khoản khách hàng.
 \end{itemize}
 
 \subsection{Năm use case quan trọng}
-Nhóm chọn 5 use case theo tiêu chí: bao phủ luồng thuê xe trả trước, phản ánh mô hình ví/gói, có đủ vai trò người dùng và vận hành, đồng thời mỗi use case là một mục tiêu nghiệp vụ hoàn chỉnh chứ không phải một bước thao tác nhỏ.
+Nhóm chọn 5 use case theo tiêu chí: bám trực tiếp đề bài Ecopark, bao phủ vòng đời
+thuê xe từ tạo tài khoản đến thống kê, có nhiều nhóm actor và mỗi use case là một
+mục tiêu nghiệp vụ hoàn chỉnh chứ không phải một thao tác nhỏ như ``bấm nút'' hay
+``nhập ô''.
 
 \begin{longtable}{P{0.13\textwidth}P{0.31\textwidth}P{0.22\textwidth}P{0.24\textwidth}}
 \toprule
 \textbf{Mã} & \textbf{Use case} & \textbf{Actor chính} & \textbf{Lý do chọn} \\
 \midrule
-UC001 & Register and Verify Account & Customer & Mượn xe là tài sản có giá trị, nên tài khoản phải được xác thực chặt. \\
-UC002 & Manage Wallet and Rental Packages & Customer, Payment Gateway & Người dùng nạp ví hoặc mua gói trước khi thuê xe. \\
-UC003 & Rent Bike by Hour & Customer, GPS / Map Service & Luồng cốt lõi: tìm xe, kiểm tra điều kiện thuê và mở khóa xe. \\
-UC004 & End Ride and Settle Charges & Customer & Kết thúc chuyến, tính phí theo giờ/gói, trừ ví và ghi nhận phạt nếu có. \\
-UC005 & Resolve Bike Maintenance Request & Admin / Operator, Maintenance Staff & Customer chỉ báo cáo sự cố; xử lý bảo trì là nghiệp vụ vận hành nội bộ. \\
+UC001 & Register and Verify Customer Account & Customer, Resident Customer & Điều kiện nền để thuê xe là có tài khoản lưu thông tin định danh, liên hệ và lịch sử thuê. \\
+UC002 & Find Station and Select Bicycle & Customer, GPS / Map Service & Khách cần tìm bãi gần nhất và chọn xe đang rảnh trước khi gửi yêu cầu thuê. \\
+UC003 & Process Bicycle Rental and Deposit & Customer, Station Staff / Station Manager & Luồng cốt lõi tại bãi: kiểm tra thông tin, nhận đặt cọc/giấy tờ, giao xe và chuyển trạng thái xe sang đang thuê. \\
+UC004 & Return Bicycle and Issue Ticket & Customer, Station Staff / Station Manager & Luồng kết thúc chuyến: nhận xe ở bất kỳ bãi Ecopark nào, tính phí, phụ thu trễ, giảm giá cư dân và xuất phiếu. \\
+UC005 & Manage Bikes, Stations and Rental Reports & Admin / Operator, Station Staff / Station Manager & Nghiệp vụ vận hành trung tâm: quản lý bãi/xe/trạng thái và thống kê thuê trả theo thời gian, xe, bãi. \\
 \bottomrule
 \end{longtable}
 
 \subsection{Phân rã use case chính thành use case con}
-Bảng dưới đây giúp phần đặc tả không dừng ở mức quá tổng quát. Các use case con vẫn là mục tiêu nghiệp vụ có ý nghĩa với actor, không phải các bước UI như ``bấm nút'', ``nhập ô'', hay thao tác nội bộ của backend.
+Các use case con dưới đây vẫn là mục tiêu nghiệp vụ có ý nghĩa với actor. Chúng
+không phải các bước UI đơn lẻ và không mô tả chi tiết kỹ thuật của front-end,
+back-end hay database.
 
 \begin{longtable}{P{0.14\textwidth}P{0.32\textwidth}P{0.46\textwidth}}
 \toprule
 \textbf{UC chính} & \textbf{Tên UC chính} & \textbf{UC con / related use cases cần xét trong đặc tả} \\
 \midrule
-UC001 & Register and Verify Account & Register Customer Account; Verify Contact Method; Submit Identity Verification; Log In Securely; Recover Account Access. \\
-UC002 & Manage Wallet and Rental Packages & Top Up Wallet; Buy Day Pass; Buy Monthly Pass; View Wallet and Package History; Retry or Cancel Pending Payment. \\
-UC003 & Rent Bike by Hour & Search Available Bikes; Scan Bike QR Code; Start Hourly Ride; Apply Active Package; View Active Ride. \\
-UC004 & End Ride and Settle Charges & Return Bike; Lock and End Ride; Report Bike Issue; Settle Ride Charge; View Receipt; Pay Outstanding Balance; Dispute Penalty. \\
-UC005 & Resolve Bike Maintenance Request & Review Issue Report; Create or Merge Maintenance Request; Assign Maintenance Task; Update Repair Result; Release or Retire Bike. \\
+UC001 & Register and Verify Customer Account & Create Customer Account; Verify Email and Identity Information; Submit Resident Card; Log In; View Rental History; Recover Account Access. \\
+UC002 & Find Station and Select Bicycle & Find Nearest Station; View Station Bicycle Inventory; Filter Bicycle Type; Select Available Bicycle; Send Rental Request. \\
+UC003 & Process Bicycle Rental and Deposit & Review Rental Request; Verify Identity Document; Collect Deposit; Confirm Bicycle Handover; Mark Bicycle as Rented; Cancel Rental Request. \\
+UC004 & Return Bicycle and Issue Ticket & Receive Returned Bicycle; Calculate Rental Fee; Apply Resident Discount; Apply Late Fee; Issue Rental Ticket; Update Bicycle Location and Status. \\
+UC005 & Manage Bikes, Stations and Rental Reports & Register/Update Station; Register/Update Bicycle; Update Bicycle Status; Locate Bicycle; View Rental Statistics; Export Rental Reports. \\
 \bottomrule
 \end{longtable}
 
-\subsection{Ghi chú về Customer, Admin và Maintenance Staff}
-Customer không phải actor trực tiếp của \textbf{UC005 Resolve Bike Maintenance Request}. Customer có thể báo cáo lỗi xe trong quá trình kết thúc chuyến hoặc qua chức năng báo cáo sự cố; báo cáo đó là dữ liệu đầu vào để Admin / Operator phân loại và tạo yêu cầu bảo trì. Sau đó Admin / Operator và Maintenance Staff cùng tham gia UC005 để xử lý xe lỗi.
+\subsection{Ghi chú về phân quyền}
+Resident Customer là actor kế thừa Customer/User: mọi use case mà Customer thực
+hiện thì Resident Customer cũng có thể thực hiện, đồng thời có thêm nhánh mở rộng
+nộp thẻ cư dân để nhận giảm giá. Trong lược đồ dữ liệu, kế thừa này được biểu diễn
+bằng USERS $\rightarrow$ CUSTOMER\_PROFILES với customer\_type là \textit{resident}
+và bản ghi RESIDENT\_CARDS tương ứng.
 
-Admin / Operator và Maintenance Staff có điểm giao nhau ở UC005: Admin / Operator tiếp nhận, phân loại, khóa trạng thái xe và phân công; Maintenance Staff kiểm tra, sửa chữa và cập nhật kết quả. Hai actor này cùng phục vụ mục tiêu nghiệp vụ là đưa xe lỗi trở lại trạng thái an toàn hoặc xác nhận xe không thể tiếp tục khai thác.
+Customer không tự xác minh tài khoản theo nghĩa nghiệp vụ quản trị. Customer chỉ
+nộp email, CCCD/giấy tờ định danh, địa chỉ và thẻ cư dân nếu có. Hệ thống tự kiểm
+tra các điều kiện cơ bản; Admin / Operator có thể rà soát thủ công các hồ sơ nghi
+ngờ hoặc hồ sơ cư dân không khớp. Vì vậy, ``verify account'' không phải use case
+chính riêng của Admin trong 5 use case được chọn, nhưng là luồng thay thế/related
+flow trong UC001.
+
+Station Staff / Station Manager và Admin / Operator có phần giao nhau ở UC005.
+Staff cập nhật trạng thái xe tại bãi được giao, xác nhận xe hỏng/cần sửa và kiểm
+tra xe trả. Admin / Operator quản lý dữ liệu toàn hệ thống, chính sách giá và báo
+cáo. Customer chỉ báo cáo hoặc cung cấp dữ liệu trong quá trình thuê/trả xe; Customer
+không trực tiếp xử lý bảo trì hay quản lý kho xe.
 
 \subsection{Use case overview}
 \begin{center}
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
   actor/.style={font=\small\bfseries,align=center},
-  uc/.style={ellipse,draw=green!45!black,thick,fill=green!10,minimum width=4.0cm,minimum height=1.05cm,align=center,font=\small},
+  uc/.style={ellipse,draw=green!45!black,thick,fill=green!10,minimum width=4.25cm,minimum height=1.05cm,align=center,font=\small},
   line/.style={draw=black!65,thick}
 ]
-\node[draw,minimum width=12.4cm,minimum height=7.1cm,anchor=north west,label={[font=\bfseries]north:Bike Sharing System}] (sys) at (0,0) {};
+\node[draw,minimum width=12.8cm,minimum height=7.3cm,anchor=north west,label={[font=\bfseries]north:Ecopark Bicycle Parking System}] (sys) at (0,0) {};
 
-\node[actor] (customer) at (-2.0,-2.8) {Customer};
-\node[actor] (admin) at (-2.0,-6.0) {Admin /\\Operator};
-\node[actor] (staff) at (14.6,-6.0) {Maintenance\\Staff};
-\node[actor] (map) at (14.6,-2.0) {GPS / Map\\Service};
-\node[actor] (pay) at (14.6,-3.8) {Payment\\Gateway};
+\node[actor] (customer) at (-2.1,-2.0) {Customer};
+\node[actor] (resident) at (-2.1,-3.6) {Resident\\Customer};
+\node[actor] (staff) at (-2.1,-6.0) {Station Staff /\\Station Manager};
+\node[actor] (admin) at (15.2,-5.8) {Admin /\\Operator};
+\node[actor] (map) at (15.2,-2.0) {GPS / Map\\Service};
 
-\node[uc] (uc1) at (3.5,-1.2) {UC001\\Register and Verify Account};
-\node[uc] (uc2) at (9.1,-1.2) {UC002\\Manage Wallet and Rental Packages};
-\node[uc] (uc3) at (3.5,-3.5) {UC003\\Rent Bike by Hour};
-\node[uc] (uc4) at (9.1,-3.5) {UC004\\End Ride and Settle Charges};
-\node[uc] (uc5) at (6.3,-5.8) {UC005\\Resolve Bike Maintenance Request};
+\node[uc] (uc1) at (3.7,-1.2) {UC001\\Register and Verify\\Customer Account};
+\node[uc] (uc2) at (9.4,-1.2) {UC002\\Find Station and\\Select Bicycle};
+\node[uc] (uc3) at (3.7,-3.7) {UC003\\Process Bicycle Rental\\and Deposit};
+\node[uc] (uc4) at (9.4,-3.7) {UC004\\Return Bicycle\\and Issue Ticket};
+\node[uc] (uc5) at (6.55,-6.0) {UC005\\Manage Bikes, Stations\\and Rental Reports};
 
 \draw[line] (customer) -- (uc1);
+\draw[line,-{Triangle[open,length=3mm,width=3mm]}] (resident) -- node[left,font=\scriptsize] {inherits} (customer);
 \draw[line] (customer) -- (uc2);
+\draw[line] (map) -- (uc2);
 \draw[line] (customer) -- (uc3);
+\draw[line] (staff) -- (uc3);
 \draw[line] (customer) -- (uc4);
-\draw[line] (pay) -- (uc2);
-\draw[line] (map) -- (uc3);
-\draw[line] (admin) -- (uc5);
+\draw[line] (staff) -- (uc4);
 \draw[line] (staff) -- (uc5);
+\draw[line] (admin) -- (uc5);
 \end{tikzpicture}
 }
 \end{center}
 
-\textbf{Lưu ý trình bày:} sơ đồ chi tiết được lưu trong file drawio kèm theo gồm 6 trang: \textit{UC Overview}, \textit{UC001 Register and Verify Account}, \textit{UC002 Manage Wallet and Rental Packages}, \textit{UC003 Rent Bike by Hour}, \textit{UC004 End Ride and Settle Charges}, và \textit{UC005 Resolve Bike Maintenance Request}.
+\textbf{Lưu ý trình bày:} sơ đồ chi tiết được lưu trong file drawio kèm theo gồm
+6 trang: \textit{UC Overview}, \textit{UC001 Register and Verify Customer Account},
+\textit{UC002 Find Station and Select Bicycle}, \textit{UC003 Process Bicycle
+Rental and Deposit}, \textit{UC004 Return Bicycle and Issue Ticket}, và
+\textit{UC005 Manage Bikes, Stations and Rental Reports}.
