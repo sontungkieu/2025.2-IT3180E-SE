@@ -1,0 +1,56 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[english,vietnamese]{babel}
+\usepackage{mathptmx}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage[unicode]{hyperref}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning,shapes.geometric}
+
+\AtBeginDocument{\selectlanguage{vietnamese}}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlist[itemize]{leftmargin=1.2cm}
+\setlist[enumerate]{leftmargin=1.2cm}
+\renewcommand{\arraystretch}{1.18}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\title{\textbf{Bike Sharing App}\\Requirement Analysis: Use-Case Analysis}
+\author{Nhóm dự án ứng dụng thuê xe đạp}
+\date{Tháng 5 năm 2026}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\textit{Tài liệu được điền theo template Use Case Specification của buổi học Requirement Analysis.}
+\end{center}
+
+\tableofcontents
+\newpage
+
+\input{sections/01_overview}
+\newpage
+\input{sections/02_relational_schema}
+\newpage
+\input{sections/03_use_case_specs}
+
+\end{document}

@@ -1,0 +1,533 @@
+\section{Detailed use-case specifications}
+
+\subsection{Use Case ``Register and Verify Account''}
+
+\textbf{1. Use case code:} UC001
+
+\textbf{2. Brief Description:} This use case describes the interaction between Customer and Bike Sharing System when the customer wishes to register, verify identity and access bike rental services. Because the bike is a valuable asset, the system must verify account ownership and customer identity before allowing rental.
+
+\textbf{3. Actors}
+\begin{itemize}
+  \item Customer
+\end{itemize}
+
+\textbf{4. Included / related sub-use cases}
+\begin{longtable}{P{0.18\textwidth}P{0.30\textwidth}P{0.42\textwidth}}
+\toprule
+\textbf{Sub UC} & \textbf{Name} & \textbf{Goal} \\
+\midrule
+UC001.1 & Register Customer Account & Customer creates an account with phone/email and password. \\
+UC001.2 & Verify Contact Method & Customer proves ownership of phone/email by OTP. \\
+UC001.3 & Submit Identity Verification & Customer submits identity data required before renting valuable assets. \\
+UC001.4 & Log In Securely & Customer accesses an existing verified account. \\
+UC001.5 & Recover Account Access & Customer resets password or recovers account using verified contact method. \\
+Related & Review Customer Verification & Admin / Operator may manually review suspicious or failed identity requests; this is a separate operational use case, not the main UC001 actor flow. \\
+\bottomrule
+\end{longtable}
+
+\textbf{5. Preconditions}
+\begin{itemize}
+  \item Customer has internet access and a reachable phone number or email.
+  \item The system can send OTP messages through the configured provider.
+  \item Identity verification policy and minimum rental eligibility rules are configured.
+\end{itemize}
+
+\textbf{6. Basic Flow of Events}
+\begin{enumerate}
+  \item Customer opens the application and chooses to register or log in.
+  \item The software displays account access options and the verification requirement for bike rental.
+  \item Customer enters account credentials and contact information (see Table A1).
+  \item The software validates required fields, password strength and duplicate phone/email.
+  \item The software sends an OTP to the selected contact method.
+  \item Customer submits the OTP.
+  \item The software verifies the OTP and creates or authenticates the account.
+  \item Customer submits identity information and required identity evidence.
+  \item The software validates the identity submission and determines identity status.
+  \item The software displays access status, verification status and rental eligibility (see Table B1).
+\end{enumerate}
+
+\textbf{7. Alternative flows}
+\begin{longtable}{P{0.06\textwidth}P{0.14\textwidth}P{0.25\textwidth}P{0.33\textwidth}P{0.12\textwidth}}
+\caption{Alternative flows of events for UC001}\\
+\toprule
+\textbf{No} & \textbf{Location} & \textbf{Condition} & \textbf{Action} & \textbf{Resume} \\
+\midrule
+1 & Step 3 & Required account fields are missing or have invalid format. & The software rejects the submission, explains field-level errors and keeps the account uncreated. & Step 3 \\
+2 & Step 4 & Phone number or email already belongs to another account. & The software blocks duplicate registration and offers login or account recovery. & Step 1 \\
+3 & Step 4 & Password does not satisfy security policy. & The software displays password rules and asks Customer to submit a stronger password. & Step 3 \\
+4 & Step 5 & OTP provider cannot deliver the code. & The software allows resend after cooldown and records OTP delivery failure for monitoring. & Step 5 \\
+5 & Step 6 & OTP is incorrect, expired or submitted too many times. & The software rejects OTP; after the retry limit, it temporarily locks verification attempts. & Step 5 or Ends \\
+6 & Step 7 & Login is from a new or risky device. & The software requires step-up OTP verification before allowing access. & Step 5 \\
+7 & Step 8 & Identity evidence is unreadable or incomplete. & The software marks identity request as rejected and asks Customer to resubmit evidence. & Step 8 \\
+8 & Step 9 & Identity data mismatches account data or blacklist/risk policy. & The software marks identity request as rejected or pending manual review and blocks rental. & Ends limited \\
+9 & Step 9 & Verification requires manual review. & The software marks account as pending verification; Customer may use non-rental features but cannot rent bikes. & Ends pending \\
+10 & Step 10 & Customer has unpaid debt or severe violation history. & The software allows login but marks rental eligibility as blocked until debt/violation is resolved. & Ends blocked \\
+\bottomrule
+\end{longtable}
+
+\textbf{8. Input data}
+\begin{longtable}{P{0.05\textwidth}P{0.18\textwidth}P{0.26\textwidth}P{0.11\textwidth}P{0.24\textwidth}P{0.08\textwidth}}
+\caption{Table A1 - Input data of account registration and verification}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Mandatory} & \textbf{Valid condition} & \textbf{Example} \\
+\midrule
+1 & FullName & Customer legal or registered name. & Yes & 2--100 characters. & Nguyen Van A \\
+2 & PhoneNumber & Primary phone number for account and OTP. & Yes & Valid, unique, reachable. & 0912345678 \\
+3 & Email & Optional email for receipt and recovery. & No & Valid format if provided. & user@gmail.com \\
+4 & Password & Secret credential for login. & Yes & Meets password policy. & Abc12345! \\
+5 & OTP & Verification code sent by system. & Yes & Correct, unexpired, within retry limit. & 123456 \\
+6 & IdentityNumber & Citizen ID, passport, student ID or equivalent. & Yes before rental & Valid format and not blacklisted. & 001203000001 \\
+7 & IdentityEvidence & Identity document/selfie evidence reference. & Yes before rental & Clear image, accepted type, not reused suspiciously. & id-front.jpg \\
+\bottomrule
+\end{longtable}
+
+\textbf{9. Output data}
+\begin{longtable}{P{0.05\textwidth}P{0.20\textwidth}P{0.35\textwidth}P{0.17\textwidth}P{0.13\textwidth}}
+\caption{Table B1 - Output data of account registration and verification}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Display format} & \textbf{Example} \\
+\midrule
+1 & UserID & Unique ID of the customer account. & String & U001 \\
+2 & AccessStatus & Login or registration result. & String & Authenticated \\
+3 & IdentityStatus & Verification result. & String & Verified \\
+4 & RentalEligibility & Whether Customer can start rental. & Text/Boolean & Eligible \\
+5 & BlockReason & Reason if rental is blocked. & Text & Unpaid debt \\
+\bottomrule
+\end{longtable}
+
+\textbf{10. Acceptance rules}
+\begin{itemize}
+  \item A customer cannot start UC003 unless IdentityStatus is \textit{Verified}.
+  \item OTP must expire and must have a retry limit.
+  \item Duplicate phone numbers are not accepted for active customer accounts.
+  \item A locked/suspended account may log in only if policy allows, but cannot rent bikes.
+\end{itemize}
+
+\newpage
+\subsection{Use Case ``Manage Wallet and Rental Packages''}
+
+\textbf{1. Use case code:} UC002
+
+\textbf{2. Brief Description:} This use case describes the interaction between Customer, Payment Gateway and Bike Sharing System when the customer wishes to top up the prepaid wallet, buy a day/month package, or review payment/package status before renting.
+
+\textbf{3. Actors}
+\begin{itemize}
+  \item Customer
+  \item Payment Gateway
+\end{itemize}
+
+\textbf{4. Included / related sub-use cases}
+\begin{longtable}{P{0.18\textwidth}P{0.30\textwidth}P{0.42\textwidth}}
+\toprule
+\textbf{Sub UC} & \textbf{Name} & \textbf{Goal} \\
+\midrule
+UC002.1 & Top Up Wallet & Customer adds prepaid balance to wallet. \\
+UC002.2 & Buy Day Pass & Customer buys a short-term rental package. \\
+UC002.3 & Buy Monthly Pass & Customer buys a longer-term package for repeated usage. \\
+UC002.4 & View Wallet and Package History & Customer reviews balance, package validity and transaction history. \\
+UC002.5 & Retry or Cancel Pending Payment & Customer handles a payment that has no final result yet. \\
+\bottomrule
+\end{longtable}
+
+\textbf{5. Preconditions}
+\begin{itemize}
+  \item Customer is logged in with an active account.
+  \item Customer wallet exists and is not locked.
+  \item Payment Gateway is available or pending payment policy is configured.
+  \item Active package catalog, prices and validity rules are configured.
+\end{itemize}
+
+\textbf{6. Basic Flow of Events}
+\begin{enumerate}
+  \item Customer opens Wallet and Packages.
+  \item The software displays wallet balance, held amount, active packages and available packages.
+  \item Customer selects Top Up Wallet, Buy Day Pass, Buy Monthly Pass or View History.
+  \item For payment actions, Customer enters amount or selects package and payment method (see Table A2).
+  \item The software validates wallet status, amount limits, package availability and customer status.
+  \item The software creates a pending wallet transaction.
+  \item The software sends payment request to Payment Gateway.
+  \item Payment Gateway returns payment result.
+  \item The software updates wallet balance or activates the package.
+  \item The software displays transaction receipt, updated wallet and package status (see Table B2).
+\end{enumerate}
+
+\textbf{7. Alternative flows}
+\begin{longtable}{P{0.06\textwidth}P{0.14\textwidth}P{0.25\textwidth}P{0.33\textwidth}P{0.12\textwidth}}
+\caption{Alternative flows of events for UC002}\\
+\toprule
+\textbf{No} & \textbf{Location} & \textbf{Condition} & \textbf{Action} & \textbf{Resume} \\
+\midrule
+1 & Step 2 & Wallet is locked due to fraud, debt or admin action. & The software displays lock reason and blocks new top-up/package purchase if policy requires. & Ends \\
+2 & Step 4 & Top-up amount is outside allowed limits. & The software rejects the amount and shows minimum/maximum rules. & Step 4 \\
+3 & Step 4 & Selected package is expired, hidden or inactive. & The software refreshes package catalog and asks Customer to choose another package. & Step 3 \\
+4 & Step 5 & Customer is unverified. & The software allows balance top-up but marks rental/package usage as blocked until verification is completed. & Ends limited \\
+5 & Step 7 & Payment Gateway times out before final result. & The software keeps transaction pending and prevents duplicate credit until reconciliation completes. & Step 10 pending \\
+6 & Step 8 & Payment is declined. & The software marks transaction failed and allows retry with another method. & Step 4 \\
+7 & Step 8 & Gateway returns success but callback is duplicated. & The software ignores duplicate callback using gateway transaction ID and does not credit twice. & Step 10 \\
+8 & Step 9 & Customer already has an active package of same type. & The software applies configured rule: extend validity, queue next package or reject purchase. & Step 10 \\
+9 & Step 9 & Wallet update fails after successful payment. & The software marks transaction for reconciliation and does not show balance until fixed. & Ends pending \\
+10 & Step 10 & Customer requests transaction history. & The software displays filtered wallet/package history without starting a payment. & Ends \\
+\bottomrule
+\end{longtable}
+
+\textbf{8. Input data}
+\begin{longtable}{P{0.05\textwidth}P{0.18\textwidth}P{0.26\textwidth}P{0.11\textwidth}P{0.24\textwidth}P{0.08\textwidth}}
+\caption{Table A2 - Input data of wallet and packages}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Mandatory} & \textbf{Valid condition} & \textbf{Example} \\
+\midrule
+1 & CustomerID & Customer who performs transaction. & Yes & Existing active customer. & U001 \\
+2 & TransactionType & Wallet/package action. & Yes & TopUp, BuyDayPass, BuyMonthlyPass, ViewHistory. & TopUp \\
+3 & Amount & Money paid by Customer. & Yes for payment & Positive amount within policy. & 100000 \\
+4 & PackageID & Package selected by Customer. & Yes for package & Existing active package. & MONTHLY01 \\
+5 & PaymentMethod & Gateway payment method. & Yes for payment & Supported method. & BankCard \\
+6 & IdempotencyKey & Unique client transaction key. & Yes & Unique for request retry. & TX-abc-01 \\
+\bottomrule
+\end{longtable}
+
+\textbf{9. Output data}
+\begin{longtable}{P{0.05\textwidth}P{0.20\textwidth}P{0.35\textwidth}P{0.17\textwidth}P{0.13\textwidth}}
+\caption{Table B2 - Output data of wallet and packages}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Display format} & \textbf{Example} \\
+\midrule
+1 & TransactionID & Unique wallet transaction. & String & WT9001 \\
+2 & WalletBalance & Available wallet balance. & Currency & 85000 VND \\
+3 & HoldAmount & Balance temporarily reserved for active ride. & Currency & 20000 VND \\
+4 & PackageStatus & Current package status. & String & Active \\
+5 & PaymentStatus & Gateway/payment status. & String & Paid \\
+6 & ValidUntil & Package expiry time if applicable. & Datetime & 2026-06-12 \\
+\bottomrule
+\end{longtable}
+
+\textbf{10. Acceptance rules}
+\begin{itemize}
+  \item Successful payment must create exactly one successful wallet transaction.
+  \item Package validity and remaining minutes must be visible before Customer starts a ride.
+  \item Pending payment must not increase wallet balance until confirmed.
+  \item Penalty debt cannot be hidden by buying a package.
+\end{itemize}
+
+\newpage
+\subsection{Use Case ``Rent Bike by Hour''}
+
+\textbf{1. Use case code:} UC003
+
+\textbf{2. Brief Description:} This use case describes the interaction between Customer, GPS / Map Service and Bike Sharing System when the customer wishes to find an available bike, satisfy rental eligibility rules and start an hourly ride.
+
+\textbf{3. Actors}
+\begin{itemize}
+  \item Customer
+  \item GPS / Map Service
+\end{itemize}
+
+\textbf{4. Included / related sub-use cases}
+\begin{longtable}{P{0.18\textwidth}P{0.30\textwidth}P{0.42\textwidth}}
+\toprule
+\textbf{Sub UC} & \textbf{Name} & \textbf{Goal} \\
+\midrule
+UC003.1 & Search Available Bikes & Customer finds rentable bikes or stations nearby. \\
+UC003.2 & Scan Bike QR Code & Customer identifies a specific bike to rent. \\
+UC003.3 & Start Hourly Ride & Customer starts a ride after eligibility and bike checks pass. \\
+UC003.4 & Apply Active Package & Customer uses a valid day/month package for the ride if applicable. \\
+UC003.5 & View Active Ride & Customer monitors active ride time, bike and charging rule. \\
+\bottomrule
+\end{longtable}
+
+\textbf{5. Preconditions}
+\begin{itemize}
+  \item Customer is logged in, verified and not suspended.
+  \item Customer has no active ride and no blocking unpaid penalty.
+  \item Customer has sufficient wallet balance/hold amount or an active package.
+  \item Bike, station and lock status are synchronized enough to make a rental decision.
+\end{itemize}
+
+\textbf{6. Basic Flow of Events}
+\begin{enumerate}
+  \item Customer opens map, nearby bikes or scan screen.
+  \item The software requests current location from GPS / Map Service.
+  \item GPS / Map Service returns location or selected search area.
+  \item The software displays available bikes/stations and important rental rules.
+  \item Customer selects a bike or scans the bike QR code (see Table A3).
+  \item The software verifies account, wallet/package, active ride, debt, bike status and lock status.
+  \item The software displays hourly price, package coverage, wallet hold and penalty rules.
+  \item Customer accepts rental conditions.
+  \item The software creates ride record and reserves required wallet hold or package usage.
+  \item The software sends unlock command and receives successful lock response.
+  \item The software marks ride as in progress and bike as in use.
+  \item The software displays active ride details (see Table B3).
+\end{enumerate}
+
+\textbf{7. Alternative flows}
+\begin{longtable}{P{0.06\textwidth}P{0.14\textwidth}P{0.25\textwidth}P{0.33\textwidth}P{0.12\textwidth}}
+\caption{Alternative flows of events for UC003}\\
+\toprule
+\textbf{No} & \textbf{Location} & \textbf{Condition} & \textbf{Action} & \textbf{Resume} \\
+\midrule
+1 & Step 2 & Customer denies location permission. & The software allows manual station search or QR scan without current location. & Step 4 \\
+2 & Step 4 & No available bike is found nearby. & The software suggests larger radius, another station or later retry. & Step 4 \\
+3 & Step 5 & QR code is invalid, damaged or belongs to another system. & The software rejects the scan and asks Customer to scan another bike. & Step 5 \\
+4 & Step 6 & Account is not verified, suspended or has unpaid debt. & The software blocks rental and shows the exact reason and required recovery action. & Ends \\
+5 & Step 6 & Customer already has an active ride. & The software opens the active ride screen instead of creating another ride. & Ends \\
+6 & Step 6 & Wallet balance is below required hold and no active package is available. & The software redirects Customer to top up wallet or buy a package. & UC002 \\
+7 & Step 6 & Bike becomes unavailable after map display. & The software rejects rental and refreshes availability. & Step 4 \\
+8 & Step 6 & Bike is under maintenance or lock status is offline. & The software blocks rental, hides the bike from available list and may create inspection signal. & Step 4 \\
+9 & Step 8 & Customer refuses rental rules or price. & The software cancels rental attempt without wallet hold. & Ends \\
+10 & Step 9 & Ride record is created but wallet hold fails. & The software cancels pending ride and keeps bike available. & Ends \\
+11 & Step 10 & Unlock command fails or times out. & The software retries according to policy, then cancels ride, releases hold and marks bike for inspection. & Ends \\
+12 & Step 12 & App loses network after unlock succeeds. & The software keeps ride in progress on server and shows active ride when Customer reconnects. & Ends active \\
+\bottomrule
+\end{longtable}
+
+\textbf{8. Input data}
+\begin{longtable}{P{0.05\textwidth}P{0.18\textwidth}P{0.26\textwidth}P{0.11\textwidth}P{0.24\textwidth}P{0.08\textwidth}}
+\caption{Table A3 - Input data of hourly bike rental}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Mandatory} & \textbf{Valid condition} & \textbf{Example} \\
+\midrule
+1 & CustomerID & Customer who starts rental. & Yes & Verified active customer. & U001 \\
+2 & CurrentLocation & Customer location. & No & Valid latitude/longitude if provided. & 21.005,105.843 \\
+3 & BikeID & Selected/scanned bike. & Yes & Existing available bike. & B102 \\
+4 & StationID & Current station/area of the bike. & Yes & Active station/allowed area. & S01 \\
+5 & RentalMode & Charging mode. & Yes & Hourly, DayPass, MonthlyPass. & Hourly \\
+6 & AcceptedRuleVersion & Rental rules accepted by Customer. & Yes & Current active version. & RULE2026A \\
+\bottomrule
+\end{longtable}
+
+\textbf{9. Output data}
+\begin{longtable}{P{0.05\textwidth}P{0.20\textwidth}P{0.35\textwidth}P{0.17\textwidth}P{0.13\textwidth}}
+\caption{Table B3 - Output data of hourly bike rental}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Display format} & \textbf{Example} \\
+\midrule
+1 & RideID & Unique active ride ID. & String & R5001 \\
+2 & RideStatus & Current ride status. & String & In progress \\
+3 & BikeStatus & Current bike status. & String & In use \\
+4 & StartedAt & Rental start time. & Datetime & 2026-05-12 08:30 \\
+5 & WalletHold & Reserved wallet balance. & Currency & 20000 VND \\
+6 & AppliedPackage & Package applied if any. & String & MONTHLY01 \\
+7 & ActiveRuleVersion & Rule version applied to ride. & String & RULE2026A \\
+\bottomrule
+\end{longtable}
+
+\textbf{10. Acceptance rules}
+\begin{itemize}
+  \item The system must not create two active rides for one customer.
+  \item Bike status must change from \textit{available} to \textit{in\_use} only after successful ride start.
+  \item Wallet hold/package reservation must be released if unlock fails.
+  \item Customer must see the applicable price/package/penalty rules before confirmation.
+\end{itemize}
+
+\newpage
+\subsection{Use Case ``End Ride and Settle Charges''}
+
+\textbf{1. Use case code:} UC004
+
+\textbf{2. Brief Description:} This use case describes the interaction between Customer and Bike Sharing System when the customer wishes to end a ride. The system checks return rules, calculates hourly fee, package coverage, overtime and penalties, then deducts the final amount from the prepaid wallet.
+
+\textbf{3. Actors}
+\begin{itemize}
+  \item Customer
+\end{itemize}
+
+\textbf{4. Included / related sub-use cases}
+\begin{longtable}{P{0.18\textwidth}P{0.30\textwidth}P{0.42\textwidth}}
+\toprule
+\textbf{Sub UC} & \textbf{Name} & \textbf{Goal} \\
+\midrule
+UC004.1 & Return Bike & Customer returns bike to valid station/area. \\
+UC004.2 & Lock and End Ride & Customer locks bike and requests ride completion. \\
+UC004.3 & Report Bike Issue & Customer reports damage or safety issue discovered during/after ride. \\
+UC004.4 & Settle Ride Charge & Customer pays ride fee, overtime fee and penalties from wallet. \\
+UC004.5 & View Receipt & Customer receives receipt and wallet/package update. \\
+UC004.6 & Pay Outstanding Balance & Customer clears debt if wallet is insufficient. \\
+UC004.7 & Dispute Penalty & Customer asks Admin / Operator to review a penalty; this is related but can be handled after settlement. \\
+\bottomrule
+\end{longtable}
+
+\textbf{5. Preconditions}
+\begin{itemize}
+  \item Customer has an active ride.
+  \item Bike can be locked or lock status can be verified.
+  \item Settlement rules, package usage and penalty rules are available.
+\end{itemize}
+
+\textbf{6. Basic Flow of Events}
+\begin{enumerate}
+  \item Customer reaches a station or allowed return area.
+  \item Customer locks the bike and selects End Ride.
+  \item The software asks Customer to confirm return location, lock status and optional bike condition note (see Table A4).
+  \item The software verifies return area, lock status and ride duration.
+  \item The software calculates base hourly fee and package-covered minutes.
+  \item The software checks violation rules: wrong return, unlocked bike, overtime, damage/loss report or debt rule.
+  \item The software creates penalty records for detected violations.
+  \item The software calculates final charge and deducts wallet balance/hold.
+  \item The software updates ride, bike, wallet, package and issue report status.
+  \item The software displays receipt, updated wallet balance and penalty/issue report result (see Table B4).
+\end{enumerate}
+
+\textbf{7. Alternative flows}
+\begin{longtable}{P{0.06\textwidth}P{0.14\textwidth}P{0.25\textwidth}P{0.33\textwidth}P{0.12\textwidth}}
+\caption{Alternative flows of events for UC004}\\
+\toprule
+\textbf{No} & \textbf{Location} & \textbf{Condition} & \textbf{Action} & \textbf{Resume} \\
+\midrule
+1 & Step 1 & Customer is outside valid return area. & The software warns Customer and shows nearest valid station/area; if Customer confirms wrong return, penalty rule is applied. & Step 3 or Step 6 \\
+2 & Step 2 & Bike is not locked. & The software refuses normal completion and asks Customer to lock bike; ride time continues until lock is confirmed. & Step 2 \\
+3 & Step 4 & Lock signal cannot be synchronized. & The software creates pending review, stores Customer evidence and may keep ride pending until Admin review. & Ends pending \\
+4 & Step 5 & Active package covers entire ride. & The software sets base ride fee to zero but still checks overtime/penalty rules. & Step 6 \\
+5 & Step 5 & Ride exceeds package included minutes. & The software calculates overtime fee from package overtime rate or hourly policy. & Step 6 \\
+6 & Step 6 & Wrong return area, unlocked return, damage, loss or overdue debt is detected. & The software creates one or more penalties using PENALTY\_RULES. & Step 7 \\
+7 & Step 8 & Wallet balance is insufficient. & The software deducts available amount, records outstanding balance and blocks new rentals until paid. & Step 9 \\
+8 & Step 8 & Wallet deduction fails due to concurrency or ledger error. & The software marks settlement pending and prevents duplicate deduction until reconciliation. & Ends pending \\
+9 & Step 9 & Customer reports a bike issue. & The software creates ISSUE\_REPORTS and marks bike as inspection required if issue affects safety. & Step 10 \\
+10 & Step 9 & Bike is returned normally with no issue. & The software marks bike available for next rental. & Step 10 \\
+11 & Step 10 & Customer disputes a penalty. & The software records a dispute request while keeping charge according to policy until review completes. & Ends \\
+12 & Step 10 & Receipt generation fails. & The software completes settlement and lets Customer view receipt later from ride history. & Ends \\
+\bottomrule
+\end{longtable}
+
+\textbf{8. Input data}
+\begin{longtable}{P{0.05\textwidth}P{0.18\textwidth}P{0.26\textwidth}P{0.11\textwidth}P{0.24\textwidth}P{0.08\textwidth}}
+\caption{Table A4 - Input data of ride settlement}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Mandatory} & \textbf{Valid condition} & \textbf{Example} \\
+\midrule
+1 & RideID & Active ride to be completed. & Yes & Existing in-progress ride. & R5001 \\
+2 & EndStationID & Return station/area. & Yes & Valid active station/area or flagged wrong return. & S03 \\
+3 & LockConfirmation & Lock signal or customer confirmation. & Yes & True or pending-review evidence. & True \\
+4 & EndedAt & Ride end request time. & Yes & After StartedAt. & 2026-05-12 09:05 \\
+5 & BikeConditionNote & Optional issue note. & No & Text up to configured limit. & Brake issue \\
+6 & EvidenceImage & Optional photo for issue/dispute. & No & Accepted image type. & issue.jpg \\
+7 & RuleVersion & Rule version used at settlement. & Yes & Active at ride start/end per policy. & RULE2026A \\
+\bottomrule
+\end{longtable}
+
+\textbf{9. Output data}
+\begin{longtable}{P{0.05\textwidth}P{0.20\textwidth}P{0.35\textwidth}P{0.17\textwidth}P{0.13\textwidth}}
+\caption{Table B4 - Output data of ride settlement}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Display format} & \textbf{Example} \\
+\midrule
+1 & ReceiptID & Settlement receipt ID. & String & RC9001 \\
+2 & RideStatus & Final ride status. & String & Completed \\
+3 & RideFee & Fee after package coverage. & Currency & 12000 VND \\
+4 & PenaltyAmount & Total penalty amount. & Currency & 50000 VND \\
+5 & TotalCharge & Final deducted amount. & Currency & 62000 VND \\
+6 & WalletBalance & Balance after settlement. & Currency & 38000 VND \\
+7 & IssueReportID & Issue report if created. & String & IR3001 \\
+\bottomrule
+\end{longtable}
+
+\textbf{10. Acceptance rules}
+\begin{itemize}
+  \item A completed ride must have exactly one settlement result or a clear pending-review status.
+  \item Package may reduce ride fee but must not remove penalty charges.
+  \item Wallet deduction must be auditable in WALLET\_TRANSACTIONS.
+  \item Unsafe bikes must not become available after settlement.
+\end{itemize}
+
+\newpage
+\subsection{Use Case ``Resolve Bike Maintenance Request''}
+
+\textbf{1. Use case code:} UC005
+
+\textbf{2. Brief Description:} This use case describes the interaction between Admin / Operator, Maintenance Staff and Bike Sharing System when a reported or detected bike issue must be reviewed, assigned, repaired and closed. Customer is not an actor of this use case; Customer only creates an issue report that can trigger this workflow.
+
+\textbf{3. Actors}
+\begin{itemize}
+  \item Admin / Operator
+  \item Maintenance Staff
+\end{itemize}
+
+\textbf{4. Included / related sub-use cases}
+\begin{longtable}{P{0.18\textwidth}P{0.30\textwidth}P{0.42\textwidth}}
+\toprule
+\textbf{Sub UC} & \textbf{Name} & \textbf{Goal} \\
+\midrule
+UC005.1 & Review Issue Report & Admin / Operator evaluates report validity and severity. \\
+UC005.2 & Create or Merge Maintenance Request & Admin / Operator creates a request or merges duplicated reports. \\
+UC005.3 & Assign Maintenance Task & Admin / Operator assigns repair work to available staff. \\
+UC005.4 & Update Repair Result & Maintenance Staff records inspection and repair result. \\
+UC005.5 & Release or Retire Bike & Admin / Operator or Maintenance Staff marks bike available, still unsafe or retired. \\
+\bottomrule
+\end{longtable}
+
+\textbf{5. Preconditions}
+\begin{itemize}
+  \item A bike exists in the system.
+  \item An issue report, failed lock event or operational inspection indicates that the bike may need maintenance.
+  \item Admin / Operator and Maintenance Staff are authenticated with appropriate roles.
+\end{itemize}
+
+\textbf{6. Basic Flow of Events}
+\begin{enumerate}
+  \item Admin / Operator opens issue reports or bikes requiring inspection.
+  \item Admin / Operator reviews report details, ride link, evidence and bike status (see Table A5).
+  \item The software creates a maintenance request or links the report to an existing open request.
+  \item The software marks the bike as maintenance or inspection required.
+  \item Admin / Operator sets priority and assigns the request to Maintenance Staff.
+  \item Maintenance Staff receives the assigned maintenance task.
+  \item Maintenance Staff inspects the bike, performs repair or records that repair cannot be completed.
+  \item Maintenance Staff updates repair notes, parts used, final safety status and evidence.
+  \item The software validates required closure data and updates request status.
+  \item The software updates bike status and related issue reports (see Table B5).
+\end{enumerate}
+
+\textbf{7. Alternative flows}
+\begin{longtable}{P{0.06\textwidth}P{0.14\textwidth}P{0.25\textwidth}P{0.33\textwidth}P{0.12\textwidth}}
+\caption{Alternative flows of events for UC005}\\
+\toprule
+\textbf{No} & \textbf{Location} & \textbf{Condition} & \textbf{Action} & \textbf{Resume} \\
+\midrule
+1 & Step 2 & Issue report is invalid, spam or unrelated to the bike. & Admin / Operator rejects report with reason and keeps bike status unchanged if no safety risk exists. & Ends \\
+2 & Step 3 & The bike already has an open maintenance request. & The software merges the report into existing request and updates priority if needed. & Step 5 \\
+3 & Step 4 & Issue indicates severe safety risk. & The software immediately hides bike from rental and marks it unavailable before assignment. & Step 5 \\
+4 & Step 5 & No Maintenance Staff is available. & The software keeps request unassigned, notifies Admin / Operator and maintains bike as unavailable. & Step 5 \\
+5 & Step 5 & Assigned staff rejects task due to area/skill mismatch. & Admin / Operator reassigns task or changes priority/area. & Step 5 \\
+6 & Step 7 & Bike cannot be found at expected station. & Maintenance Staff marks request as bike missing; Admin / Operator starts lost-bike handling. & Ends escalated \\
+7 & Step 7 & Repair requires parts or external service. & Maintenance Staff marks request waiting for parts/external repair and records expected follow-up. & Step 7 \\
+8 & Step 8 & Closure data is incomplete. & The software blocks closure and asks staff to add final status, repair note and evidence. & Step 8 \\
+9 & Step 9 & Bike fails safety check after repair. & The software keeps bike in maintenance status and escalates to Admin / Operator. & Ends unresolved \\
+10 & Step 10 & Bike is repaired and passes safety check. & The software marks request closed and bike available at its current station. & Ends \\
+\bottomrule
+\end{longtable}
+
+\textbf{8. Input data}
+\begin{longtable}{P{0.05\textwidth}P{0.18\textwidth}P{0.26\textwidth}P{0.11\textwidth}P{0.24\textwidth}P{0.08\textwidth}}
+\caption{Table A5 - Input data of maintenance request}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Mandatory} & \textbf{Valid condition} & \textbf{Example} \\
+\midrule
+1 & ReportID & Issue report that triggered maintenance. & No & Existing open report if available. & IR3001 \\
+2 & BikeID & Bike affected by the issue. & Yes & Existing bike. & B102 \\
+3 & Priority & Operational severity. & Yes & Low, Medium, High, Critical. & High \\
+4 & IssueDescription & Problem reviewed by Admin / Operator. & Yes & Meaningful text. & Brake loose \\
+5 & AssignedStaffID & Staff member assigned to repair. & Yes when assigned & Existing active staff. & ST05 \\
+6 & RepairNote & Inspection and repair result. & Yes when closing & Meaningful text. & Adjusted brake \\
+7 & FinalBikeStatus & Status after maintenance. & Yes when closing & Available, Maintenance, Retired, Lost. & Available \\
+\bottomrule
+\end{longtable}
+
+\textbf{9. Output data}
+\begin{longtable}{P{0.05\textwidth}P{0.20\textwidth}P{0.35\textwidth}P{0.17\textwidth}P{0.13\textwidth}}
+\caption{Table B5 - Output data of maintenance request}\\
+\toprule
+\textbf{No} & \textbf{Data fields} & \textbf{Description} & \textbf{Display format} & \textbf{Example} \\
+\midrule
+1 & RequestID & Maintenance request ID. & String & M3001 \\
+2 & RequestStatus & Current/final request status. & String & Closed \\
+3 & BikeStatus & Updated bike status. & String & Available \\
+4 & AssignedStaff & Staff assigned to request. & Text & Nguyen Van B \\
+5 & ResolvedAt & Completion time. & Datetime & 2026-05-12 15:20 \\
+6 & LinkedReports & Issue reports resolved/merged by this request. & List & IR3001, IR3002 \\
+\bottomrule
+\end{longtable}
+
+\textbf{10. Acceptance rules}
+\begin{itemize}
+  \item Customer is not connected to UC005 in the use-case diagram.
+  \item A bike with an open safety-related maintenance request must not be rentable.
+  \item Request closure requires final bike status and repair note.
+  \item Duplicated issue reports should be merged rather than creating many open requests for one bike.
+\end{itemize}

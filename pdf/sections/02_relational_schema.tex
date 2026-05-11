@@ -1,0 +1,53 @@
+\section{Relational schema}
+
+\subsection{Các quan hệ chính}
+Lược đồ quan hệ dưới đây tập trung vào dữ liệu cần thiết cho 5 use case đã chọn. Ký hiệu: \textbf{PK} là khóa chính, \textbf{FK} là khóa ngoại.
+
+\begin{longtable}{P{0.25\textwidth}P{0.65\textwidth}}
+\toprule
+\textbf{Bảng} & \textbf{Thuộc tính chính} \\
+\midrule
+\textbf{USERS} & \underline{user\_id} (PK), full\_name, phone, email, password\_hash, role, status, created\_at, last\_login\_at \\
+\textbf{CUSTOMER\_PROFILES} & \underline{customer\_id} (PK, FK $\rightarrow$ USERS.user\_id), identity\_number, identity\_status, risk\_level, verified\_at \\
+\textbf{VERIFICATION\_REQUESTS} & \underline{verification\_id} (PK), customer\_id (FK $\rightarrow$ CUSTOMER\_PROFILES.customer\_id), method, submitted\_data\_ref, verification\_status, reviewed\_by (FK $\rightarrow$ STAFF.staff\_id, nullable), rejected\_reason, created\_at, reviewed\_at \\
+\textbf{WALLETS} & \underline{wallet\_id} (PK), customer\_id (FK $\rightarrow$ CUSTOMER\_PROFILES.customer\_id), balance, hold\_amount, wallet\_status, updated\_at \\
+\textbf{WALLET\_TRANSACTIONS} & \underline{transaction\_id} (PK), wallet\_id (FK), type, amount, reference\_type, reference\_id, status, created\_at \\
+\textbf{RENTAL\_PACKAGES} & \underline{package\_id} (PK), package\_name, package\_type, price, valid\_days, included\_minutes, overtime\_rate, active \\
+\textbf{CUSTOMER\_PACKAGES} & \underline{customer\_package\_id} (PK), customer\_id (FK), package\_id (FK), starts\_at, expires\_at, remaining\_minutes, status \\
+\textbf{STATIONS} & \underline{station\_id} (PK), station\_name, address, latitude, longitude, capacity, status \\
+\textbf{BIKES} & \underline{bike\_id} (PK), station\_id (FK $\rightarrow$ STATIONS.station\_id), bike\_code, bike\_type, bike\_status, last\_maintenance\_at \\
+\textbf{BIKE\_LOCKS} & \underline{lock\_id} (PK), bike\_id (FK $\rightarrow$ BIKES.bike\_id), lock\_status, firmware\_version, last\_sync\_at \\
+\textbf{RIDES} & \underline{ride\_id} (PK), customer\_id (FK), bike\_id (FK), start\_station\_id (FK), end\_station\_id (FK), customer\_package\_id (FK, nullable), started\_at, ended\_at, ride\_status, duration\_minutes \\
+\textbf{RIDE\_CHARGES} & \underline{charge\_id} (PK), ride\_id (FK $\rightarrow$ RIDES.ride\_id), base\_fee, package\_discount, overtime\_fee, penalty\_amount, total\_amount, settled\_at \\
+\textbf{PAYMENTS} & \underline{payment\_id} (PK), transaction\_id (FK $\rightarrow$ WALLET\_TRANSACTIONS.transaction\_id), gateway\_transaction\_id, payment\_method, amount, payment\_status, paid\_at \\
+\textbf{PENALTY\_RULES} & \underline{rule\_id} (PK), rule\_name, trigger\_condition, penalty\_amount, active \\
+\textbf{PENALTIES} & \underline{penalty\_id} (PK), ride\_id (FK), rule\_id (FK), amount, reason, status, created\_at \\
+\textbf{ISSUE\_REPORTS} & \underline{report\_id} (PK), bike\_id (FK), reported\_by (FK $\rightarrow$ USERS.user\_id), ride\_id (FK, nullable), issue\_description, report\_status, created\_at \\
+\textbf{STAFF} & \underline{staff\_id} (PK, FK $\rightarrow$ USERS.user\_id), staff\_code, staff\_role, assigned\_area, active \\
+\textbf{MAINTENANCE\_REQUESTS} & \underline{request\_id} (PK), report\_id (FK $\rightarrow$ ISSUE\_REPORTS.report\_id, nullable), bike\_id (FK), assigned\_to (FK $\rightarrow$ STAFF.staff\_id), priority, request\_status, repair\_note, created\_at, resolved\_at \\
+\bottomrule
+\end{longtable}
+
+\subsection{Quan hệ giữa các bảng}
+\begin{itemize}
+  \item Một USERS có thể là một CUSTOMER\_PROFILES hoặc một STAFF tùy theo role.
+  \item Một CUSTOMER\_PROFILES có thể có nhiều VERIFICATION\_REQUESTS theo thời gian; request gần nhất quyết định trạng thái xác thực hiện tại nếu quy trình cần duyệt lại.
+  \item Một CUSTOMER\_PROFILES có đúng một WALLETS và có nhiều WALLET\_TRANSACTIONS.
+  \item Một giao dịch nạp ví hoặc mua gói có thể được đối soát qua PAYMENTS và Payment Gateway.
+  \item Một CUSTOMER\_PROFILES có thể sở hữu nhiều CUSTOMER\_PACKAGES theo thời gian; chỉ các gói còn hiệu lực mới được dùng khi thuê.
+  \item Một CUSTOMER\_PROFILES có nhiều RIDES; mỗi RIDE dùng đúng một BIKE và có tối đa một CUSTOMER\_PACKAGES áp dụng.
+  \item Mỗi RIDE có một RIDE\_CHARGES khi kết thúc chuyến; tổng tiền được trừ qua WALLET\_TRANSACTIONS.
+  \item Một RIDE có thể phát sinh nhiều PENALTIES dựa trên PENALTY\_RULES.
+  \item Customer có thể tạo ISSUE\_REPORTS, nhưng MAINTENANCE\_REQUESTS là luồng xử lý của Admin / Operator và Maintenance Staff.
+\end{itemize}
+
+\subsection{Ràng buộc nghiệp vụ quan trọng}
+\begin{itemize}
+  \item Không cho phép thuê xe nếu identity\_status chưa được xác thực hoặc wallet\_status không hoạt động.
+  \item Tại một thời điểm, một Customer chỉ được có một RIDE ở trạng thái \textit{in\_progress}.
+  \item Không cho phép UC003 nếu BIKES.bike\_status khác \textit{available} hoặc BIKE\_LOCKS.lock\_status không sẵn sàng.
+  \item UC003 phải giữ một khoản tiền tối thiểu trong ví hoặc xác nhận gói ngày/tháng còn hiệu lực trước khi mở khóa xe.
+  \item UC004 tính phí theo thời lượng thuê, áp dụng gói nếu hợp lệ, cộng overtime fee và penalty nếu vi phạm.
+  \item Penalty không được miễn bởi gói ngày/tháng; nếu ví không đủ tiền, tài khoản chuyển sang trạng thái nợ hoặc bị tạm khóa thuê xe.
+  \item Khi ISSUE\_REPORTS hoặc MAINTENANCE\_REQUESTS cho thấy xe không an toàn, BIKES.bike\_status phải chuyển sang \textit{maintenance}.
+\end{itemize}
