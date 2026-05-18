@@ -22,8 +22,8 @@ Ecopark là quy tắc vận hành vật lý, không phải tương tác trực t
 \midrule
 Customer & Khách thuê xe: tạo tài khoản lần đầu, đăng nhập, tìm bãi xe gần nhất, xem xe rảnh, gửi yêu cầu thuê, nhận xe tại bãi, trả xe, xem phiếu thuê và lịch sử thuê. \\
 Resident Customer & Actor chuyên biệt của Customer/User: có đầy đủ hành vi của Customer và có thể khai báo địa chỉ/thẻ cư dân để được giảm 40\% phí thuê xe. \\
-Station Staff / Station Manager & Nhân sự tại bãi xe: kiểm tra thông tin người thuê, nhận đặt cọc 200k và giấy tờ định danh, giao xe, nhận xe trả, cập nhật vị trí/trạng thái xe tại bãi. \\
-Admin / Operator & Nhân sự quản trị/vận hành trung tâm: quản lý bãi xe, loại xe, xe đạp, chính sách giá, tài khoản cần rà soát, báo cáo thống kê và dữ liệu thuê trả toàn hệ thống. \\
+Station Staff / Station Manager & Nhân sự vận hành tại bãi xe được phân công: kiểm tra thông tin người thuê, nhận đặt cọc 200k và giấy tờ định danh, giao xe, nhận xe trả, cập nhật vị trí/trạng thái xe trong phạm vi bãi. Station Manager có quyền quản lý/giám sát phạm vi bãi cao hơn Staff nhưng không cấu hình chính sách toàn hệ thống. \\
+Admin / Operator & Nhân sự vận hành trung tâm/toàn hệ thống: quản lý bãi xe, loại xe, xe đạp, chính sách giá, tài khoản cần rà soát, báo cáo thống kê và dữ liệu thuê trả toàn hệ thống. Operator theo dõi và xử lý vận hành thường ngày; Admin có quyền cấu hình/phân quyền cao hơn. \\
 GPS / Map Service & Dịch vụ bản đồ/vị trí bên ngoài hỗ trợ xác định vị trí hiện tại của khách và gợi ý bãi xe gần nhất. \\
 \bottomrule
 \end{longtable}
@@ -71,7 +71,7 @@ back-end hay database.
 \midrule
 UC001 & Register and Verify Customer Account & Create Customer Account; Verify Email and Identity Information; Submit Resident Card; Log In; View Rental History; Recover Account Access. \\
 UC002 & Find Station and Select Bicycle & Find Nearest Station; View Station Bicycle Inventory; Filter Bicycle Type; Select Available Bicycle; Send Rental Request. \\
-UC003 & Process Bicycle Rental and Deposit & Review Rental Request; Verify Identity Document; Collect Deposit; Confirm Bicycle Handover; Mark Bicycle as Rented; Cancel Rental Request. \\
+UC003 & Process Bicycle Rental and Deposit & Review Rental Request; Verify Identity Document; Collect Deposit and Hold Document; Confirm Bicycle Handover; Mark Bicycle as Rented; Cancel Rental Request. \\
 UC004 & Return Bicycle and Issue Ticket & Receive Returned Bicycle; Calculate Rental Fee; Apply Resident Discount; Apply Late Fee; Issue Rental Ticket; Update Bicycle Location and Status. \\
 UC005 & Manage Bikes, Stations and Rental Reports & Register/Update Station; Register/Update Bicycle; Update Bicycle Status; Locate Bicycle; View Rental Statistics; Export Rental Reports. \\
 \bottomrule
@@ -91,11 +91,15 @@ ngờ hoặc hồ sơ cư dân không khớp. Vì vậy, ``verify account'' khô
 chính riêng của Admin trong 5 use case được chọn, nhưng là luồng thay thế/related
 flow trong UC001.
 
-Station Staff / Station Manager và Admin / Operator có phần giao nhau ở UC005.
-Staff cập nhật trạng thái xe tại bãi được giao, xác nhận xe hỏng/cần sửa và kiểm
-tra xe trả. Admin / Operator quản lý dữ liệu toàn hệ thống, chính sách giá và báo
-cáo. Customer chỉ báo cáo hoặc cung cấp dữ liệu trong quá trình thuê/trả xe; Customer
-không trực tiếp xử lý bảo trì hay quản lý kho xe.
+Station Staff / Station Manager và Admin / Operator có phần giao nhau ở UC005
+nhưng khác rõ về phạm vi quyền. Station Staff / Station Manager xử lý nghiệp vụ
+tại bãi được phân công: giao xe, nhận xe trả, cập nhật trạng thái/vị trí xe và
+xác nhận xe hỏng/cần sửa trong phạm vi bãi. Admin / Operator xử lý tầng trung tâm:
+quản lý dữ liệu toàn hệ thống, cấu hình chính sách giá, rà soát hồ sơ và xem/xuất
+báo cáo. Có thể hiểu Operator là người giám sát vận hành thường ngày, còn Admin
+có thêm quyền cấu hình và phân quyền. Customer chỉ báo cáo hoặc cung cấp dữ liệu
+trong quá trình thuê/trả xe; Customer không trực tiếp xử lý bảo trì hay quản lý
+kho xe.
 
 \subsection{Use case overview}
 \begin{center}
