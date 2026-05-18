@@ -40,3 +40,7 @@ htmlcov/
 *.vrb
 *.bbl
 *.blg
+
+# draw.io local backup/temp files
+*.drawio.bkp
+*.drawio.dtmp
