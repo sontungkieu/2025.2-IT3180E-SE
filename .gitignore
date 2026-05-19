@@ -13,15 +13,28 @@ ENV/
 build/
 dist/
 *.egg-info/
+node_modules/
 
 # Test / coverage
 .pytest_cache/
 .coverage
 htmlcov/
+coverage/
+playwright-report/
+test-results/
 
 # Local environment and secrets
 .env
 *.env
+temp/
+
+# Local app data
+data/*.sqlite
+data/*.sqlite-*
+data/*.db
+*.sqlite
+*.sqlite-*
+*.db
 
 # Archives and local editor state
 *.zip*
