@@ -876,6 +876,10 @@ function resolveVendorPath(urlPath) {
   if (threeMatch) {
     return path.join(ROOT_DIR, 'node_modules', 'three', 'build', threeMatch[1]);
   }
+  const leafletMatch = urlPath.match(/^\/vendor\/leaflet\/(leaflet\.(?:css|js))$/);
+  if (leafletMatch) {
+    return path.join(ROOT_DIR, 'node_modules', 'leaflet', 'dist', leafletMatch[1]);
+  }
   const iconMatch = urlPath.match(/^\/vendor\/icons\/([a-z0-9-]+\.svg)$/);
   if (iconMatch) {
     return path.join(ROOT_DIR, 'node_modules', 'lucide-static', 'icons', iconMatch[1]);

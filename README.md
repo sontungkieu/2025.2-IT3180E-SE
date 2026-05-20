@@ -19,6 +19,17 @@ npm run dev
 
 Mở `http://127.0.0.1:4173`.
 
+## Cấu trúc repo
+
+- `public/`: giao diện HTML/CSS/JavaScript thuần, scene Three.js và màn hình
+  dashboard khách hàng/nhân sự.
+- `server/`: HTTP API Node.js, SQLite schema/seed, auth session cục bộ và các
+  luồng thuê-trả xe.
+- `scripts/`: smoke test giao diện bằng Playwright.
+- `test/`: test nghiệp vụ backend bằng `node --test`.
+- `docs/`: tài liệu nguồn như use-case diagram.
+- `pdf/`: tài liệu LaTeX và bản build `pdf/main.pdf`.
+
 ## Tài khoản demo
 
 | Vai trò | Email | Mật khẩu |
@@ -32,6 +43,9 @@ Mở `http://127.0.0.1:4173`.
 
 - Khách hàng tạo tài khoản, đăng nhập, bổ sung thẻ cư dân, tìm bãi gần nhất, lọc
   loại xe, chọn xe rảnh và gửi yêu cầu thuê.
+- Màn hình khách hàng có bản đồ thật bằng Leaflet/OpenStreetMap, hiển thị vị trí
+  người dùng demo và marker các bãi xe; chọn marker hoặc thẻ bãi đều cập nhật
+  danh sách xe tại bãi.
 - Nhân sự bãi xe xử lý yêu cầu nhận xe, đối chiếu CCCD, ghi nhận đặt cọc 200k,
   giao xe và chuyển xe sang trạng thái đang thuê.
 - Nhân sự/Admin nhận xe trả ở bất kỳ bãi Ecopark nào, tính vé cuối cùng, áp dụng
@@ -39,7 +53,8 @@ Mở `http://127.0.0.1:4173`.
 - Admin/Operator quản lý bãi xe, xe, trạng thái xe và xem thống kê theo ngày,
   tuần, tháng.
 - Giao diện sáng màu, ưu tiên xanh lá và xanh dương, có scene Three.js nhỏ làm
-  điểm nhấn 3D.
+  điểm nhấn 3D, các màn hình đã được kiểm tra lại trên desktop/mobile để tránh
+  che chữ, tràn ngang và lệch bố cục.
 
 ## Kiểm thử
 
@@ -57,8 +72,10 @@ npx playwright install chromium
 npm run smoke:ui
 ```
 
-Smoke test UI mở desktop/mobile, kiểm tra scene Three.js có render pixel, không có
-console error và không có horizontal overflow ở cấp trang.
+Smoke test UI mở desktop/mobile, kiểm tra scene Three.js có render pixel, bản đồ
+Leaflet có marker thật, không có console error và không có horizontal overflow ở
+cấp trang. Khi cần rà thiết kế thủ công, có thể chụp lại các trạng thái
+auth/customer/admin bằng Playwright trước khi chốt thay đổi giao diện.
 
 ## Tài liệu PDF
 

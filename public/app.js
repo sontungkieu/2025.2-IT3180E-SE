@@ -17,6 +17,7 @@ const state = {
 
 const app = document.querySelector('#app');
 const toast = document.querySelector('#toast');
+let stationMapInstance = null;
 
 init();
 
@@ -61,6 +62,7 @@ async function loadStationBikes() {
 }
 
 function render() {
+  disposeStationMap();
   if (!state.user) {
     app.innerHTML = authView();
     bindAuthEvents();
@@ -71,6 +73,9 @@ function render() {
   app.innerHTML = shellView();
   bindAppEvents();
   mountScene(document.querySelector('#scene'));
+  if (state.user.role === 'customer') {
+    mountStationMap();
+  }
 }
 
 function authView() {
@@ -86,6 +91,11 @@ function authView() {
         </div>
         <h1>Thuê xe, nhận xe và quản lý bãi trong một màn hình sáng rõ.</h1>
         <p>Luồng khách hàng và nhân sự bãi xe được triển khai theo UC001-UC005, dữ liệu lưu cục bộ bằng SQLite.</p>
+        <div class="auth-highlights" aria-label="Tóm tắt nghiệp vụ">
+          ${highlight('id-card', 'CCCD + cọc 200k')}
+          ${highlight('percent', 'Cư dân giảm 40%')}
+          ${highlight('bar-chart-3', 'Báo cáo theo kỳ')}
+        </div>
         <div id="scene" class="scene auth-scene" aria-hidden="true"></div>
       </section>
       <section class="auth-panel">
@@ -189,6 +199,7 @@ function customerView() {
             ${state.bikeTypes.map((type) => `<option value="${type.bike_type_id}" ${String(type.bike_type_id) === String(state.selectedTypeId) ? 'selected' : ''}>${escapeHtml(type.type_name)}</option>`).join('')}
           </select>
         </div>
+        ${stationMapView()}
         <div class="station-grid">${state.stations.map(stationCard).join('')}</div>
       </section>
       <section class="panel bikes-panel">
@@ -258,6 +269,134 @@ function stationCard(station) {
       <span class="station-meta">${station.distance_km ?? '-'} km · ${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh</span>
     </button>
   `;
+}
+
+function stationMapView() {
+  if (!state.stations.length) return emptyState('Chưa có bãi xe');
+  return `
+    <div class="station-map" aria-label="Bản đồ bãi xe Ecopark">
+      <div class="map-fallback" aria-hidden="true">
+        ${fallbackMapView()}
+      </div>
+      <div id="station-map-real" class="leaflet-station-map"></div>
+    </div>
+  `;
+}
+
+function fallbackMapView() {
+  const points = stationMapFallbackPoints();
+  return `
+    <div class="map-zone zone-one"></div>
+    <div class="map-zone zone-two"></div>
+    <div class="map-lake"></div>
+    <div class="map-route route-main"></div>
+    <div class="map-route route-branch"></div>
+    <span class="map-user-dot" style="--x:${points.user.x}%; --y:${points.user.y}%"><span>Bạn</span></span>
+    ${points.stations.map(({ station, x, y }) => mapPin(station, x, y)).join('')}
+  `;
+}
+
+function stationMapFallbackPoints() {
+  const lats = state.stations.map((station) => Number(station.latitude));
+  const lngs = state.stations.map((station) => Number(station.longitude));
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  const latRange = maxLat - minLat || 1;
+  const lngRange = maxLng - minLng || 1;
+  const project = (lat, lng) => ({
+    x: 14 + ((Number(lng) - minLng) / lngRange) * 72,
+    y: 14 + (1 - ((Number(lat) - minLat) / latRange)) * 72
+  });
+
+  return {
+    user: project(20.9491, 105.9346),
+    stations: state.stations.map((station) => ({ station, ...project(station.latitude, station.longitude) }))
+  };
+}
+
+function mapPin(station, x, y) {
+  const active = station.station_id === state.selectedStationId ? 'active' : '';
+  const side = x > 60 ? 'side-left' : 'side-right';
+  return `
+    <button class="map-pin ${active} ${side}" type="button" style="--x:${x}%; --y:${y}%" data-station="${station.station_id}">
+      <span class="pin-dot"></span>
+      <span class="pin-label">
+        <strong>${escapeHtml(station.station_name)}</strong>
+        <small>${station.available_bikes || 0} xe rảnh</small>
+      </span>
+    </button>
+  `;
+}
+
+function mountStationMap() {
+  const container = document.querySelector('#station-map-real');
+  if (!container || !window.L || !state.stations.length) return;
+
+  const center = stationMapCenter();
+  stationMapInstance = window.L.map(container, {
+    zoomControl: true,
+    attributionControl: false,
+    scrollWheelZoom: false
+  }).setView([center.lat, center.lng], 15);
+
+  window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(stationMapInstance);
+
+  window.L.control.attribution({ prefix: false }).addTo(stationMapInstance);
+
+  const bounds = [];
+  const user = window.L.marker([20.9491, 105.9346], {
+    icon: window.L.divIcon({
+      className: 'user-map-pin',
+      html: '<span></span><strong>Bạn</strong>',
+      iconSize: [46, 32],
+      iconAnchor: [23, 16]
+    })
+  }).addTo(stationMapInstance);
+  bounds.push(user.getLatLng());
+
+  state.stations.forEach((station) => {
+    const active = station.station_id === state.selectedStationId ? ' active' : '';
+    const marker = window.L.marker([Number(station.latitude), Number(station.longitude)], {
+      icon: window.L.divIcon({
+        className: `real-map-pin${active}`,
+        html: `<span></span><strong>${escapeHtml(station.station_name)}</strong>`,
+        iconSize: [150, 34],
+        iconAnchor: [16, 17]
+      })
+    }).addTo(stationMapInstance);
+    marker.bindPopup(`
+      <strong>${escapeHtml(station.station_name)}</strong><br>
+      ${escapeHtml(station.address)}<br>
+      ${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh
+    `);
+    marker.on('click', () => selectStation(station.station_id));
+    bounds.push(marker.getLatLng());
+  });
+
+  stationMapInstance.fitBounds(bounds, { padding: [34, 34], maxZoom: 16 });
+  container.closest('.station-map')?.classList.add('map-ready');
+}
+
+function stationMapCenter() {
+  const points = [...state.stations.map((station) => ({
+    lat: Number(station.latitude),
+    lng: Number(station.longitude)
+  })), { lat: 20.9491, lng: 105.9346 }];
+  return {
+    lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length,
+    lng: points.reduce((sum, point) => sum + point.lng, 0) / points.length
+  };
+}
+
+function disposeStationMap() {
+  if (!stationMapInstance) return;
+  stationMapInstance.remove();
+  stationMapInstance = null;
 }
 
 function bikeCard(bike) {
@@ -468,7 +607,7 @@ function bindAuthEvents() {
         })).user;
         await refreshData();
         render();
-      }, 'Đã mở tài khoản demo');
+      });
     });
   });
 }
@@ -497,13 +636,7 @@ function bindAppEvents() {
 
 function bindCustomerEvents() {
   document.querySelectorAll('[data-station]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      state.selectedStationId = Number(button.dataset.station);
-      await runAction(async () => {
-        await loadStationBikes();
-        render();
-      });
-    });
+    button.addEventListener('click', () => selectStation(Number(button.dataset.station)));
   });
   document.querySelector('#type-filter').addEventListener('change', async (event) => {
     state.selectedTypeId = event.target.value;
@@ -539,6 +672,14 @@ function bindCustomerEvents() {
         render();
       }, 'Đã gửi yêu cầu thuê xe');
     });
+  });
+}
+
+async function selectStation(stationId) {
+  state.selectedStationId = Number(stationId);
+  await runAction(async () => {
+    await loadStationBikes();
+    render();
   });
 }
 
@@ -679,6 +820,15 @@ function metric(label, value, icon) {
       <span>${label}</span>
       <strong>${value}</strong>
     </div>
+  `;
+}
+
+function highlight(icon, label) {
+  return `
+    <span class="highlight-chip">
+      <img src="/vendor/icons/${icon}.svg" alt="">
+      ${label}
+    </span>
   `;
 }
 
