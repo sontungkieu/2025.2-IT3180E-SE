@@ -52,14 +52,44 @@ async function verifyViewport(browser, baseUrl, viewport) {
   await page.waitForSelector('.dashboard-hero');
   await page.waitForTimeout(500);
   const appCanvas = await canvasStats(page);
+  const mapStats = viewport.demo.includes('customer@') ? await stationMapStats(page) : null;
   const noBodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
   assert.ok(authCanvas.nonTransparent > 1000, `${viewport.name} auth canvas is blank`);
   assert.ok(appCanvas.nonTransparent > 1000, `${viewport.name} app canvas is blank`);
+  if (mapStats) {
+    assert.equal(mapStats.pinCount >= 3, true, `${viewport.name} station map is missing pins`);
+    assert.equal(mapStats.realPinCount >= 3, true, `${viewport.name} real map markers are missing`);
+    assert.equal(mapStats.mapReady, true, `${viewport.name} station map did not initialize`);
+    assert.equal(mapStats.leafletMounted, true, `${viewport.name} Leaflet map did not mount`);
+    assert.equal(mapStats.mapOverflow, false, `${viewport.name} station map content overflows`);
+  }
   assert.equal(noBodyOverflow, true, `${viewport.name} has body-level horizontal overflow`);
   assert.deepEqual(errors, [], `${viewport.name} console errors`);
   console.log(`${viewport.name}: canvas and layout smoke passed`);
   await page.close();
+}
+
+async function stationMapStats(page) {
+  return page.evaluate(() => {
+    const map = document.querySelector('.station-map');
+    const leaflet = document.querySelector('.leaflet-station-map');
+    const realPins = [...document.querySelectorAll('.real-map-pin')];
+    const fallbackPins = [...document.querySelectorAll('.map-pin')];
+    const mapRect = map.getBoundingClientRect();
+    const visiblePins = realPins.length ? realPins : fallbackPins;
+    const mapOverflow = visiblePins.some((pin) => {
+      const rect = pin.getBoundingClientRect();
+      return rect.left < mapRect.left - 1 || rect.right > mapRect.right + 1 || rect.top < mapRect.top - 1 || rect.bottom > mapRect.bottom + 1;
+    });
+    return {
+      pinCount: visiblePins.length,
+      realPinCount: realPins.length,
+      mapReady: map.classList.contains('map-ready'),
+      leafletMounted: Boolean(leaflet && leaflet.querySelector('.leaflet-pane')),
+      mapOverflow
+    };
+  });
 }
 
 async function canvasStats(page) {

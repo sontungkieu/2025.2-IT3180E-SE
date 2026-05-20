@@ -8,9 +8,19 @@ với phạm vi môn học vì có thể chạy end-to-end trên một máy như
 luồng dữ liệu, trạng thái xe, yêu cầu thuê, phiếu thuê và báo cáo vận hành.
 
 Giao diện được thiết kế theo hướng dashboard vận hành sáng màu, ưu tiên xanh lá
-và xanh dương để bám chủ đề đô thị xanh Ecopark. Phần đầu trang có một scene 3D
+và xanh dương để bám chủ đề đô thị xanh Ecopark nhưng vẫn giữ nhịp bố cục gọn
+theo cảm hứng từ các ứng dụng vận hành hiện đại. Phần đầu trang có một scene 3D
 nhỏ bằng Three.js mô phỏng mảng xanh, mặt nước và xe đạp. Scene này chỉ đóng vai
 trò nhấn thị giác, không thay thế các bảng, form và trạng thái nghiệp vụ chính.
+Các chi tiết giao diện đã được rà lại qua ba lượt chụp màn hình và tinh chỉnh,
+bao gồm bố cục màn hình đăng nhập, kích thước hero trên mobile, độ dày bảng quản
+trị, vị trí toast và cân bằng giữa scene 3D với nội dung nghiệp vụ.
+
+Màn hình khách hàng sử dụng bản đồ thật bằng Leaflet/OpenStreetMap để hiển thị
+vị trí người dùng demo và marker các bãi xe Ecopark. Khi chọn marker hoặc thẻ
+bãi, hệ thống cập nhật bãi đang chọn và danh sách xe sẵn sàng tại bãi đó. Nếu
+tile bản đồ không tải được trong môi trường offline, khung fallback nội bộ vẫn
+giữ pin bãi xe để luồng nghiệp vụ không bị gián đoạn.
 
 \subsection{Ánh xạ use case sang màn hình web}
 \begin{longtable}{P{0.18\textwidth}P{0.34\textwidth}P{0.38\textwidth}}
@@ -57,3 +67,6 @@ Repo cung cấp các lệnh vận hành chính:
 Bộ test hiện kiểm tra đăng ký tài khoản, chống trùng email, loại xe đã giữ chỗ ra
 khỏi danh sách xe sẵn sàng, chuyển yêu cầu thuê thành rental, tính vé trả xe có
 giảm giá cư dân/phụ thu trễ và tổng hợp báo cáo.
+Smoke test giao diện bằng Playwright mở các trạng thái desktop/mobile, kiểm tra
+canvas Three.js có render, bản đồ Leaflet được mount với marker thật, không phát
+sinh console error và không có tràn ngang ở cấp trang.

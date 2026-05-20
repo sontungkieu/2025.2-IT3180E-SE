@@ -10,6 +10,11 @@
 - Added SQLite schema/seed data aligned with the requirement analysis tables.
 - Added backend tests for registration, availability, handover, return pricing
   and report aggregation.
+- Completed three UI refinement passes with screenshot review for auth,
+  customer mobile and admin desktop states, including layout density, toast
+  placement, responsive hero sizing and 3D scene balance.
+- Replaced the schematic customer station map with a usable Leaflet/OpenStreetMap
+  map, keeping station markers connected to the rental selection flow.
 - Updated README and PDF documentation for the web implementation.
 
 ## Notes
