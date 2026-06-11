@@ -276,6 +276,7 @@ function authView() {
           ${demoButton('resident@ecopark.test', 'resident123', 'Cư dân')}
           ${demoButton('staff@ecopark.test', 'staff123', 'Nhân sự bãi')}
           ${demoButton('admin@ecopark.test', 'admin123', 'Admin')}
+          ${demoButton('admin2@ecopark.test', 'admin2123', 'Admin dự phòng')}
         </div>
         <hr>
         <form id="register-form" class="form-grid compact">

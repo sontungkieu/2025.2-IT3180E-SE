@@ -38,6 +38,7 @@ Mở `http://127.0.0.1:4173`.
 | Cư dân Ecopark | `resident@ecopark.test` | `resident123` |
 | Nhân sự bãi xe | `staff@ecopark.test` | `staff123` |
 | Admin / Operator | `admin@ecopark.test` | `admin123` |
+| Admin dự phòng | `admin2@ecopark.test` | `admin2123` |
 
 ## Chức năng chính
 
@@ -57,6 +58,9 @@ Mở `http://127.0.0.1:4173`.
   luôn thấy các bước nhận xe, chọn bãi trả, kiểm tra xe và xuất vé.
 - Admin/Operator quản lý bãi xe, xe, trạng thái xe, tra cứu vị trí xe, lọc thống
   kê theo ngày/tuần/tháng, theo bãi/xe và xuất báo cáo CSV.
+- Server dùng session cookie riêng theo từng browser/context, nên có thể demo
+  đồng thời ít nhất 2 khách hàng và 2 admin: người xem gửi yêu cầu thuê trong
+  một browser, người vận hành/admin xử lý ở browser khác mà không đá phiên nhau.
 - Route demo `http://127.0.0.1:4173/gps` mô phỏng GPS xe đạp cho phần trình bày:
   chọn xe/bãi, kéo thả marker, snap xe về tuyến đường demo và cho xe đi theo
   polyline đường tới bãi nhận/trả thay vì bay thẳng qua hồ hoặc nhà.
@@ -89,9 +93,10 @@ horizontal overflow ở cấp trang. Khi cần rà thiết kế thủ công, có
 các trạng thái auth/customer/admin bằng Playwright trước khi chốt thay đổi giao
 diện.
 
-Smoke test UC chạy pipeline giao diện chính: mở GPS demo `/gps`, cư dân tìm bãi
-theo GPS/nhập tay, gửi rồi hủy yêu cầu thuê, gửi lại yêu cầu, staff giao xe sau
-khi nhận cọc/giấy tờ, nhận trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
+Smoke test UC chạy pipeline giao diện chính: mở GPS demo `/gps`, kiểm tra 2
+customer và 2 admin đăng nhập đồng thời bằng browser context riêng, cư dân tìm
+bãi theo GPS/nhập tay, gửi rồi hủy yêu cầu thuê, gửi lại yêu cầu, staff giao xe
+sau khi nhận cọc/giấy tờ, nhận trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
 
 ## Tài liệu PDF
 

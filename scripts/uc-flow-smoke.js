@@ -20,6 +20,7 @@ async function main() {
 
   try {
     await verifyGpsDemoConsole(browser, baseUrl);
+    await verifyConcurrentDemoSessions(browser, baseUrl);
 
     const page = await browser.newPage({ viewport: { width: 1366, height: 960 } });
     page.on('pageerror', (error) => {
@@ -67,7 +68,7 @@ async function main() {
     assert.ok(download.suggestedFilename().endsWith('.csv'), 'report export did not create a CSV');
 
     await page.close();
-    console.log('uc-flow: GPS demo, customer request/cancel, handover, return ticket and report export passed');
+    console.log('uc-flow: GPS demo, concurrent sessions, customer request/cancel, handover, return ticket and report export passed');
   } finally {
     await browser.close();
     await new Promise((resolve) => server.close(resolve));
@@ -89,6 +90,37 @@ async function verifyGpsDemoConsole(browser, baseUrl) {
   const noBodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
   assert.equal(noBodyOverflow, true, 'GPS demo has body-level horizontal overflow');
   await page.close();
+}
+
+async function verifyConcurrentDemoSessions(browser, baseUrl) {
+  const accounts = [
+    { email: 'customer@ecopark.test', apiPath: '/api/customer/history' },
+    { email: 'resident@ecopark.test', apiPath: '/api/customer/history' },
+    { email: 'admin@ecopark.test', apiPath: '/api/admin/reports?period=day' },
+    { email: 'admin2@ecopark.test', apiPath: '/api/admin/reports?period=day' }
+  ];
+  const contexts = await Promise.all(accounts.map(() => browser.newContext({ viewport: { width: 1180, height: 820 } })));
+  try {
+    const pages = await Promise.all(contexts.map((context) => context.newPage()));
+    await Promise.all(pages.map(async (page, index) => {
+      const account = accounts[index];
+      await page.goto(baseUrl, { waitUntil: 'networkidle' });
+      await loginDemo(page, account.email);
+      const session = await page.evaluate(() => fetch('/api/session').then((response) => response.json()));
+      assert.equal(session.user.email, account.email);
+      const apiStatus = await page.evaluate((pathname) => fetch(pathname).then((response) => response.status), account.apiPath);
+      assert.equal(apiStatus, 200, `${account.email} cannot access its role workspace API`);
+    }));
+
+    await pages[0].evaluate(() => fetch('/api/auth/logout', { method: 'POST' }));
+    const sessions = await Promise.all(pages.map((page) => page.evaluate(() => fetch('/api/session').then((response) => response.json()))));
+    assert.equal(sessions[0].user, null);
+    assert.equal(sessions[1].user.email, 'resident@ecopark.test');
+    assert.equal(sessions[2].user.email, 'admin@ecopark.test');
+    assert.equal(sessions[3].user.email, 'admin2@ecopark.test');
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+  }
 }
 
 async function loginDemo(page, email) {
