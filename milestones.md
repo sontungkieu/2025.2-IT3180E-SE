@@ -8,6 +8,9 @@
   green/sky/amber accents.
 - Added a persistent workspace rail with role-aware scroll targets and live local
   status while preserving the existing Customer/Admin/Staff feature set.
+- Replaced the toy-like hero 3D island with a cleaner isometric Bike Hub scene:
+  internal road, bike lane, canopy, dock/rack, status lights, trees and visually
+  distinct City/Tandem/Child-seat bicycles.
 - Restyled auth, dashboard hero, tables, cards, map panels, custom dropdowns,
   native selects, session chip and `/gps` demo panels so the interface feels
   closer to production operations software and less like a generic generated UI.
@@ -94,4 +97,7 @@
 - Mindmap/drawio 2026-06-11 Civic command fancy UI: reviewed; no update required
   because the change only affects visual language, layout density and motion
   presentation for existing UC001-UC005 screens.
+- Mindmap/drawio 2026-06-12 3D Bike Hub scene: reviewed; no update required
+  because the change only replaces the decorative Three.js scene and does not
+  change use-case scope, actors or flow semantics.
 - Version bump: N/A because the repo has no `VERSION` or `versioning.py`.
