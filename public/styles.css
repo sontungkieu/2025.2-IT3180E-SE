@@ -644,6 +644,73 @@ hr {
   min-width: 0;
 }
 
+.search-workflow {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(280px, 1.35fr) minmax(220px, 0.75fr);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.control-group {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.control-label {
+  color: var(--ink-700);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.segmented-control {
+  width: 100%;
+  min-height: 42px;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 4px;
+  min-width: 0;
+}
+
+.segmented-control.wrap {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.segmented-control.wrap .segment-option {
+  flex: 1 1 118px;
+}
+
+.segment-option {
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-700);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.segment-option:hover {
+  background: rgba(231, 247, 238, 0.72);
+  color: var(--leaf-800);
+}
+
+.segment-option.active {
+  background: var(--leaf-700);
+  color: white;
+  box-shadow: 0 8px 16px rgba(15, 111, 76, 0.16);
+}
+
 .flow-note {
   min-height: 42px;
   display: inline-flex;
@@ -667,6 +734,220 @@ hr {
 .flow-note img {
   width: 17px;
   height: 17px;
+}
+
+.return-pipeline-panel {
+  grid-column: 1 / -1;
+}
+
+.return-pipeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.return-step {
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  grid-template-rows: auto auto;
+  gap: 5px 10px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 12px;
+}
+
+.return-step img {
+  width: 26px;
+  height: 26px;
+  grid-row: span 2;
+}
+
+.return-step strong {
+  color: var(--ink-900);
+  line-height: 1.2;
+}
+
+.return-step span {
+  color: var(--ink-500);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.return-step.active {
+  border-color: rgba(37, 184, 118, 0.34);
+  background: linear-gradient(180deg, rgba(231, 247, 238, 0.78), rgba(255, 255, 255, 0.94));
+  box-shadow: inset 3px 0 0 var(--leaf-500);
+}
+
+.gps-demo-shell {
+  width: min(1440px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 12px 0 34px;
+}
+
+.gps-demo-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(520px, 1.28fr);
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.gps-demo-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.gps-map-panel {
+  min-height: 560px;
+}
+
+.gps-status-panel {
+  grid-column: 1 / -1;
+}
+
+.gps-demo-map {
+  width: 100%;
+  min-height: 476px;
+  overflow: hidden;
+  border: 1px solid #c9e6d5;
+  border-radius: 8px;
+  background: #dff5e8;
+}
+
+.gps-chip-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.gps-bike-grid {
+  max-height: 304px;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-color: rgba(15, 123, 92, 0.42) transparent;
+}
+
+.gps-chip {
+  min-height: 54px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink-700);
+  padding: 10px;
+  text-align: left;
+}
+
+.gps-chip strong,
+.gps-chip span {
+  overflow-wrap: anywhere;
+}
+
+.gps-chip span {
+  color: var(--ink-500);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.gps-chip.active {
+  border-color: var(--leaf-600);
+  background: var(--leaf-100);
+  color: var(--leaf-900);
+  box-shadow: inset 3px 0 0 var(--leaf-600);
+}
+
+.gps-demo-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.gps-status-card {
+  min-height: 82px;
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 13px;
+  margin-bottom: 14px;
+}
+
+.gps-status-card img {
+  width: 30px;
+  height: 30px;
+}
+
+.gps-status-card strong,
+.gps-status-card span {
+  display: block;
+}
+
+.gps-status-card span {
+  color: var(--ink-500);
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.gps-status-card.ok {
+  border-color: rgba(37, 184, 118, 0.34);
+  background: var(--leaf-100);
+}
+
+.gps-status-card.warn {
+  border-color: rgba(185, 113, 18, 0.34);
+  background: var(--amber-100);
+}
+
+.gps-checklist {
+  margin-bottom: 14px;
+}
+
+.bike-gps-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: auto !important;
+  height: auto !important;
+  border: 0;
+  background: transparent;
+}
+
+.bike-gps-pin span {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 3px solid white;
+  border-radius: 50%;
+  background: var(--amber-600);
+  box-shadow: 0 12px 28px rgba(88, 63, 14, 0.28);
+}
+
+.bike-gps-pin img {
+  width: 17px;
+  height: 17px;
+  filter: brightness(0) invert(1);
+}
+
+.bike-gps-pin strong {
+  border: 1px solid rgba(185, 113, 18, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--amber-600);
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-shadow: 0 12px 28px rgba(88, 63, 14, 0.12);
+  white-space: nowrap;
 }
 
 .detail-list {
@@ -1466,6 +1747,16 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
+  .search-workflow,
+  .gps-demo-grid,
+  .return-pipeline {
+    grid-template-columns: 1fr;
+  }
+
+  .gps-status-panel {
+    grid-column: auto;
+  }
+
   .customer-grid {
     grid-template-areas:
       "account"
@@ -1542,6 +1833,7 @@ tbody tr:last-child td {
   .compact-metrics,
   .ticket-summary,
   .inline-details,
+  .gps-demo-actions,
   .admin-form-grid,
   .demo-grid {
     grid-template-columns: 1fr;
@@ -1563,6 +1855,19 @@ tbody tr:last-child td {
 
   .station-map {
     min-height: 300px;
+  }
+
+  .gps-demo-shell {
+    width: min(100% - 20px, 1440px);
+    padding-top: 0;
+  }
+
+  .gps-map-panel {
+    min-height: auto;
+  }
+
+  .gps-demo-map {
+    min-height: 360px;
   }
 
   .map-pin {

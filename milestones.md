@@ -28,6 +28,12 @@
   Three.js canvas rendering, Leaflet markers, console errors and page overflow.
 - Added a Playwright UC pipeline smoke test covering GPS marker, manual-location
   empty state, request/cancel, request/handover, return-ticket and report export.
+- Replaced customer station-search dropdowns with segmented controls and added a
+  dedicated return pipeline panel so UC004 is visible before and after active
+  rentals exist.
+- Added `/gps` demo console for UC presentation, with draggable bike GPS snapped
+  to an internal road polyline so the demo route follows roads near pickup/return
+  stations instead of crossing lakes or buildings.
 - Updated README and PDF web implementation notes for the GSAP-based UI layer.
 
 ## 2026-05-19 - Web implementation baseline
@@ -58,4 +64,7 @@
 - Mindmap/drawio 2026-06-11 UC flow pass: reviewed again; no update required
   because the UI now activates the documented UC001-UC005 main/alternative flows
   without introducing new actors or new use cases.
+- Mindmap/drawio 2026-06-11 GPS demo route: reviewed; no update required because
+  `/gps` is a presentation aid for existing UC002/UC004 location behavior, not a
+  new use case or actor interaction.
 - Version bump: N/A because the repo has no `VERSION` or `versioning.py`.

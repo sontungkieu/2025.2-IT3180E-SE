@@ -7,6 +7,73 @@ const LOCATION_PRESETS = [
   { id: 'manual-outside', label: 'Nhập tay - ngoài phạm vi', mode: 'manual', lat: 20.9918, lng: 105.8784 }
 ];
 
+const GPS_DEMO_ROAD = [
+  { lat: 20.953894, lng: 105.933030 },
+  { lat: 20.953046, lng: 105.933525 },
+  { lat: 20.952550, lng: 105.933737 },
+  { lat: 20.951321, lng: 105.934007 },
+  { lat: 20.951220, lng: 105.933847 },
+  { lat: 20.951048, lng: 105.933788 },
+  { lat: 20.950818, lng: 105.933929 },
+  { lat: 20.950778, lng: 105.934118 },
+  { lat: 20.950879, lng: 105.934310 },
+  { lat: 20.950863, lng: 105.934552 },
+  { lat: 20.951012, lng: 105.935085 },
+  { lat: 20.950929, lng: 105.935365 },
+  { lat: 20.950903, lng: 105.935445 },
+  { lat: 20.950191, lng: 105.936164 },
+  { lat: 20.950002, lng: 105.936478 },
+  { lat: 20.949925, lng: 105.936826 },
+  { lat: 20.949953, lng: 105.937095 },
+  { lat: 20.950493, lng: 105.938015 },
+  { lat: 20.950599, lng: 105.938425 },
+  { lat: 20.950534, lng: 105.938738 },
+  { lat: 20.950098, lng: 105.939718 },
+  { lat: 20.950076, lng: 105.941014 },
+  { lat: 20.950251, lng: 105.941017 },
+  { lat: 20.950721, lng: 105.941166 },
+  { lat: 20.949819, lng: 105.941297 },
+  { lat: 20.948153, lng: 105.941423 },
+  { lat: 20.946923, lng: 105.941694 },
+  { lat: 20.946173, lng: 105.941391 },
+  { lat: 20.946113, lng: 105.941106 },
+  { lat: 20.945716, lng: 105.938157 },
+  { lat: 20.945364, lng: 105.934843 },
+  { lat: 20.945350, lng: 105.934414 },
+  { lat: 20.945495, lng: 105.933731 },
+  { lat: 20.946761, lng: 105.933778 },
+  { lat: 20.945495, lng: 105.933731 },
+  { lat: 20.945350, lng: 105.934414 },
+  { lat: 20.945716, lng: 105.938157 },
+  { lat: 20.946113, lng: 105.941106 },
+  { lat: 20.946173, lng: 105.941391 },
+  { lat: 20.946601, lng: 105.941768 },
+  { lat: 20.946593, lng: 105.941932 },
+  { lat: 20.946662, lng: 105.942032 },
+  { lat: 20.946810, lng: 105.942074 },
+  { lat: 20.946930, lng: 105.942009 },
+  { lat: 20.946986, lng: 105.941877 },
+  { lat: 20.948164, lng: 105.941653 },
+  { lat: 20.949861, lng: 105.941529 },
+  { lat: 20.950512, lng: 105.941440 },
+  { lat: 20.951298, lng: 105.941250 },
+  { lat: 20.952475, lng: 105.940773 },
+  { lat: 20.952964, lng: 105.940479 },
+  { lat: 20.953433, lng: 105.940150 },
+  { lat: 20.954396, lng: 105.939315 },
+  { lat: 20.952272, lng: 105.936688 },
+  { lat: 20.951774, lng: 105.935949 },
+  { lat: 20.951374, lng: 105.935055 },
+  { lat: 20.951196, lng: 105.934340 },
+  { lat: 20.951331, lng: 105.934095 },
+  { lat: 20.951897, lng: 105.934013 },
+  { lat: 20.952591, lng: 105.933812 },
+  { lat: 20.953665, lng: 105.933273 },
+  { lat: 20.954401, lng: 105.932742 },
+  { lat: 20.954933, lng: 105.932272 },
+  { lat: 20.954888, lng: 105.932209 }
+];
+
 const state = {
   user: null,
   stations: [],
@@ -25,13 +92,22 @@ const state = {
   reportPeriod: 'day',
   reportStationId: '',
   reportBikeId: '',
-  lastTicket: null
+  lastTicket: null,
+  gpsBikes: [],
+  gpsSelectedBikeId: null,
+  gpsTargetStationId: null,
+  gpsBikePosition: null,
+  gpsMode: 'pickup',
+  gpsRoutePath: []
 };
 
 const app = document.querySelector('#app');
 const toast = document.querySelector('#toast');
 const gsap = window.gsap;
 let stationMapInstance = null;
+let gpsMapInstance = null;
+let gpsBikeMarker = null;
+let gpsRouteTween = null;
 let motionContext = null;
 let currentView = null;
 let toastTween = null;
@@ -42,11 +118,20 @@ async function init() {
   try {
     const session = await api('/api/session');
     state.user = session.user;
-    await refreshData();
+    if (isGpsDemoRoute()) {
+      await refreshGpsDemoData();
+    } else {
+      await refreshData();
+    }
   } catch (error) {
     notify(error.message, true);
   }
   render();
+}
+
+function isGpsDemoRoute() {
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  return pathname === '/gps' || pathname.endsWith('/gps');
 }
 
 async function refreshData() {
@@ -79,6 +164,30 @@ async function refreshData() {
   }
 }
 
+async function refreshGpsDemoData() {
+  state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
+  state.stations = (await api('/api/stations?lat=20.9491&lng=105.9346')).stations;
+  const bikesByStation = await Promise.all(state.stations.map(async (station) => {
+    const payload = await api(`/api/stations/${station.station_id}/bikes`);
+    return payload.bikes.map((bike) => ({
+      ...bike,
+      station_name: station.station_name,
+      station_latitude: station.latitude,
+      station_longitude: station.longitude
+    }));
+  }));
+  state.gpsBikes = bikesByStation.flat();
+  if (!state.gpsSelectedBikeId && state.gpsBikes.length) {
+    state.gpsSelectedBikeId = state.gpsBikes.find((bike) => bike.is_available)?.bike_id || state.gpsBikes[0].bike_id;
+  }
+  if (!state.gpsTargetStationId && state.stations.length) {
+    state.gpsTargetStationId = selectedGpsBike()?.station_id || state.stations[0].station_id;
+  }
+  if (!state.gpsBikePosition) {
+    state.gpsBikePosition = offsetFromStation(selectedGpsTargetStation(), 55);
+  }
+}
+
 async function loadStationBikes() {
   if (!state.selectedStationId) {
     state.stationBikes = [];
@@ -91,6 +200,19 @@ async function loadStationBikes() {
 function render() {
   clearPageMotion();
   disposeStationMap();
+  disposeGpsDemoMap();
+  if (isGpsDemoRoute()) {
+    const nextView = 'gps-demo';
+    const isViewSwitch = currentView !== nextView;
+    currentView = nextView;
+    app.className = 'app-root view-gps-demo';
+    app.innerHTML = gpsDemoView();
+    resetScrollOnViewSwitch(isViewSwitch);
+    bindGpsDemoEvents();
+    mountGpsDemoMap();
+    runPageMotion(nextView, isViewSwitch);
+    return;
+  }
   const nextView = !state.user ? 'auth' : state.user.role === 'customer' ? 'customer' : 'operations';
   const isViewSwitch = currentView !== nextView;
   currentView = nextView;
@@ -235,10 +357,7 @@ function customerView() {
       <section class="panel stations-panel">
         <div class="section-heading">
           <h2>Bãi xe gần bạn</h2>
-          <select id="type-filter" aria-label="Lọc loại xe">
-            <option value="">Tất cả loại xe</option>
-            ${state.bikeTypes.map((type) => `<option value="${type.bike_type_id}" ${String(type.bike_type_id) === String(state.selectedTypeId) ? 'selected' : ''}>${escapeHtml(type.type_name)}</option>`).join('')}
-          </select>
+          <span>${state.stations.length} bãi</span>
         </div>
         ${stationSearchControls()}
         ${stationMapView()}
@@ -280,9 +399,16 @@ function operationsView() {
         </div>
         ${pendingRequestsTable()}
       </section>
+      <section class="panel return-pipeline-panel">
+        <div class="section-heading">
+          <h2>Pipeline trả xe</h2>
+          <span>${state.activeRentals.length} lượt đang chạy</span>
+        </div>
+        ${returnPipelineView()}
+      </section>
       <section class="panel active-panel">
         <div class="section-heading">
-          <h2>Xe đang thuê</h2>
+          <h2>Danh sách trả xe</h2>
           <span>${state.activeRentals.length} lượt</span>
         </div>
         ${activeRentalsTable()}
@@ -301,24 +427,329 @@ function operationsView() {
   `;
 }
 
+function gpsDemoView() {
+  const bike = selectedGpsBike();
+  const target = selectedGpsTargetStation();
+  const distance = gpsDistanceToTarget();
+  const near = distance <= 120;
+  return `
+    <div class="gps-demo-shell">
+      <header class="topbar gps-demo-topbar">
+        <div class="brand-row">
+          <span class="brand-mark"><img src="/vendor/icons/navigation.svg" alt=""></span>
+          <div>
+            <strong>GPS Demo Console</strong>
+            <span>/gps · mô phỏng vị trí xe cho UC002/UC004</span>
+          </div>
+        </div>
+        <div class="user-actions">
+          <a class="ghost" href="/"><img src="/vendor/icons/layout-dashboard.svg" alt="">Dashboard</a>
+          <button id="refresh-gps-demo" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu GPS demo"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
+        </div>
+      </header>
+      <main class="gps-demo-grid">
+        <section class="panel gps-demo-panel">
+          <div class="section-heading">
+            <h2>Kịch bản demo GPS</h2>
+            <span>${state.gpsMode === 'pickup' ? 'UC002 / UC003' : 'UC004'}</span>
+          </div>
+          <div class="control-group">
+            <span class="control-label">Luồng cần diễn</span>
+            <div class="segmented-control">
+              <button class="segment-option ${state.gpsMode === 'pickup' ? 'active' : ''}" type="button" data-gps-mode="pickup">Mượn / nhận xe</button>
+              <button class="segment-option ${state.gpsMode === 'return' ? 'active' : ''}" type="button" data-gps-mode="return">Trả xe</button>
+            </div>
+          </div>
+          <div class="control-group">
+            <span class="control-label">Xe demo</span>
+            <div class="gps-chip-grid gps-bike-grid">
+              ${state.gpsBikes.map((item) => gpsBikeChip(item)).join('')}
+            </div>
+          </div>
+          <div class="control-group">
+            <span class="control-label">Bãi đích</span>
+            <div class="gps-chip-grid gps-station-grid">
+              ${state.stations.map((station) => gpsStationChip(station)).join('')}
+            </div>
+          </div>
+          <div class="gps-demo-actions">
+            <button class="primary" type="button" data-gps-snap="near"><img src="/vendor/icons/crosshair.svg" alt="">Kéo gần bãi</button>
+            <button class="secondary" type="button" data-gps-snap="far"><img src="/vendor/icons/map-pinned.svg" alt="">Đẩy ra xa</button>
+          </div>
+        </section>
+        <section class="panel gps-map-panel">
+          <div class="section-heading">
+            <h2>Vị trí xe mô phỏng</h2>
+            <span>${bike ? escapeHtml(bike.bike_code) : 'N/A'}</span>
+          </div>
+          <div id="gps-demo-map" class="gps-demo-map" aria-label="Bản đồ kéo thả GPS xe đạp"></div>
+        </section>
+        <section class="panel gps-status-panel">
+          <div class="section-heading">
+            <h2>Điều kiện demo</h2>
+            <span>${target ? escapeHtml(target.station_name) : 'N/A'}</span>
+          </div>
+          <div class="gps-status-card ${near ? 'ok' : 'warn'}">
+            <img src="/vendor/icons/${near ? 'badge-check' : 'badge-alert'}.svg" alt="">
+            <div>
+              <strong>${near ? 'Đủ gần bãi đích' : 'Chưa đủ gần bãi đích'}</strong>
+              <span>${Math.round(distance)} m · ngưỡng demo 120 m</span>
+            </div>
+          </div>
+          <div class="return-pipeline gps-checklist">
+            ${returnStep('map-pin', state.gpsMode === 'pickup' ? 'Chọn bãi nhận' : 'Chọn bãi trả', target ? escapeHtml(target.station_name) : 'Chưa có bãi', Boolean(target))}
+            ${returnStep('navigation', 'GPS xe', `${Math.round(distance)} m tới bãi`, near)}
+            ${returnStep('bike', state.gpsMode === 'pickup' ? 'Mượn xe' : 'Nhận xe trả', bike ? `${escapeHtml(bike.bike_code)} · ${statusLabel(bike.bike_status)}` : 'Chưa chọn xe', Boolean(bike))}
+            ${returnStep('receipt-text', state.gpsMode === 'pickup' ? 'Gửi yêu cầu' : 'Cập nhật vé/trạng thái', near ? 'Có thể diễn flow' : 'Kéo xe gần hơn', near)}
+          </div>
+          <dl class="detail-list inline-details">
+            <div><dt>Lat</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lat.toFixed(6) : '-'}</dd></div>
+            <div><dt>Lng</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lng.toFixed(6) : '-'}</dd></div>
+            <div><dt>Loại xe</dt><dd>${bike ? escapeHtml(bike.type_name) : '-'}</dd></div>
+          </dl>
+        </section>
+      </main>
+    </div>
+  `;
+}
+
+function gpsBikeChip(bike) {
+  const active = Number(state.gpsSelectedBikeId) === bike.bike_id ? 'active' : '';
+  return `
+    <button class="gps-chip ${active}" type="button" data-gps-bike="${bike.bike_id}">
+      <strong>${escapeHtml(bike.bike_code)}</strong>
+      <span>${escapeHtml(bikeTypeShortLabel(bike.type_name))} · ${escapeHtml(bike.station_name)}</span>
+    </button>
+  `;
+}
+
+function gpsStationChip(station) {
+  const active = Number(state.gpsTargetStationId) === station.station_id ? 'active' : '';
+  return `
+    <button class="gps-chip ${active}" type="button" data-gps-station="${station.station_id}">
+      <strong>${escapeHtml(station.station_name)}</strong>
+      <span>${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh</span>
+    </button>
+  `;
+}
+
+function selectedGpsBike() {
+  return state.gpsBikes.find((bike) => bike.bike_id === Number(state.gpsSelectedBikeId)) || state.gpsBikes[0] || null;
+}
+
+function selectedGpsTargetStation() {
+  return state.stations.find((station) => station.station_id === Number(state.gpsTargetStationId)) || state.stations[0] || null;
+}
+
+function gpsDistanceToTarget() {
+  const target = selectedGpsTargetStation();
+  const position = state.gpsBikePosition;
+  if (!target || !position) return Infinity;
+  return distanceMeters(position.lat, position.lng, target.latitude, target.longitude);
+}
+
+function setGpsBikeNearTarget(isNear) {
+  const target = selectedGpsTargetStation();
+  if (!target) return;
+  const destination = isNear ? roadPointNearStation(target) : roadPointAwayFromStation(target);
+  state.gpsRoutePath = buildRoadRoute(state.gpsBikePosition || destination, destination);
+  state.gpsBikePosition = destination;
+}
+
+function offsetFromStation(station, meters) {
+  if (!station) return { ...GPS_DEMO_ROAD[0] };
+  return meters <= 120 ? roadPointNearStation(station) : roadPointAwayFromStation(station);
+}
+
+function roadPointNearStation(station) {
+  return snapToRoad(Number(station.latitude), Number(station.longitude));
+}
+
+function roadPointAwayFromStation(station) {
+  const stationLat = Number(station.latitude);
+  const stationLng = Number(station.longitude);
+  const minimumDemoDistance = 320;
+  let fallback = { point: GPS_DEMO_ROAD[0], distance: 0 };
+  const candidate = GPS_DEMO_ROAD.find((point) => {
+    const distance = distanceMeters(stationLat, stationLng, point.lat, point.lng);
+    if (distance > fallback.distance) fallback = { point, distance };
+    return distance >= minimumDemoDistance;
+  });
+  const point = candidate || fallback.point;
+  return snapToRoad(point.lat, point.lng);
+}
+
+function snapToRoad(lat, lng) {
+  let best = { distance: Infinity, point: { ...GPS_DEMO_ROAD[0], roadIndex: 0, roadT: 0 } };
+  GPS_DEMO_ROAD.forEach((point, index) => {
+    const nextPoint = GPS_DEMO_ROAD[(index + 1) % GPS_DEMO_ROAD.length];
+    const candidate = closestPointOnRoadSegment(lat, lng, point, nextPoint);
+    const distance = distanceMeters(lat, lng, candidate.lat, candidate.lng);
+    if (distance < best.distance) {
+      best = {
+        distance,
+        point: {
+          lat: candidate.lat,
+          lng: candidate.lng,
+          roadIndex: index,
+          roadT: candidate.t
+        }
+      };
+    }
+  });
+  return best.point;
+}
+
+function closestPointOnRoadSegment(lat, lng, start, end) {
+  const dx = end.lng - start.lng;
+  const dy = end.lat - start.lat;
+  const lengthSquared = dx * dx + dy * dy;
+  const rawT = lengthSquared === 0 ? 0 : ((lng - start.lng) * dx + (lat - start.lat) * dy) / lengthSquared;
+  const t = Math.max(0, Math.min(1, rawT));
+  return {
+    lat: start.lat + (end.lat - start.lat) * t,
+    lng: start.lng + (end.lng - start.lng) * t,
+    t
+  };
+}
+
+function nearestRoadIndex(lat, lng) {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  GPS_DEMO_ROAD.forEach((point, index) => {
+    const distance = distanceMeters(lat, lng, point.lat, point.lng);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
+function buildRoadRoute(from, to) {
+  if (!from || !to) return [];
+  const start = roadRef(from);
+  const end = roadRef(to);
+  const forward = normalizeRoutePath(buildDirectedRoadRoute(start, end, 1));
+  const backward = normalizeRoutePath(buildDirectedRoadRoute(start, end, -1));
+  return routeLengthMeters(forward) <= routeLengthMeters(backward) ? forward : backward;
+}
+
+function roadRef(point) {
+  if (Number.isFinite(point?.roadIndex) && Number.isFinite(point?.roadT)) {
+    return {
+      lat: Number(point.lat),
+      lng: Number(point.lng),
+      roadIndex: Number(point.roadIndex),
+      roadT: Number(point.roadT)
+    };
+  }
+  return snapToRoad(Number(point.lat), Number(point.lng));
+}
+
+function buildDirectedRoadRoute(start, end, direction) {
+  const route = [{ lat: start.lat, lng: start.lng }];
+  const roadCount = GPS_DEMO_ROAD.length;
+  if (start.roadIndex === end.roadIndex) {
+    const endIsAhead = end.roadT >= start.roadT;
+    if ((direction === 1 && endIsAhead) || (direction === -1 && !endIsAhead)) {
+      route.push({ lat: end.lat, lng: end.lng });
+      return route;
+    }
+  }
+
+  let vertexIndex = direction === 1 ? (start.roadIndex + 1) % roadCount : start.roadIndex;
+  const finalVertexIndex = direction === 1 ? end.roadIndex : (end.roadIndex + 1) % roadCount;
+  route.push({ ...GPS_DEMO_ROAD[vertexIndex] });
+  while (vertexIndex !== finalVertexIndex) {
+    vertexIndex = (vertexIndex + direction + roadCount) % roadCount;
+    route.push({ ...GPS_DEMO_ROAD[vertexIndex] });
+  }
+  route.push({ lat: end.lat, lng: end.lng });
+  return route;
+}
+
+function normalizeRoutePath(path) {
+  return path.reduce((items, point) => {
+    const previous = items[items.length - 1];
+    if (!previous || distanceMeters(previous.lat, previous.lng, point.lat, point.lng) > 0.2) {
+      items.push({ lat: point.lat, lng: point.lng });
+    }
+    return items;
+  }, []);
+}
+
+function routeLengthMeters(path) {
+  return path.reduce((sum, point, index) => {
+    if (index === 0) return sum;
+    const previous = path[index - 1];
+    return sum + distanceMeters(previous.lat, previous.lng, point.lat, point.lng);
+  }, 0);
+}
+
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const radius = 6371000;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLng = toRad(Number(lng2) - Number(lng1));
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(Number(lat1))) * Math.cos(toRad(Number(lat2))) * Math.sin(dLng / 2) ** 2;
+  return 2 * radius * Math.asin(Math.sqrt(a));
+}
+
+function toRad(value) {
+  return Number(value) * Math.PI / 180;
+}
+
 function stationSearchControls() {
   const selected = currentLocation();
   return `
-    <div class="flow-controls location-controls" aria-label="Điều kiện tìm bãi">
-      <label>Vị trí tìm kiếm
-        <select id="location-preset">
-          ${LOCATION_PRESETS.map((preset) => `<option value="${preset.id}" ${preset.id === state.locationPresetId ? 'selected' : ''}>${escapeHtml(preset.label)}</option>`).join('')}
-        </select>
-      </label>
-      <label>Phạm vi
-        <select id="station-range">
-          ${[1, 3, 5, 10].map((range) => `<option value="${range}" ${Number(state.stationRangeKm) === range ? 'selected' : ''}>${range} km</option>`).join('')}
-        </select>
-      </label>
+    <div class="search-workflow" aria-label="Điều kiện tìm bãi">
+      <div class="control-group">
+        <span class="control-label">Loại xe</span>
+        <div class="segmented-control wrap">
+          <button class="segment-option ${state.selectedTypeId === '' ? 'active' : ''}" type="button" data-type-filter="">Tất cả</button>
+          ${state.bikeTypes.map((type) => `<button class="segment-option ${String(type.bike_type_id) === String(state.selectedTypeId) ? 'active' : ''}" type="button" data-type-filter="${type.bike_type_id}">${escapeHtml(bikeTypeShortLabel(type.type_name))}</button>`).join('')}
+        </div>
+      </div>
+      <div class="control-group wide">
+        <span class="control-label">Vị trí tìm kiếm</span>
+        <div class="segmented-control wrap">
+          ${LOCATION_PRESETS.map((preset) => `<button class="segment-option ${preset.id === state.locationPresetId ? 'active' : ''}" type="button" data-location-preset="${preset.id}">${escapeHtml(locationShortLabel(preset))}</button>`).join('')}
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Phạm vi</span>
+        <div class="segmented-control">
+          ${[1, 3, 5, 10].map((range) => `<button class="segment-option ${Number(state.stationRangeKm) === range ? 'active' : ''}" type="button" data-station-range="${range}">${range} km</button>`).join('')}
+        </div>
+      </div>
       <span class="flow-note ${selected.mode === 'gps' ? 'ok' : ''}">
         <img src="/vendor/icons/${selected.mode === 'gps' ? 'locate-fixed' : 'map-pinned'}.svg" alt="">
         ${selected.mode === 'gps' ? 'GPS demo đang bật' : 'Đang dùng vị trí nhập tay'}
       </span>
+    </div>
+  `;
+}
+
+function returnPipelineView() {
+  const hasActive = state.activeRentals.length > 0;
+  const ticket = state.lastTicket;
+  return `
+    <div class="return-pipeline">
+      ${returnStep('bike', 'Nhận xe', hasActive ? `${state.activeRentals.length} lượt sẵn sàng xử lý` : 'Chưa có lượt đang thuê', hasActive)}
+      ${returnStep('map-pin', 'Chọn bãi trả', hasActive ? 'Có thể khác bãi nhận' : 'Chờ rental active', hasActive)}
+      ${returnStep('wrench', 'Kiểm tra xe', hasActive ? 'Sẵn sàng hoặc cần sửa' : 'Chờ xe trả', hasActive)}
+      ${returnStep('receipt-text', 'Xuất vé', ticket ? `TCK${ticket.ticket_id} · ${money(ticket.total_amount)}` : 'Chưa có vé mới', Boolean(ticket))}
+    </div>
+  `;
+}
+
+function returnStep(icon, title, value, active) {
+  return `
+    <div class="return-step ${active ? 'active' : ''}">
+      <img src="/vendor/icons/${icon}.svg" alt="">
+      <strong>${title}</strong>
+      <span>${value}</span>
     </div>
   `;
 }
@@ -388,6 +819,23 @@ function ticketPanel() {
 
 function currentLocation() {
   return LOCATION_PRESETS.find((preset) => preset.id === state.locationPresetId) || LOCATION_PRESETS[0];
+}
+
+function locationShortLabel(preset) {
+  return ({
+    'gps-demo': 'GPS demo',
+    'manual-green-bay': 'Green Bay',
+    'manual-aqua-bay': 'Aqua Bay',
+    'manual-outside': 'Ngoài phạm vi'
+  })[preset.id] || preset.label;
+}
+
+function bikeTypeShortLabel(typeName) {
+  const value = String(typeName || '').toLowerCase();
+  if (value.includes('tandem')) return 'Tandem';
+  if (value.includes('child')) return 'Child-seat';
+  if (value.includes('city')) return 'City';
+  return typeName;
 }
 
 function stationCard(station) {
@@ -532,6 +980,160 @@ function disposeStationMap() {
   stationMapInstance = null;
 }
 
+function mountGpsDemoMap() {
+  const container = document.querySelector('#gps-demo-map');
+  if (!container || !window.L || !state.stations.length || !state.gpsBikePosition) return;
+
+  const target = selectedGpsTargetStation();
+  const mapCenter = target
+    ? { lat: Number(target.latitude), lng: Number(target.longitude) }
+    : state.gpsBikePosition;
+  gpsMapInstance = window.L.map(container, {
+    zoomControl: true,
+    attributionControl: false,
+    scrollWheelZoom: false
+  }).setView([mapCenter.lat, mapCenter.lng], 15);
+
+  window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(gpsMapInstance);
+  window.L.control.attribution({ prefix: false }).addTo(gpsMapInstance);
+
+  const roadLatLngs = [...GPS_DEMO_ROAD, GPS_DEMO_ROAD[0]].map((point) => [point.lat, point.lng]);
+  window.L.polyline(roadLatLngs, {
+    color: '#37564d',
+    opacity: 0.7,
+    weight: 5,
+    dashArray: '7 8'
+  }).addTo(gpsMapInstance);
+
+  const routePath = state.gpsRoutePath.length > 1 ? state.gpsRoutePath : [state.gpsBikePosition];
+  if (routePath.length > 1) {
+    window.L.polyline(routePath.map((point) => [point.lat, point.lng]), {
+      color: '#fff4cf',
+      opacity: 0.96,
+      weight: 11
+    }).addTo(gpsMapInstance);
+    window.L.polyline(routePath.map((point) => [point.lat, point.lng]), {
+      color: '#0b7b5c',
+      opacity: 0.98,
+      weight: 7
+    }).addTo(gpsMapInstance);
+  }
+
+  state.stations.forEach((station) => {
+    const active = station.station_id === Number(state.gpsTargetStationId) ? ' active' : '';
+    window.L.marker([Number(station.latitude), Number(station.longitude)], {
+      icon: window.L.divIcon({
+        className: `real-map-pin${active}`,
+        html: `<span></span><strong>${escapeHtml(station.station_name)}</strong>`,
+        iconSize: [150, 34],
+        iconAnchor: [16, 17]
+      })
+    }).addTo(gpsMapInstance);
+  });
+
+  if (target) {
+    window.L.circle([Number(target.latitude), Number(target.longitude)], {
+      radius: 120,
+      color: '#1596c2',
+      fillColor: '#1596c2',
+      fillOpacity: 0.08,
+      weight: 2
+    }).addTo(gpsMapInstance);
+  }
+
+  const startPoint = routePath[0] || state.gpsBikePosition;
+  gpsBikeMarker = window.L.marker([startPoint.lat, startPoint.lng], {
+    draggable: true,
+    icon: window.L.divIcon({
+      className: 'bike-gps-pin',
+      html: '<span><img src="/vendor/icons/bike.svg" alt=""></span><strong>GPS xe</strong>',
+      iconSize: [92, 36],
+      iconAnchor: [18, 18]
+    })
+  }).addTo(gpsMapInstance);
+  gpsBikeMarker.on('drag', () => {
+    const latLng = gpsBikeMarker.getLatLng();
+    const snapped = snapToRoad(latLng.lat, latLng.lng);
+    gpsBikeMarker.setLatLng([snapped.lat, snapped.lng]);
+  });
+  gpsBikeMarker.on('dragend', () => {
+    const latLng = gpsBikeMarker.getLatLng();
+    const snapped = snapToRoad(latLng.lat, latLng.lng);
+    state.gpsRoutePath = buildRoadRoute(state.gpsBikePosition, snapped);
+    state.gpsBikePosition = snapped;
+    notify('Đã snap GPS xe về tuyến đường demo');
+    render();
+  });
+
+  const bounds = window.L.latLngBounds([
+    ...roadLatLngs,
+    ...state.stations.map((station) => [Number(station.latitude), Number(station.longitude)])
+  ]);
+  gpsMapInstance.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+  animateGpsMarkerAlongRoute(routePath);
+}
+
+function animateGpsMarkerAlongRoute(path) {
+  if (!gpsBikeMarker || !path.length) return;
+  const route = normalizeRoutePath(path);
+  const lastPoint = route[route.length - 1];
+  if (route.length < 2 || prefersReducedMotion() || !gsap) {
+    gpsBikeMarker.setLatLng([lastPoint.lat, lastPoint.lng]);
+    return;
+  }
+
+  const totalDistance = routeLengthMeters(route);
+  const segmentDistances = route.map((point, index) => {
+    if (index === 0) return 0;
+    const previous = route[index - 1];
+    return distanceMeters(previous.lat, previous.lng, point.lat, point.lng);
+  });
+  const setMarkerProgress = (progress) => {
+    const targetDistance = totalDistance * progress;
+    let traveled = 0;
+    for (let index = 1; index < route.length; index += 1) {
+      const segmentDistance = segmentDistances[index];
+      if (traveled + segmentDistance >= targetDistance) {
+        const segmentProgress = segmentDistance === 0 ? 1 : (targetDistance - traveled) / segmentDistance;
+        const start = route[index - 1];
+        const end = route[index];
+        gpsBikeMarker.setLatLng([
+          start.lat + (end.lat - start.lat) * segmentProgress,
+          start.lng + (end.lng - start.lng) * segmentProgress
+        ]);
+        return;
+      }
+      traveled += segmentDistance;
+    }
+    gpsBikeMarker.setLatLng([lastPoint.lat, lastPoint.lng]);
+  };
+
+  setMarkerProgress(0);
+  const progressTracker = { value: 0 };
+  gpsRouteTween = gsap.to(progressTracker, {
+    value: 1,
+    duration: Math.min(3.2, Math.max(0.9, totalDistance / 180)),
+    ease: 'none',
+    overwrite: true,
+    onUpdate: () => setMarkerProgress(progressTracker.value),
+    onComplete: () => setMarkerProgress(1)
+  });
+}
+
+function disposeGpsDemoMap() {
+  if (gpsRouteTween) {
+    gpsRouteTween.kill();
+    gpsRouteTween = null;
+  }
+  gpsBikeMarker = null;
+  if (!gpsMapInstance) return;
+  gpsMapInstance.remove();
+  gpsMapInstance = null;
+}
+
 function clearPageMotion() {
   if (!motionContext) return;
   motionContext.revert();
@@ -650,7 +1252,7 @@ function runPageMotion(view, isViewSwitch) {
 
 function bindMotionInteractions() {
   if (!gsap || prefersReducedMotion()) return;
-  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .station-card, .bike-card').forEach((element) => {
+  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .segment-option, .gps-chip, .station-card, .bike-card').forEach((element) => {
     element.addEventListener('pointerenter', () => {
       if (element.disabled) return;
       gsap.to(element, {
@@ -972,6 +1574,46 @@ function stationManagementTable() {
   `;
 }
 
+function bindGpsDemoEvents() {
+  document.querySelector('#refresh-gps-demo')?.addEventListener('click', async () => {
+    await runAction(async () => {
+      await refreshGpsDemoData();
+      render();
+    }, 'Đã làm mới GPS demo');
+  });
+  document.querySelectorAll('[data-gps-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.gpsMode = button.dataset.gpsMode;
+      state.gpsRoutePath = [];
+      render();
+    });
+  });
+  document.querySelectorAll('[data-gps-bike]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.gpsSelectedBikeId = Number(button.dataset.gpsBike);
+      const bike = selectedGpsBike();
+      if (state.gpsMode === 'pickup' && bike) {
+        state.gpsTargetStationId = bike.station_id;
+      }
+      setGpsBikeNearTarget(false);
+      render();
+    });
+  });
+  document.querySelectorAll('[data-gps-station]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.gpsTargetStationId = Number(button.dataset.gpsStation);
+      state.gpsRoutePath = [];
+      render();
+    });
+  });
+  document.querySelectorAll('[data-gps-snap]').forEach((button) => {
+    button.addEventListener('click', () => {
+      setGpsBikeNearTarget(button.dataset.gpsSnap === 'near');
+      render();
+    });
+  });
+}
+
 function bindAuthEvents() {
   document.querySelector('#login-form').addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -1046,27 +1688,33 @@ function bindCustomerEvents() {
   document.querySelectorAll('[data-station]').forEach((button) => {
     button.addEventListener('click', () => selectStation(Number(button.dataset.station)));
   });
-  document.querySelector('#location-preset')?.addEventListener('change', async (event) => {
-    state.locationPresetId = event.target.value;
-    state.selectedStationId = null;
-    await runAction(async () => {
-      await refreshData();
-      render();
-    }, 'Đã cập nhật vị trí tìm kiếm');
+  document.querySelectorAll('[data-location-preset]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      state.locationPresetId = button.dataset.locationPreset;
+      state.selectedStationId = null;
+      await runAction(async () => {
+        await refreshData();
+        render();
+      }, 'Đã cập nhật vị trí tìm kiếm');
+    });
   });
-  document.querySelector('#station-range')?.addEventListener('change', async (event) => {
-    state.stationRangeKm = Number(event.target.value);
-    state.selectedStationId = null;
-    await runAction(async () => {
-      await refreshData();
-      render();
-    }, 'Đã cập nhật phạm vi tìm bãi');
+  document.querySelectorAll('[data-station-range]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      state.stationRangeKm = Number(button.dataset.stationRange);
+      state.selectedStationId = null;
+      await runAction(async () => {
+        await refreshData();
+        render();
+      }, 'Đã cập nhật phạm vi tìm bãi');
+    });
   });
-  document.querySelector('#type-filter').addEventListener('change', async (event) => {
-    state.selectedTypeId = event.target.value;
-    await runAction(async () => {
-      await loadStationBikes();
-      render();
+  document.querySelectorAll('[data-type-filter]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      state.selectedTypeId = button.dataset.typeFilter;
+      await runAction(async () => {
+        await loadStationBikes();
+        render();
+      });
     });
   });
   document.querySelector('#resident-form').addEventListener('submit', async (event) => {

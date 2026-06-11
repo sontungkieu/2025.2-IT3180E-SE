@@ -43,7 +43,8 @@ Mở `http://127.0.0.1:4173`.
 
 - Khách hàng tạo tài khoản, đăng nhập, bổ sung thẻ cư dân, tìm bãi gần nhất theo
   GPS demo hoặc vị trí nhập tay, lọc loại xe, chọn xe rảnh, gửi yêu cầu thuê và
-  hủy yêu cầu khi chưa nhận xe.
+  hủy yêu cầu khi chưa nhận xe. Các bộ lọc tìm bãi dùng segmented controls thay
+  cho dropdown native để tránh popup thô và giữ layout ổn định.
 - Màn hình khách hàng có bản đồ thật bằng Leaflet/OpenStreetMap, hiển thị vị trí
   người dùng demo và marker các bãi xe; chọn marker hoặc thẻ bãi đều cập nhật
   danh sách xe tại bãi.
@@ -52,9 +53,13 @@ Mở `http://127.0.0.1:4173`.
   sang trạng thái đang thuê.
 - Nhân sự/Admin nhận xe trả ở bất kỳ bãi Ecopark nào, tính vé cuối cùng, áp dụng
   giảm 40% cho cư dân hợp lệ, phụ thu 30k mỗi 30 phút trả muộn, ghi chú tình trạng
-  xe và hiển thị lại phiếu vừa xuất.
+  xe và hiển thị lại phiếu vừa xuất. Màn vận hành có pipeline trả xe riêng để
+  luôn thấy các bước nhận xe, chọn bãi trả, kiểm tra xe và xuất vé.
 - Admin/Operator quản lý bãi xe, xe, trạng thái xe, tra cứu vị trí xe, lọc thống
   kê theo ngày/tuần/tháng, theo bãi/xe và xuất báo cáo CSV.
+- Route demo `http://127.0.0.1:4173/gps` mô phỏng GPS xe đạp cho phần trình bày:
+  chọn xe/bãi, kéo thả marker, snap xe về tuyến đường demo và cho xe đi theo
+  polyline đường tới bãi nhận/trả thay vì bay thẳng qua hồ hoặc nhà.
 - Giao diện sáng màu theo hướng dashboard vận hành production-grade hơn: topbar
   sticky, panel/form/table rõ phân cấp, motion GSAP có hỗ trợ
   `prefers-reduced-motion`, scene Three.js mô phỏng bãi đỗ/rack/nhóm xe và card
@@ -84,9 +89,9 @@ horizontal overflow ở cấp trang. Khi cần rà thiết kế thủ công, có
 các trạng thái auth/customer/admin bằng Playwright trước khi chốt thay đổi giao
 diện.
 
-Smoke test UC chạy pipeline giao diện chính: cư dân tìm bãi theo GPS/nhập tay,
-gửi rồi hủy yêu cầu thuê, gửi lại yêu cầu, staff giao xe sau khi nhận cọc/giấy
-tờ, nhận trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
+Smoke test UC chạy pipeline giao diện chính: mở GPS demo `/gps`, cư dân tìm bãi
+theo GPS/nhập tay, gửi rồi hủy yêu cầu thuê, gửi lại yêu cầu, staff giao xe sau
+khi nhận cọc/giấy tờ, nhận trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
 
 ## Tài liệu PDF
 

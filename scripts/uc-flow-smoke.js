@@ -19,6 +19,8 @@ async function main() {
   const browser = await chromium.launch();
 
   try {
+    await verifyGpsDemoConsole(browser, baseUrl);
+
     const page = await browser.newPage({ viewport: { width: 1366, height: 960 } });
     page.on('pageerror', (error) => {
       throw error;
@@ -29,9 +31,9 @@ async function main() {
     await page.waitForSelector('.station-map');
     assert.ok(await page.locator('.user-map-pin, .map-user-dot').first().isVisible(), 'user GPS marker is missing');
 
-    await page.selectOption('#location-preset', 'manual-outside');
+    await page.click('[data-location-preset="manual-outside"]');
     await page.waitForSelector('text=Không có bãi xe trong phạm vi đã chọn');
-    await page.selectOption('#location-preset', 'gps-demo');
+    await page.click('[data-location-preset="gps-demo"]');
     await page.waitForSelector('[data-rent]:not([disabled])');
 
     await page.locator('[data-rent]:not([disabled])').first().click();
@@ -65,13 +67,28 @@ async function main() {
     assert.ok(download.suggestedFilename().endsWith('.csv'), 'report export did not create a CSV');
 
     await page.close();
-    console.log('uc-flow: customer request/cancel, handover, return ticket, GPS marker and report export passed');
+    console.log('uc-flow: GPS demo, customer request/cancel, handover, return ticket and report export passed');
   } finally {
     await browser.close();
     await new Promise((resolve) => server.close(resolve));
     server.closeDatabase();
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+async function verifyGpsDemoConsole(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  await page.goto(`${baseUrl}/gps`, { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => document.querySelector('.gps-demo-map')?.classList.contains('leaflet-container'));
+  await page.waitForSelector('.bike-gps-pin');
+  await page.click('[data-gps-snap="far"]');
+  await page.waitForSelector('text=Chưa đủ gần bãi đích');
+  await page.click('[data-gps-snap="near"]');
+  await page.waitForSelector('text=Đủ gần bãi đích');
+  assert.equal(await page.locator('.return-step.active').count() >= 3, true, 'GPS demo checklist did not activate route steps');
+  const noBodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  assert.equal(noBodyOverflow, true, 'GPS demo has body-level horizontal overflow');
+  await page.close();
 }
 
 async function loginDemo(page, email) {
