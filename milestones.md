@@ -1,5 +1,35 @@
 # Milestones
 
+## 2026-06-11 - GSAP production UI branch
+
+- Created branch `ui/gsap-production-grade` for the UI refinement pass.
+- Added GSAP as a local npm dependency and served it through the existing
+  `/vendor` static path.
+- Upgraded the auth and dashboard interface with clearer hierarchy, sticky
+  topbar behavior, stronger form/table/card states and responsive scroll reset
+  when switching workspaces.
+- Added GSAP timeline entrances, hover microinteractions and toast motion with
+  `prefers-reduced-motion` support.
+- Fixed medium-width operations tables so active rentals and fleet rows wrap or
+  scroll inside their panels instead of squeezing text and controls together.
+- Upgraded the Three.js hero scene with a more detailed bike parking island,
+  rack/sign elements and distinct city/tandem/child-seat bicycles; bike cards now
+  render type-specific SVG illustrations.
+- Exposed the UC002 alternative paths for manual search/no nearby stations and
+  cancel-before-pickup, with API-backed request cancellation and automatic pending
+  request expiry.
+- Reworked UC003 handover controls so staff must confirm document type/number,
+  200k deposit and held document before converting a request to a rental.
+- Extended UC004 return controls with return station, return time, bicycle
+  condition, condition note and a visible ticket summary after issuance.
+- Extended UC005 operations with station update, bike update/locate, status-change
+  reasons, report filters by station/bike and CSV export.
+- Extended the Playwright UI smoke test to verify that GSAP loads before checking
+  Three.js canvas rendering, Leaflet markers, console errors and page overflow.
+- Added a Playwright UC pipeline smoke test covering GPS marker, manual-location
+  empty state, request/cancel, request/handover, return-ticket and report export.
+- Updated README and PDF web implementation notes for the GSAP-based UI layer.
+
 ## 2026-05-19 - Web implementation baseline
 
 - Completed local fullstack web app for Ecopark Bicycle Parking.
@@ -22,4 +52,10 @@
 - Mindmap/drawio: `docs/BikeSharing_UseCase_Diagrams.drawio` was reviewed; no
   update required because the implementation follows the existing UC001-UC005
   scope without changing use-case semantics.
+- Mindmap/drawio 2026-06-11: reviewed again for the GSAP UI refinement; no update
+  required because the changes affect presentation quality and motion only, not
+  the use-case scope or actor interactions.
+- Mindmap/drawio 2026-06-11 UC flow pass: reviewed again; no update required
+  because the UI now activates the documented UC001-UC005 main/alternative flows
+  without introducing new actors or new use cases.
 - Version bump: N/A because the repo has no `VERSION` or `versioning.py`.

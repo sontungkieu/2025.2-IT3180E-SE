@@ -95,6 +95,43 @@ test('bike availability excludes held pending requests', async () => {
   }
 });
 
+test('customer can cancel pending request and release held bike', async () => {
+  const fixture = await startTestServer();
+  const api = client(fixture.baseUrl);
+  try {
+    await api.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'resident@ecopark.test', password: 'resident123' }
+    });
+    const request = await api.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 60 }
+    });
+    assert.equal(request.response.status, 201);
+
+    const heldBikes = await api.request('/api/stations/3/bikes');
+    const heldBike = heldBikes.payload.bikes.find((bike) => bike.bike_code === 'ECO-007');
+    assert.equal(heldBike.held_for_pickup, 1);
+    assert.equal(heldBike.is_available, false);
+
+    const cancelled = await api.request(`/api/rental-requests/${request.payload.request.request_id}/cancel`, {
+      method: 'POST'
+    });
+    assert.equal(cancelled.response.status, 200);
+    assert.equal(cancelled.payload.request.request_status, 'cancelled');
+
+    const releasedBikes = await api.request('/api/stations/3/bikes');
+    const releasedBike = releasedBikes.payload.bikes.find((bike) => bike.bike_code === 'ECO-007');
+    assert.equal(releasedBike.held_for_pickup, 0);
+    assert.equal(releasedBike.is_available, true);
+
+    const history = await api.request('/api/customer/history');
+    assert.ok(history.payload.archivedRequests.some((item) => item.request_id === request.payload.request.request_id));
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('handover converts request to rental and marks bike rented', async () => {
   const fixture = await startTestServer();
   const staff = client(fixture.baseUrl);
@@ -123,6 +160,29 @@ test('handover converts request to rental and marks bike rented', async () => {
     const fleet = await staff.request('/api/admin/bikes');
     const bike = fleet.payload.bikes.find((item) => item.bike_code === 'ECO-004');
     assert.equal(bike.bike_status, 'rented');
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('station capacity update rejects values below current bike count', async () => {
+  const fixture = await startTestServer();
+  const admin = client(fixture.baseUrl);
+  try {
+    await admin.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@ecopark.test', password: 'admin123' }
+    });
+    const update = await admin.request('/api/admin/stations/1', {
+      method: 'PATCH',
+      body: {
+        stationName: 'Green Bay Marina',
+        address: 'Bến thuyền Green Bay, Ecopark',
+        capacity: 1,
+        stationStatus: 'active'
+      }
+    });
+    assert.equal(update.response.status, 409);
   } finally {
     await fixture.close();
   }

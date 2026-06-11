@@ -44,6 +44,7 @@ async function verifyViewport(browser, baseUrl, viewport) {
   page.on('pageerror', (error) => errors.push(error.message));
 
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  const gsapLoaded = await page.evaluate(() => Boolean(window.gsap && window.gsap.timeline));
   await page.waitForSelector('.park-scene-canvas');
   await page.waitForTimeout(500);
   const authCanvas = await canvasStats(page);
@@ -55,6 +56,7 @@ async function verifyViewport(browser, baseUrl, viewport) {
   const mapStats = viewport.demo.includes('customer@') ? await stationMapStats(page) : null;
   const noBodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
+  assert.equal(gsapLoaded, true, `${viewport.name} GSAP did not load`);
   assert.ok(authCanvas.nonTransparent > 1000, `${viewport.name} auth canvas is blank`);
   assert.ok(appCanvas.nonTransparent > 1000, `${viewport.name} app canvas is blank`);
   if (mapStats) {
