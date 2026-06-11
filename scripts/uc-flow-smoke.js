@@ -31,9 +31,9 @@ async function main() {
     await page.waitForSelector('.station-map');
     assert.ok(await page.locator('.user-map-pin, .map-user-dot').first().isVisible(), 'user GPS marker is missing');
 
-    await page.click('[data-location-preset="manual-outside"]');
+    await chooseDropdownOption(page, 'location', '[data-location-preset="manual-outside"]');
     await page.waitForSelector('text=Không có bãi xe trong phạm vi đã chọn');
-    await page.click('[data-location-preset="gps-demo"]');
+    await chooseDropdownOption(page, 'location', '[data-location-preset="gps-demo"]');
     await page.waitForSelector('[data-rent]:not([disabled])');
 
     await page.locator('[data-rent]:not([disabled])').first().click();
@@ -94,6 +94,12 @@ async function verifyGpsDemoConsole(browser, baseUrl) {
 async function loginDemo(page, email) {
   await page.click(`[data-demo-email="${email}"]`);
   await page.waitForSelector('.dashboard-hero');
+}
+
+async function chooseDropdownOption(page, name, optionSelector) {
+  await page.click(`[data-select-trigger="${name}"]`);
+  await page.waitForSelector(`${optionSelector}:visible`);
+  await page.click(optionSelector);
 }
 
 async function logout(page) {
