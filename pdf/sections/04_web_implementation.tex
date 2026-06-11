@@ -33,12 +33,26 @@ bằng giữa scene 3D với nội dung nghiệp vụ.
 
 Màn hình khách hàng sử dụng bản đồ thật bằng Leaflet/OpenStreetMap để hiển thị
 vị trí người dùng demo và marker các bãi xe Ecopark. Khách có thể dùng GPS demo
-hoặc chuyển sang vị trí nhập tay, chọn phạm vi tìm kiếm, chọn marker hoặc thẻ
-bãi để cập nhật danh sách xe sẵn sàng tại bãi đó. Khi không có bãi trong phạm vi
-đã chọn, giao diện hiển thị trạng thái rỗng rõ ràng để kích hoạt alternative
-flow tìm kiếm thủ công/mở rộng phạm vi. Nếu tile bản đồ không tải được trong môi
-trường offline, khung fallback nội bộ vẫn giữ pin bãi xe để luồng nghiệp vụ
-không bị gián đoạn.
+hoặc chuyển sang vị trí nhập tay, chọn phạm vi tìm kiếm, lọc loại xe bằng
+segmented controls, chọn marker hoặc thẻ bãi để cập nhật danh sách xe sẵn sàng
+tại bãi đó. Các controls này tránh popup dropdown native và giữ chiều rộng ổn
+định trên desktop/mobile. Khi không có bãi trong phạm vi đã chọn, giao diện hiển
+thị trạng thái rỗng rõ ràng để kích hoạt alternative flow tìm kiếm thủ công/mở
+rộng phạm vi. Nếu tile bản đồ không tải được trong môi trường offline, khung
+fallback nội bộ vẫn giữ pin bãi xe để luồng nghiệp vụ không bị gián đoạn.
+
+Màn hình vận hành có pipeline trả xe riêng, luôn hiển thị bốn bước: nhận xe, chọn
+bãi trả, kiểm tra tình trạng xe và xuất vé. Bảng chi tiết bên dưới vẫn xử lý các
+input nghiệp vụ đầy đủ như bãi trả, giờ trả, tình trạng xe và ghi chú kiểm tra,
+nhưng pipeline giúp actor thấy rõ luồng UC004 ngay cả khi chưa có rental active.
+
+Để hỗ trợ trình bày use case trước lớp, ứng dụng có thêm route demo
+\texttt{/gps}. Đây là GPS demo console, không phải nghiệp vụ production mới:
+người trình bày chọn xe và bãi đích, kéo thả marker GPS của xe hoặc bấm snap gần
+bãi, hệ thống sẽ đưa xe về điểm gần nhất trên tuyến đường demo nội bộ và hiển
+thị polyline đường đi tới bãi nhận/trả. Nhờ đó phần diễn UC002/UC004 không tạo
+cảm giác xe bay thẳng qua hồ hoặc nhà, trong khi dữ liệu thuê-trả thật vẫn được
+xử lý qua các bảng/form chính.
 
 \subsection{Ánh xạ use case sang màn hình web}
 \begin{longtable}{P{0.18\textwidth}P{0.34\textwidth}P{0.38\textwidth}}
@@ -48,7 +62,7 @@ không bị gián đoạn.
 UC001 & Đăng ký, đăng nhập, hồ sơ khách, thẻ cư dân & Khách có tài khoản, CCCD/email/số điện thoại/địa chỉ và trạng thái giảm giá cư dân nếu có thẻ hợp lệ. \\
 UC002 & Danh sách bãi theo GPS demo/vị trí nhập tay, lọc loại xe, chọn xe, hủy request & Hệ thống hiển thị bãi trong phạm vi, số xe rảnh, trạng thái từng xe, tạo yêu cầu thuê với thời lượng 1/2/3 giờ và cho hủy request trước khi nhận xe. \\
 UC003 & Bảng yêu cầu nhận xe cho Staff/Admin & Nhân sự đối chiếu loại/số giấy tờ, nhận cọc 200k, ghi nhận giấy tờ giữ tại bãi, hủy yêu cầu không đủ điều kiện, tạo rental và chuyển xe sang trạng thái đang thuê. \\
-UC004 & Bảng xe đang thuê và thao tác trả xe & Nhân sự nhận xe tại bãi bất kỳ, chọn thời điểm trả, ghi chú tình trạng xe, cập nhật vị trí xe, tính phí thuê, giảm giá cư dân, phụ thu trễ và hiển thị phiếu vừa xuất. \\
+UC004 & Pipeline trả xe, bảng xe đang thuê và thao tác trả xe & Nhân sự nhận xe tại bãi bất kỳ, chọn thời điểm trả, ghi chú tình trạng xe, cập nhật vị trí xe, tính phí thuê, giảm giá cư dân, phụ thu trễ và hiển thị phiếu vừa xuất. \\
 UC005 & Fleet table, quản lý bãi/xe, lọc và xuất báo cáo & Admin/Operator quản lý bãi xe, xe, trạng thái xe, tra cứu vị trí xe, lọc thống kê theo ngày/tuần/tháng, theo bãi/xe và xuất CSV. \\
 \bottomrule
 \end{longtable}
@@ -79,6 +93,7 @@ Repo cung cấp các lệnh vận hành chính:
   \item \texttt{npm install}: cài dependency front-end/back-end.
   \item \texttt{npm run reset-db}: tạo lại SQLite database demo.
   \item \texttt{npm run dev}: chạy web app tại \texttt{http://127.0.0.1:4173}.
+  \item \texttt{/gps}: mở GPS demo console để kéo thả vị trí xe theo tuyến đường demo.
   \item \texttt{npm test}: chạy test nghiệp vụ back-end.
   \item \texttt{npm run smoke:ui}: kiểm tra render giao diện desktop/mobile bằng Playwright.
   \item \texttt{npm run smoke:uc}: chạy pipeline UI cho các luồng UC chính và một số alternative flow.
@@ -91,6 +106,7 @@ giảm giá cư dân/phụ thu trễ và tổng hợp báo cáo.
 Smoke test giao diện bằng Playwright mở các trạng thái desktop/mobile, kiểm tra
 GSAP vendor đã tải, canvas Three.js có render, bản đồ Leaflet được mount với marker
 thật, không phát sinh console error và không có tràn ngang ở cấp trang.
-Smoke test UC đăng nhập bằng tài khoản cư dân, kiểm tra marker vị trí người dùng,
-thử vị trí nhập tay ngoài phạm vi, gửi và hủy yêu cầu thuê, gửi lại yêu cầu,
-đăng nhập Staff để giao xe, trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
+Smoke test UC mở GPS demo console, kiểm tra marker xe và trạng thái đủ gần bãi,
+đăng nhập bằng tài khoản cư dân, kiểm tra marker vị trí người dùng, thử vị trí
+nhập tay ngoài phạm vi, gửi và hủy yêu cầu thuê, gửi lại yêu cầu, đăng nhập Staff
+để giao xe, trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
