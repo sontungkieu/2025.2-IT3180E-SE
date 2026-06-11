@@ -34,6 +34,8 @@
 - Added `/gps` demo console for UC presentation, with draggable bike GPS snapped
   to an internal road polyline so the demo route follows roads near pickup/return
   stations instead of crossing lakes or buildings.
+- Added a second seeded admin account and concurrent-session coverage so two
+  customers and two admins can stay logged in at the same time during demos.
 - Updated README and PDF web implementation notes for the GSAP-based UI layer.
 
 ## 2026-05-19 - Web implementation baseline
@@ -70,4 +72,7 @@
 - Mindmap/drawio 2026-06-11 styled dropdown pass: reviewed; no update required
   because this only changes control presentation for the existing UC002 station
   search filters.
+- Mindmap/drawio 2026-06-11 concurrent demo sessions: reviewed; no update
+  required because this only adds extra seeded accounts and session isolation for
+  the existing Customer/Admin actors.
 - Version bump: N/A because the repo has no `VERSION` or `versioning.py`.

@@ -80,6 +80,16 @@ và báo cáo. Dữ liệu được lưu trong SQLite theo các nhóm quan hệ 
   \item truy vết vận hành: BIKE\_STATUS\_LOGS.
 \end{itemize}
 
+Phiên đăng nhập được quản lý bằng session cookie riêng cho từng browser hoặc
+browser context. Vì vậy khi trình bày, hai khách hàng và hai tài khoản admin có
+thể đăng nhập đồng thời trên các thiết bị/cửa sổ khác nhau: một người gửi yêu cầu
+thuê, trong khi nhân sự hoặc admin khác xử lý yêu cầu mà không ghi đè phiên đăng
+nhập của nhau. Seed demo cung cấp:
+\begin{itemize}
+  \item hai tài khoản khách: \texttt{customer@ecopark.test} và \texttt{resident@ecopark.test};
+  \item hai tài khoản admin: \texttt{admin@ecopark.test} và \texttt{admin2@ecopark.test}.
+\end{itemize}
+
 Các quy tắc giá được triển khai đúng theo đề bài:
 \begin{itemize}
   \item Giá cơ bản: 50k cho 1 giờ, 70k cho 2 giờ và 100k cho 3 giờ.
@@ -103,11 +113,13 @@ Repo cung cấp các lệnh vận hành chính:
 Bộ test hiện kiểm tra đăng ký tài khoản, chống trùng email, loại xe đã giữ chỗ ra
 khỏi danh sách xe sẵn sàng, hủy yêu cầu thuê và giải phóng xe, chuyển yêu cầu
 thuê thành rental, chặn giảm sức chứa bãi dưới số xe hiện có, tính vé trả xe có
-giảm giá cư dân/phụ thu trễ và tổng hợp báo cáo.
+giảm giá cư dân/phụ thu trễ, tổng hợp báo cáo và bốn phiên đăng nhập độc lập cho
+hai khách hàng cùng hai admin.
 Smoke test giao diện bằng Playwright mở các trạng thái desktop/mobile, kiểm tra
 GSAP vendor đã tải, canvas Three.js có render, bản đồ Leaflet được mount với marker
 thật, không phát sinh console error và không có tràn ngang ở cấp trang.
 Smoke test UC mở GPS demo console, kiểm tra marker xe và trạng thái đủ gần bãi,
-đăng nhập bằng tài khoản cư dân, kiểm tra marker vị trí người dùng, thử vị trí
-nhập tay ngoài phạm vi, gửi và hủy yêu cầu thuê, gửi lại yêu cầu, đăng nhập Staff
-để giao xe, trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.
+mở bốn browser context cho hai khách hàng và hai admin, đăng nhập bằng tài khoản
+cư dân, kiểm tra marker vị trí người dùng, thử vị trí nhập tay ngoài phạm vi, gửi
+và hủy yêu cầu thuê, gửi lại yêu cầu, đăng nhập Staff để giao xe, trả xe ở bãi
+khác, xuất ticket và tải báo cáo CSV.

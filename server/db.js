@@ -212,6 +212,7 @@ function migrate(db) {
 function seedDatabase(db) {
   const count = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
   if (count > 0) {
+    ensureDemoAccounts(db);
     return;
   }
 
@@ -234,12 +235,15 @@ function seedDatabase(db) {
     VALUES (?, ?, ?, ?, ?, 'active', ?)
   `);
   const admin = userInsert.run('Admin Ecopark', 'admin@ecopark.test', '0900000001', hashPassword('admin123'), 'admin', createdAt).lastInsertRowid;
+  const adminBackup = userInsert.run('Operations Admin', 'admin2@ecopark.test', '0900000005', hashPassword('admin2123'), 'admin', createdAt).lastInsertRowid;
   const staffUser = userInsert.run('Spring Park Staff', 'staff@ecopark.test', '0900000002', hashPassword('staff123'), 'staff', createdAt).lastInsertRowid;
   const customer = userInsert.run('Nguyen Ha Linh', 'customer@ecopark.test', '0900000003', hashPassword('customer123'), 'customer', createdAt).lastInsertRowid;
   const resident = userInsert.run('Tran Minh An', 'resident@ecopark.test', '0900000004', hashPassword('resident123'), 'customer', createdAt).lastInsertRowid;
 
   db.prepare('INSERT INTO staff (staff_id, staff_code, staff_role, station_id, active) VALUES (?, ?, ?, ?, 1)')
     .run(admin, 'ADM-001', 'admin', null);
+  db.prepare('INSERT INTO staff (staff_id, staff_code, staff_role, station_id, active) VALUES (?, ?, ?, ?, 1)')
+    .run(adminBackup, 'ADM-002', 'admin', null);
   db.prepare('INSERT INTO staff (staff_id, staff_code, staff_role, station_id, active) VALUES (?, ?, ?, ?, 1)')
     .run(staffUser, 'STF-SPR-01', 'manager', 2);
 
@@ -315,6 +319,21 @@ function seedDatabase(db) {
       (rental_id, base_fee, resident_discount_amount, late_fee, total_amount, issued_at)
     VALUES (?, 70000, 28000, 30000, 72000, ?)
   `).run(rentalId, new Date(Date.now() - 3 * 86400000 + 130 * 60000).toISOString());
+}
+
+function ensureDemoAccounts(db) {
+  const createdAt = now();
+  const backupEmail = 'admin2@ecopark.test';
+  const existing = db.prepare('SELECT user_id FROM users WHERE lower(email) = lower(?)').get(backupEmail);
+  const adminBackupId = existing?.user_id || db.prepare(`
+    INSERT INTO users (full_name, email, phone, password_hash, role, status, created_at)
+    VALUES (?, ?, ?, ?, 'admin', 'active', ?)
+  `).run('Operations Admin', backupEmail, '0900000005', hashPassword('admin2123'), createdAt).lastInsertRowid;
+
+  db.prepare(`
+    INSERT OR IGNORE INTO staff (staff_id, staff_code, staff_role, station_id, active)
+    VALUES (?, 'ADM-002', 'admin', NULL, 1)
+  `).run(adminBackupId);
 }
 
 module.exports = {

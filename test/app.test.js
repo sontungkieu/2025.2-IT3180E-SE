@@ -258,3 +258,99 @@ test('reports aggregate completed rentals', async () => {
     await fixture.close();
   }
 });
+
+test('supports concurrent customer and admin sessions independently', async () => {
+  const fixture = await startTestServer();
+  const customer = client(fixture.baseUrl);
+  const resident = client(fixture.baseUrl);
+  const admin = client(fixture.baseUrl);
+  const adminBackup = client(fixture.baseUrl);
+  try {
+    const logins = await Promise.all([
+      customer.request('/api/auth/login', {
+        method: 'POST',
+        body: { email: 'customer@ecopark.test', password: 'customer123' }
+      }),
+      resident.request('/api/auth/login', {
+        method: 'POST',
+        body: { email: 'resident@ecopark.test', password: 'resident123' }
+      }),
+      admin.request('/api/auth/login', {
+        method: 'POST',
+        body: { email: 'admin@ecopark.test', password: 'admin123' }
+      }),
+      adminBackup.request('/api/auth/login', {
+        method: 'POST',
+        body: { email: 'admin2@ecopark.test', password: 'admin2123' }
+      })
+    ]);
+    assert.deepEqual(logins.map((item) => item.response.status), [200, 200, 200, 200]);
+
+    const sessions = await Promise.all([
+      customer.request('/api/session'),
+      resident.request('/api/session'),
+      admin.request('/api/session'),
+      adminBackup.request('/api/session')
+    ]);
+    assert.deepEqual(sessions.map((item) => item.payload.user.email), [
+      'customer@ecopark.test',
+      'resident@ecopark.test',
+      'admin@ecopark.test',
+      'admin2@ecopark.test'
+    ]);
+
+    const [customerHistory, residentHistory, adminReport, backupReport] = await Promise.all([
+      customer.request('/api/customer/history'),
+      resident.request('/api/customer/history'),
+      admin.request('/api/admin/reports?period=day'),
+      adminBackup.request('/api/admin/reports?period=day')
+    ]);
+    assert.equal(customerHistory.response.status, 200);
+    assert.equal(residentHistory.response.status, 200);
+    assert.equal(adminReport.response.status, 200);
+    assert.equal(backupReport.response.status, 200);
+
+    await customer.request('/api/auth/logout', { method: 'POST' });
+    const [loggedOutCustomer, stillResident, stillAdmin, stillBackupAdmin] = await Promise.all([
+      customer.request('/api/session'),
+      resident.request('/api/session'),
+      admin.request('/api/session'),
+      adminBackup.request('/api/session')
+    ]);
+    assert.equal(loggedOutCustomer.payload.user, null);
+    assert.equal(stillResident.payload.user.email, 'resident@ecopark.test');
+    assert.equal(stillAdmin.payload.user.email, 'admin@ecopark.test');
+    assert.equal(stillBackupAdmin.payload.user.email, 'admin2@ecopark.test');
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('existing demo database is backfilled with backup admin account', async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'ecopark-backfill-'));
+  const dbPath = path.join(dir, 'backfill.sqlite');
+  let server = null;
+  try {
+    server = createServer({ dbPath, seed: true });
+    const backupAdmin = server.db.prepare("SELECT user_id FROM users WHERE email = 'admin2@ecopark.test'").get();
+    assert.ok(backupAdmin);
+    server.db.prepare('DELETE FROM staff WHERE staff_id = ?').run(backupAdmin.user_id);
+    server.db.prepare('DELETE FROM users WHERE user_id = ?').run(backupAdmin.user_id);
+    server.closeDatabase();
+    server = null;
+
+    server = createServer({ dbPath, seed: true });
+    const restored = server.db.prepare(`
+      SELECT u.email, u.role, s.staff_role
+      FROM users u
+      JOIN staff s ON s.staff_id = u.user_id
+      WHERE u.email = 'admin2@ecopark.test'
+    `).get();
+    assert.equal(restored.email, 'admin2@ecopark.test');
+    assert.equal(restored.role, 'admin');
+    assert.equal(restored.staff_role, 'admin');
+  } finally {
+    if (server) server.closeDatabase();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
