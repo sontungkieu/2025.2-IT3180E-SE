@@ -7,15 +7,18 @@ sử dụng Node.js, HTTP server nội bộ và SQLite cục bộ. Cách triển
 với phạm vi môn học vì có thể chạy end-to-end trên một máy nhưng vẫn thể hiện rõ
 luồng dữ liệu, trạng thái xe, yêu cầu thuê, phiếu thuê và báo cáo vận hành.
 
-Giao diện được thiết kế theo hướng dashboard vận hành sáng màu, ưu tiên xanh lá
-và xanh dương để bám chủ đề đô thị xanh Ecopark nhưng vẫn giữ nhịp bố cục gọn
-theo cảm hứng từ các ứng dụng vận hành hiện đại. Lớp giao diện được tinh chỉnh
-theo hướng sẵn sàng vận hành hơn với thanh trên cố định, panel/form/table có phân
-cấp rõ, trạng thái focus dễ nhận biết và bố cục mobile tự trở về đầu trang khi
-chuyển màn hình làm việc. Phần đầu trang có một scene 3D nhỏ bằng Three.js mô
-phỏng mảng xanh, mặt nước, bãi đỗ xe, rack và ba kiểu xe khác nhau. Scene này
-chỉ đóng vai trò nhấn thị giác, không thay thế các bảng, form và trạng thái
-nghiệp vụ chính.
+Giao diện được thiết kế theo phong cách Civic Mobility Command Center: rail điều
+hướng tối có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table
+sắc cạnh và mật độ thông tin phù hợp phần mềm điều phối vận hành. Bảng màu vẫn
+bám chủ đề đô thị xanh Ecopark nhưng
+không phụ thuộc vào một mảng xanh đơn điệu; các accent xanh nước và amber được
+dùng để phân biệt trạng thái, bản đồ, loại xe và hành động chính. Lớp giao diện
+được tinh chỉnh với thanh trên cố định, session chip, menu dropdown custom có
+trạng thái option rõ, trạng thái focus dễ nhận biết và bố cục mobile tự trở về
+đầu trang khi chuyển màn hình làm việc. Phần đầu trang có một scene 3D nhỏ bằng
+Three.js mô phỏng mảng xanh, mặt nước, bãi đỗ xe, rack và ba kiểu xe khác nhau.
+Scene này chỉ đóng vai trò nhấn thị giác, không thay thế các bảng, form và trạng
+thái nghiệp vụ chính.
 
 Các thẻ xe trong luồng khách hàng dùng minh hoạ SVG theo loại xe thay vì dùng
 một icon chung cho mọi dữ liệu. City bike, Family tandem và Child-seat bike có
