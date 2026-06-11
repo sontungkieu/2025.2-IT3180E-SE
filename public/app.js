@@ -1,23 +1,40 @@
 import { mountScene } from '/scene.js';
 
+const LOCATION_PRESETS = [
+  { id: 'gps-demo', label: 'GPS demo - Ecopark Center', mode: 'gps', lat: 20.9491, lng: 105.9346 },
+  { id: 'manual-green-bay', label: 'Nhập tay - Green Bay', mode: 'manual', lat: 20.9536, lng: 105.9329 },
+  { id: 'manual-aqua-bay', label: 'Nhập tay - Aqua Bay', mode: 'manual', lat: 20.9468, lng: 105.9327 },
+  { id: 'manual-outside', label: 'Nhập tay - ngoài phạm vi', mode: 'manual', lat: 20.9918, lng: 105.8784 }
+];
+
 const state = {
   user: null,
   stations: [],
   bikeTypes: [],
   selectedStationId: null,
   selectedTypeId: '',
+  locationPresetId: 'gps-demo',
+  stationRangeKm: 3,
   stationBikes: [],
-  history: { pendingRequests: [], activeRentals: [], completedRentals: [] },
+  history: { pendingRequests: [], activeRentals: [], completedRentals: [], archivedRequests: [] },
   pendingRequests: [],
   activeRentals: [],
   fleet: [],
+  fleetQuery: '',
   reports: null,
-  reportPeriod: 'day'
+  reportPeriod: 'day',
+  reportStationId: '',
+  reportBikeId: '',
+  lastTicket: null
 };
 
 const app = document.querySelector('#app');
 const toast = document.querySelector('#toast');
+const gsap = window.gsap;
 let stationMapInstance = null;
+let motionContext = null;
+let currentView = null;
+let toastTween = null;
 
 init();
 
@@ -33,8 +50,15 @@ async function init() {
 }
 
 async function refreshData() {
+  const searchLocation = currentLocation();
   state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
-  state.stations = (await api('/api/stations?lat=20.9491&lng=105.9346')).stations;
+  const stationResults = (await api(`/api/stations?lat=${searchLocation.lat}&lng=${searchLocation.lng}`)).stations;
+  state.stations = state.user?.role === 'customer'
+    ? stationResults.filter((station) => Number(station.distance_km || 0) <= state.stationRangeKm)
+    : stationResults;
+  if (state.selectedStationId && !state.stations.some((station) => station.station_id === state.selectedStationId)) {
+    state.selectedStationId = null;
+  }
   if (!state.selectedStationId && state.stations.length) {
     state.selectedStationId = state.stations[0].station_id;
   }
@@ -42,13 +66,16 @@ async function refreshData() {
   if (!state.user) return;
 
   if (state.user.role === 'customer') {
-    state.history = await api('/api/customer/history');
+    state.history = { pendingRequests: [], activeRentals: [], completedRentals: [], archivedRequests: [], ...await api('/api/customer/history') };
     await loadStationBikes();
   } else {
     state.pendingRequests = (await api('/api/staff/pending-requests')).requests;
     state.activeRentals = (await api('/api/staff/active-rentals')).rentals;
     state.fleet = (await api('/api/admin/bikes')).bikes;
-    state.reports = await api(`/api/admin/reports?period=${state.reportPeriod}`);
+    const reportParams = new URLSearchParams({ period: state.reportPeriod });
+    if (state.reportStationId) reportParams.set('stationId', state.reportStationId);
+    if (state.reportBikeId) reportParams.set('bikeId', state.reportBikeId);
+    state.reports = await api(`/api/admin/reports?${reportParams}`);
   }
 }
 
@@ -62,20 +89,30 @@ async function loadStationBikes() {
 }
 
 function render() {
+  clearPageMotion();
   disposeStationMap();
+  const nextView = !state.user ? 'auth' : state.user.role === 'customer' ? 'customer' : 'operations';
+  const isViewSwitch = currentView !== nextView;
+  currentView = nextView;
+  app.className = `app-root view-${nextView}`;
+
   if (!state.user) {
     app.innerHTML = authView();
+    resetScrollOnViewSwitch(isViewSwitch);
     bindAuthEvents();
     mountScene(document.querySelector('#scene'));
+    runPageMotion(nextView, isViewSwitch);
     return;
   }
 
   app.innerHTML = shellView();
+  resetScrollOnViewSwitch(isViewSwitch);
   bindAppEvents();
   mountScene(document.querySelector('#scene'));
   if (state.user.role === 'customer') {
     mountStationMap();
   }
+  runPageMotion(nextView, isViewSwitch);
 }
 
 function authView() {
@@ -86,11 +123,11 @@ function authView() {
           <span class="brand-mark"><img src="/vendor/icons/bike.svg" alt=""></span>
           <div>
             <strong>Ecopark Bicycle Parking</strong>
-            <span>Web vận hành thuê - trả xe đạp</span>
+            <span>Thuê - trả xe đạp Ecopark</span>
           </div>
         </div>
-        <h1>Thuê xe, nhận xe và quản lý bãi trong một màn hình sáng rõ.</h1>
-        <p>Luồng khách hàng và nhân sự bãi xe được triển khai theo UC001-UC005, dữ liệu lưu cục bộ bằng SQLite.</p>
+        <h1>Điều phối thuê - trả xe đạp Ecopark trong một bảng vận hành.</h1>
+        <p>Theo dõi bãi xe, yêu cầu nhận xe, lượt thuê và báo cáo từ cùng một hệ thống cục bộ.</p>
         <div class="auth-highlights" aria-label="Tóm tắt nghiệp vụ">
           ${highlight('id-card', 'CCCD + cọc 200k')}
           ${highlight('percent', 'Cư dân giảm 40%')}
@@ -99,12 +136,16 @@ function authView() {
         <div id="scene" class="scene auth-scene" aria-hidden="true"></div>
       </section>
       <section class="auth-panel">
-        <div class="panel-tabs">
-          <button class="segment active" type="button">Đăng nhập</button>
+        <div class="auth-panel-header">
+          <div>
+            <p class="eyebrow">Workspace</p>
+            <h2>Đăng nhập</h2>
+          </div>
+          <span class="status-pill ok">Local demo</span>
         </div>
         <form id="login-form" class="form-grid">
-          <label>Email<input name="email" type="email" value="customer@ecopark.test" required></label>
-          <label>Mật khẩu<input name="password" type="password" value="customer123" required></label>
+          <label>Email<input name="email" type="email" value="customer@ecopark.test" autocomplete="username" required></label>
+          <label>Mật khẩu<input name="password" type="password" value="customer123" autocomplete="current-password" required></label>
           <button class="primary" type="submit"><img src="/vendor/icons/log-in.svg" alt="">Đăng nhập</button>
         </form>
         <div class="demo-grid">
@@ -116,12 +157,12 @@ function authView() {
         <hr>
         <form id="register-form" class="form-grid compact">
           <h2>Tạo tài khoản khách</h2>
-          <label>Họ tên<input name="fullName" required></label>
-          <label>Email<input name="email" type="email" required></label>
-          <label>Số điện thoại<input name="phone" required></label>
-          <label>Mật khẩu<input name="password" type="password" minlength="6" required></label>
-          <label>CCCD/CMND<input name="identityNumber" required></label>
-          <label>Địa chỉ<input name="address" required></label>
+          <label>Họ tên<input name="fullName" autocomplete="name" required></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Số điện thoại<input name="phone" autocomplete="tel" required></label>
+          <label>Mật khẩu<input name="password" type="password" minlength="6" autocomplete="new-password" required></label>
+          <label>CCCD/CMND<input name="identityNumber" autocomplete="off" required></label>
+          <label>Địa chỉ<input name="address" autocomplete="street-address" required></label>
           <label>Loại khách
             <select name="customerType">
               <option value="visitor">Khách thường</option>
@@ -150,12 +191,12 @@ function shellView() {
         </div>
         <div class="user-actions">
           <span>${escapeHtml(state.user.full_name)}</span>
-          <button id="refresh" class="icon-button" type="button" title="Làm mới"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
+          <button id="refresh" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
           <button id="logout" class="ghost" type="button"><img src="/vendor/icons/log-out.svg" alt="">Đăng xuất</button>
         </div>
       </header>
       <section class="dashboard-hero">
-        <div>
+        <div class="hero-copy">
           <p class="eyebrow">${isCustomer ? 'Customer workspace' : 'Operations workspace'}</p>
           <h1>${isCustomer ? 'Tìm bãi gần nhất, chọn xe rảnh và theo dõi lượt thuê.' : 'Xử lý nhận xe, trả xe, đội xe và thống kê tập trung.'}</h1>
           <div class="metric-strip">
@@ -199,8 +240,9 @@ function customerView() {
             ${state.bikeTypes.map((type) => `<option value="${type.bike_type_id}" ${String(type.bike_type_id) === String(state.selectedTypeId) ? 'selected' : ''}>${escapeHtml(type.type_name)}</option>`).join('')}
           </select>
         </div>
+        ${stationSearchControls()}
         ${stationMapView()}
-        <div class="station-grid">${state.stations.map(stationCard).join('')}</div>
+        <div class="station-grid">${state.stations.map(stationCard).join('') || emptyState('Không có bãi xe trong phạm vi đã chọn')}</div>
       </section>
       <section class="panel bikes-panel">
         <div class="section-heading">
@@ -226,12 +268,9 @@ function operationsView() {
       <section class="panel report-panel">
         <div class="section-heading">
           <h2>Thống kê</h2>
-          <select id="report-period" aria-label="Kỳ báo cáo">
-            <option value="day" ${state.reportPeriod === 'day' ? 'selected' : ''}>Ngày</option>
-            <option value="week" ${state.reportPeriod === 'week' ? 'selected' : ''}>Tuần</option>
-            <option value="month" ${state.reportPeriod === 'month' ? 'selected' : ''}>Tháng</option>
-          </select>
+          <button id="export-report" class="secondary small" type="button"><img src="/vendor/icons/file-down.svg" alt="">Xuất CSV</button>
         </div>
+        ${reportFilters()}
         ${reportView()}
       </section>
       <section class="panel pending-panel">
@@ -248,16 +287,107 @@ function operationsView() {
         </div>
         ${activeRentalsTable()}
       </section>
+      ${state.lastTicket ? ticketPanel() : ''}
       <section class="panel fleet-panel">
         <div class="section-heading">
           <h2>Đội xe</h2>
           <span>${state.fleet.length} xe</span>
         </div>
+        ${fleetControls()}
         ${fleetTable()}
       </section>
       ${state.user.role === 'admin' ? adminForms() : ''}
     </main>
   `;
+}
+
+function stationSearchControls() {
+  const selected = currentLocation();
+  return `
+    <div class="flow-controls location-controls" aria-label="Điều kiện tìm bãi">
+      <label>Vị trí tìm kiếm
+        <select id="location-preset">
+          ${LOCATION_PRESETS.map((preset) => `<option value="${preset.id}" ${preset.id === state.locationPresetId ? 'selected' : ''}>${escapeHtml(preset.label)}</option>`).join('')}
+        </select>
+      </label>
+      <label>Phạm vi
+        <select id="station-range">
+          ${[1, 3, 5, 10].map((range) => `<option value="${range}" ${Number(state.stationRangeKm) === range ? 'selected' : ''}>${range} km</option>`).join('')}
+        </select>
+      </label>
+      <span class="flow-note ${selected.mode === 'gps' ? 'ok' : ''}">
+        <img src="/vendor/icons/${selected.mode === 'gps' ? 'locate-fixed' : 'map-pinned'}.svg" alt="">
+        ${selected.mode === 'gps' ? 'GPS demo đang bật' : 'Đang dùng vị trí nhập tay'}
+      </span>
+    </div>
+  `;
+}
+
+function reportFilters() {
+  return `
+    <div class="flow-controls report-controls" aria-label="Bộ lọc báo cáo">
+      <label>Kỳ báo cáo
+        <select id="report-period">
+          <option value="day" ${state.reportPeriod === 'day' ? 'selected' : ''}>Ngày</option>
+          <option value="week" ${state.reportPeriod === 'week' ? 'selected' : ''}>Tuần</option>
+          <option value="month" ${state.reportPeriod === 'month' ? 'selected' : ''}>Tháng</option>
+        </select>
+      </label>
+      <label>Bãi xe
+        <select id="report-station">
+          <option value="">Tất cả bãi</option>
+          ${state.stations.map((station) => `<option value="${station.station_id}" ${String(station.station_id) === String(state.reportStationId) ? 'selected' : ''}>${escapeHtml(station.station_name)}</option>`).join('')}
+        </select>
+      </label>
+      <label>Xe
+        <select id="report-bike">
+          <option value="">Tất cả xe</option>
+          ${state.fleet.map((bike) => `<option value="${bike.bike_id}" ${String(bike.bike_id) === String(state.reportBikeId) ? 'selected' : ''}>${escapeHtml(bike.bike_code)}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+  `;
+}
+
+function fleetControls() {
+  return `
+    <div class="flow-controls fleet-controls" aria-label="Tra cứu đội xe">
+      <label>Tìm xe
+        <input id="fleet-search" value="${escapeAttr(state.fleetQuery)}" placeholder="Mã xe, loại, bãi hoặc trạng thái">
+      </label>
+      <span class="flow-note">
+        <img src="/vendor/icons/search.svg" alt="">
+        ${filteredFleet().length}/${state.fleet.length} xe khớp
+      </span>
+    </div>
+  `;
+}
+
+function ticketPanel() {
+  const ticket = state.lastTicket;
+  return `
+    <section class="panel ticket-panel">
+      <div class="section-heading">
+        <h2>Phiếu vừa xuất</h2>
+        <span>TCK${ticket.ticket_id}</span>
+      </div>
+      <div class="ticket-summary">
+        ${metric('Phí thuê', money(ticket.base_fee), 'banknote')}
+        ${metric('Giảm cư dân', money(ticket.resident_discount_amount), 'percent')}
+        ${metric('Phụ thu', money(ticket.late_fee), 'timer')}
+        ${metric('Tổng thu', money(ticket.total_amount), 'receipt-text')}
+      </div>
+      <dl class="detail-list inline-details">
+        <div><dt>Xe</dt><dd>${escapeHtml(ticket.bike_code)}</dd></div>
+        <div><dt>Bãi trả</dt><dd>${escapeHtml(ticket.return_station)}</dd></div>
+        <div><dt>Thời điểm</dt><dd>${formatTime(ticket.issued_at)}</dd></div>
+      </dl>
+    </section>
+  `;
+}
+
+function currentLocation() {
+  return LOCATION_PRESETS.find((preset) => preset.id === state.locationPresetId) || LOCATION_PRESETS[0];
 }
 
 function stationCard(station) {
@@ -297,8 +427,9 @@ function fallbackMapView() {
 }
 
 function stationMapFallbackPoints() {
-  const lats = state.stations.map((station) => Number(station.latitude));
-  const lngs = state.stations.map((station) => Number(station.longitude));
+  const userLocation = currentLocation();
+  const lats = [...state.stations.map((station) => Number(station.latitude)), userLocation.lat];
+  const lngs = [...state.stations.map((station) => Number(station.longitude)), userLocation.lng];
   const minLat = Math.min(...lats);
   const maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs);
@@ -311,7 +442,7 @@ function stationMapFallbackPoints() {
   });
 
   return {
-    user: project(20.9491, 105.9346),
+    user: project(userLocation.lat, userLocation.lng),
     stations: state.stations.map((station) => ({ station, ...project(station.latitude, station.longitude) }))
   };
 }
@@ -349,7 +480,8 @@ function mountStationMap() {
   window.L.control.attribution({ prefix: false }).addTo(stationMapInstance);
 
   const bounds = [];
-  const user = window.L.marker([20.9491, 105.9346], {
+  const userLocation = currentLocation();
+  const user = window.L.marker([userLocation.lat, userLocation.lng], {
     icon: window.L.divIcon({
       className: 'user-map-pin',
       html: '<span></span><strong>Bạn</strong>',
@@ -383,10 +515,11 @@ function mountStationMap() {
 }
 
 function stationMapCenter() {
+  const userLocation = currentLocation();
   const points = [...state.stations.map((station) => ({
     lat: Number(station.latitude),
     lng: Number(station.longitude)
-  })), { lat: 20.9491, lng: 105.9346 }];
+  })), { lat: userLocation.lat, lng: userLocation.lng }];
   return {
     lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length,
     lng: points.reduce((sum, point) => sum + point.lng, 0) / points.length
@@ -399,12 +532,168 @@ function disposeStationMap() {
   stationMapInstance = null;
 }
 
+function clearPageMotion() {
+  if (!motionContext) return;
+  motionContext.revert();
+  motionContext = null;
+}
+
+function resetScrollOnViewSwitch(isViewSwitch) {
+  if (!isViewSwitch) return;
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+}
+
+function runPageMotion(view, isViewSwitch) {
+  bindMotionInteractions();
+  if (!gsap || prefersReducedMotion()) return;
+
+  motionContext = gsap.context(() => {
+    if (!isViewSwitch) {
+      const updateTargets = view === 'customer'
+        ? '.station-card.active, .bike-card, .activity-list li'
+        : '.table-wrap tbody tr, .compact-metrics .metric, .admin-form-grid form';
+      gsap.fromTo(updateTargets, {
+        autoAlpha: 0,
+        y: 10,
+        scale: 0.99
+      }, {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.26,
+        ease: 'power2.out',
+        stagger: { amount: 0.1, from: 'start' }
+      });
+      return;
+    }
+
+    if (view === 'auth') {
+      gsap.timeline({ defaults: { duration: 0.56, ease: 'power3.out' } })
+        .fromTo('.brand-row, .auth-copy h1, .auth-copy p', {
+          autoAlpha: 0,
+          y: 20
+        }, {
+          autoAlpha: 1,
+          y: 0,
+          stagger: 0.06
+        })
+        .fromTo('.highlight-chip', {
+          autoAlpha: 0,
+          y: 12,
+          scale: 0.96
+        }, {
+          autoAlpha: 1,
+          y: 0,
+          scale: 1,
+          stagger: { amount: 0.18, from: 'start' }
+        }, '-=0.26')
+        .fromTo('.auth-panel', {
+          autoAlpha: 0,
+          x: 22,
+          scale: 0.985
+        }, {
+          autoAlpha: 1,
+          x: 0,
+          scale: 1
+        }, 0.08)
+        .fromTo('.auth-scene', {
+          autoAlpha: 0,
+          y: 16,
+          scale: 0.98
+        }, {
+          autoAlpha: 1,
+          y: 0,
+          scale: 1
+        }, '-=0.34');
+      return;
+    }
+
+    gsap.timeline({ defaults: { duration: 0.38, ease: 'power3.out' } })
+      .fromTo('.topbar', {
+        autoAlpha: 0,
+        y: -12
+      }, {
+        autoAlpha: 1,
+        y: 0
+      })
+      .fromTo('.dashboard-hero', {
+        autoAlpha: 0,
+        y: 18,
+        scale: 0.99
+      }, {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1
+      }, '-=0.2')
+      .fromTo('.dashboard-hero .eyebrow, .dashboard-hero h1, .metric, .hero-scene', {
+        autoAlpha: 0,
+        y: 16
+      }, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.34,
+        stagger: { amount: 0.16, from: 'start' }
+      }, '-=0.2')
+      .fromTo('.panel', {
+        autoAlpha: 0,
+        y: 18,
+        scale: 0.99
+      }, {
+        autoAlpha: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.34,
+        stagger: { amount: 0.14, from: 'start' }
+      }, '-=0.24');
+  }, app);
+}
+
+function bindMotionInteractions() {
+  if (!gsap || prefersReducedMotion()) return;
+  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .station-card, .bike-card').forEach((element) => {
+    element.addEventListener('pointerenter', () => {
+      if (element.disabled) return;
+      gsap.to(element, {
+        y: -2,
+        scale: element.classList.contains('bike-card') ? 1.006 : 1.012,
+        duration: 0.18,
+        ease: 'power2.out',
+        overwrite: 'auto'
+      });
+    });
+    element.addEventListener('pointerleave', () => {
+      gsap.to(element, {
+        y: 0,
+        scale: 1,
+        duration: 0.22,
+        ease: 'power2.out',
+        overwrite: 'auto'
+      });
+    });
+    element.addEventListener('pointerdown', () => {
+      if (element.disabled) return;
+      gsap.to(element, { scale: 0.985, duration: 0.08, overwrite: 'auto' });
+    });
+    element.addEventListener('pointerup', () => {
+      if (element.disabled) return;
+      gsap.to(element, { scale: 1.012, duration: 0.14, ease: 'power2.out', overwrite: 'auto' });
+    });
+  });
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
 function bikeCard(bike) {
   const disabled = bike.is_available ? '' : 'disabled';
   const status = bike.held_for_pickup ? 'held' : bike.bike_status;
+  const typeKey = bikeTypeKey(bike.type_name);
   return `
-    <article class="bike-card ${bike.is_available ? '' : 'muted'}">
-      <div class="bike-visual"><img src="/vendor/icons/bike.svg" alt=""></div>
+    <article class="bike-card bike-type-${typeKey} ${bike.is_available ? '' : 'muted'}">
+      <div class="bike-visual ${typeKey}" title="${escapeAttr(bike.type_name)}">
+        ${bikeTypeSvg(typeKey)}
+      </div>
       <h3>${escapeHtml(bike.bike_code)}</h3>
       <p>${escapeHtml(bike.type_name)}</p>
       <span class="status-pill ${bike.is_available ? 'ok' : ''}">${statusLabel(status)}</span>
@@ -420,9 +709,50 @@ function bikeCard(bike) {
   `;
 }
 
+function bikeTypeKey(typeName) {
+  const value = String(typeName || '').toLowerCase();
+  if (value.includes('tandem')) return 'tandem';
+  if (value.includes('child')) return 'child';
+  return 'city';
+}
+
+function bikeTypeSvg(typeKey) {
+  const tandem = typeKey === 'tandem';
+  const child = typeKey === 'child';
+  const rearWheel = tandem ? 22 : 24;
+  const frontWheel = tandem ? 76 : 72;
+  const midSeat = tandem ? '<path class="bike-seat" d="M48 21h13" /><path class="bike-line" d="M54 22v12" />' : '';
+  const rearAccessory = child
+    ? '<rect class="bike-accent-fill" x="14" y="16" width="15" height="14" rx="3" /><path class="bike-line" d="M21 30v8" />'
+    : '';
+  const frontAccessory = child
+    ? ''
+    : '<path class="bike-accent" d="M73 24h11l-2 10H72z" />';
+
+  return `
+    <svg viewBox="0 0 96 64" aria-hidden="true" focusable="false">
+      <circle class="bike-wheel" cx="${rearWheel}" cy="43" r="13" />
+      <circle class="bike-wheel" cx="${frontWheel}" cy="43" r="13" />
+      <path class="bike-line" d="M${rearWheel} 43 L39 23 L56 43 L${rearWheel} 43 M56 43 L${frontWheel - 10} 24 L${frontWheel} 43 M39 23 L${frontWheel - 10} 24" />
+      <path class="bike-line" d="M39 23h17" />
+      <path class="bike-seat" d="M31 19h14" />
+      <path class="bike-line" d="M38 21v14" />
+      ${midSeat}
+      <path class="bike-line" d="M${frontWheel - 10} 24l10-8" />
+      <path class="bike-seat" d="M${frontWheel - 3} 16h11" />
+      ${rearAccessory}
+      ${frontAccessory}
+      <circle class="bike-crank" cx="48" cy="43" r="3" />
+    </svg>
+  `;
+}
+
 function customerActivity() {
   const pending = state.history.pendingRequests.map((item) => `
-    <li><strong>${escapeHtml(item.bike_code)}</strong><span>${escapeHtml(item.pickup_station)} · chờ nhận đến ${formatTime(item.expires_at)}</span></li>
+    <li class="activity-item action-item">
+      <div><strong>${escapeHtml(item.bike_code)}</strong><span>${escapeHtml(item.pickup_station)} · chờ nhận đến ${formatTime(item.expires_at)}</span></div>
+      <button class="ghost small" type="button" data-cancel-request="${item.request_id}"><img src="/vendor/icons/circle-x.svg" alt="">Hủy</button>
+    </li>
   `).join('');
   const active = state.history.activeRentals.map((item) => `
     <li><strong>${escapeHtml(item.bike_code)}</strong><span>Đang thuê từ ${formatTime(item.started_at)} · cọc ${money(item.deposit_amount)}</span></li>
@@ -430,7 +760,10 @@ function customerActivity() {
   const completed = state.history.completedRentals.map((item) => `
     <li><strong>${escapeHtml(item.bike_code)}</strong><span>${escapeHtml(item.pickup_station)} → ${escapeHtml(item.return_station || '-')} · ${money(item.total_amount)}</span></li>
   `).join('');
-  const items = `${pending}${active}${completed}`;
+  const archived = state.history.archivedRequests.map((item) => `
+    <li class="muted-activity"><strong>${escapeHtml(item.bike_code)}</strong><span>${escapeHtml(item.pickup_station)} · ${requestStatusLabel(item.request_status)}</span></li>
+  `).join('');
+  const items = `${pending}${active}${completed}${archived}`;
   return items ? `<ul class="activity-list">${items}</ul>` : emptyState('Chưa có lịch sử thuê');
 }
 
@@ -443,7 +776,7 @@ function reportView() {
       ${metric('Phụ thu trễ', money(state.reports.totals.late_revenue), 'timer')}
     </div>
     <div class="table-wrap">
-      <table>
+      <table class="operations-table report-table">
         <thead><tr><th>Kỳ</th><th>Lượt</th><th>Phí thuê</th><th>Giảm cư dân</th><th>Phụ thu</th><th>Tổng</th></tr></thead>
         <tbody>
           ${state.reports.rows.map((row) => `
@@ -466,17 +799,32 @@ function pendingRequestsTable() {
   if (!state.pendingRequests.length) return emptyState('Không có yêu cầu chờ nhận xe');
   return `
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>Mã</th><th>Khách</th><th>Xe</th><th>Bãi nhận</th><th>CCCD</th><th></th></tr></thead>
+      <table class="operations-table requests-table">
+        <thead><tr><th>Mã</th><th>Khách</th><th>Xe / bãi nhận</th><th>Giấy tờ</th><th>Cọc</th><th>Giữ lại</th><th></th></tr></thead>
         <tbody>
           ${state.pendingRequests.map((item) => `
             <tr>
               <td>REQ${item.request_id}</td>
               <td>${escapeHtml(item.full_name)}</td>
-              <td>${escapeHtml(item.bike_code)} · ${escapeHtml(item.type_name)}</td>
-              <td>${escapeHtml(item.pickup_station)}</td>
-              <td>${escapeHtml(item.identity_number)}</td>
-              <td><button class="primary small" data-handover="${item.request_id}" data-identity="${escapeAttr(item.identity_number)}"><img src="/vendor/icons/key-round.svg" alt="">Giao xe</button></td>
+              <td><strong>${escapeHtml(item.bike_code)}</strong><span class="cell-subtext">${escapeHtml(item.type_name)} · ${escapeHtml(item.pickup_station)}</span></td>
+              <td>
+                <div class="stacked-inputs">
+                  <select id="doc-type-${item.request_id}" aria-label="Loại giấy tờ REQ${item.request_id}">
+                    <option value="CCCD">CCCD</option>
+                    <option value="CMND">CMND</option>
+                    <option value="Passport">Hộ chiếu</option>
+                  </select>
+                  <input id="identity-${item.request_id}" value="${escapeAttr(item.identity_number)}" aria-label="Số giấy tờ REQ${item.request_id}">
+                </div>
+              </td>
+              <td><input id="deposit-${item.request_id}" type="number" min="0" step="10000" value="200000" aria-label="Tiền cọc REQ${item.request_id}"></td>
+              <td><input id="held-doc-${item.request_id}" value="${escapeAttr(item.identity_number)}" aria-label="Giấy tờ giữ REQ${item.request_id}"></td>
+              <td>
+                <div class="row-actions">
+                  <button class="primary small" data-handover="${item.request_id}"><img src="/vendor/icons/key-round.svg" alt="">Giao</button>
+                  <button class="ghost small" data-cancel-request="${item.request_id}"><img src="/vendor/icons/ban.svg" alt="">Hủy</button>
+                </div>
+              </td>
             </tr>
           `).join('')}
         </tbody>
@@ -489,8 +837,19 @@ function activeRentalsTable() {
   if (!state.activeRentals.length) return emptyState('Không có xe đang thuê');
   return `
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>Lượt</th><th>Khách</th><th>Xe</th><th>Bãi nhận</th><th>Bãi trả</th><th>Tình trạng</th><th></th></tr></thead>
+      <table class="operations-table active-rentals-table">
+        <colgroup>
+          <col class="col-rental">
+          <col class="col-customer">
+          <col class="col-bike">
+          <col class="col-station">
+          <col class="col-return">
+          <col class="col-return-time">
+          <col class="col-condition">
+          <col class="col-note">
+          <col class="col-action">
+        </colgroup>
+        <thead><tr><th>Lượt</th><th>Khách</th><th>Xe</th><th>Bãi nhận</th><th>Bãi trả</th><th>Giờ trả</th><th>Tình trạng</th><th>Ghi chú</th><th></th></tr></thead>
         <tbody>
           ${state.activeRentals.map((item) => `
             <tr>
@@ -499,12 +858,14 @@ function activeRentalsTable() {
               <td>${escapeHtml(item.bike_code)}</td>
               <td>${escapeHtml(item.pickup_station)}</td>
               <td>${stationSelect(`return-station-${item.rental_id}`, item.pickup_station_id)}</td>
+              <td><input id="returned-at-${item.rental_id}" type="datetime-local" value="${toDatetimeLocal(new Date(Date.now() + 60000))}" aria-label="Giờ trả RENT${item.rental_id}"></td>
               <td>
                 <select id="condition-${item.rental_id}">
                   <option value="available">Sẵn sàng</option>
                   <option value="broken">Cần sửa</option>
                 </select>
               </td>
+              <td><input id="condition-note-${item.rental_id}" value="Nhận xe tại bãi trả" aria-label="Ghi chú tình trạng RENT${item.rental_id}"></td>
               <td><button class="primary small" data-return="${item.rental_id}"><img src="/vendor/icons/receipt-text.svg" alt="">Xuất vé</button></td>
             </tr>
           `).join('')}
@@ -516,23 +877,27 @@ function activeRentalsTable() {
 
 function fleetTable() {
   if (!state.fleet.length) return emptyState('Chưa có xe');
+  const bikes = filteredFleet();
+  if (!bikes.length) return emptyState('Không tìm thấy xe phù hợp');
+  const isAdmin = state.user.role === 'admin';
   return `
     <div class="table-wrap">
-      <table>
-        <thead><tr><th>Mã xe</th><th>Loại</th><th>Bãi</th><th>Trạng thái</th><th>Giữ chỗ</th><th></th></tr></thead>
+      <table class="operations-table fleet-table">
+        <thead><tr><th>Mã xe</th><th>Loại</th><th>Bãi hiện tại</th><th>Trạng thái</th><th>Lý do</th><th>Giữ chỗ</th><th></th></tr></thead>
         <tbody>
-          ${state.fleet.map((bike) => `
+          ${bikes.map((bike) => `
             <tr>
-              <td>${escapeHtml(bike.bike_code)}</td>
-              <td>${escapeHtml(bike.type_name)}</td>
-              <td>${escapeHtml(bike.station_name)}</td>
+              <td>${isAdmin ? `<input id="bike-code-${bike.bike_id}" value="${escapeAttr(bike.bike_code)}" aria-label="Mã xe ${escapeAttr(bike.bike_code)}">` : escapeHtml(bike.bike_code)}</td>
+              <td>${isAdmin ? bikeTypeSelect(`bike-type-${bike.bike_id}`, bike.bike_type_id) : escapeHtml(bike.type_name)}</td>
+              <td>${isAdmin ? stationSelect(`bike-station-${bike.bike_id}`, bike.station_id) : escapeHtml(bike.station_name)}</td>
               <td>
                 <select id="bike-status-${bike.bike_id}">
                   ${['available', 'rented', 'broken'].map((status) => `<option value="${status}" ${bike.bike_status === status ? 'selected' : ''}>${statusLabel(status)}</option>`).join('')}
                 </select>
               </td>
+              <td><input id="bike-reason-${bike.bike_id}" value="${bike.bike_status === 'broken' ? 'Đánh dấu cần sửa chữa' : 'Kiểm tra vận hành'}" aria-label="Lý do cập nhật ${escapeAttr(bike.bike_code)}"></td>
               <td>${bike.held_for_pickup ? 'Có' : 'Không'}</td>
-              <td><button class="secondary small" data-status="${bike.bike_id}"><img src="/vendor/icons/save.svg" alt="">Lưu</button></td>
+              <td><button class="secondary small" data-save-bike="${bike.bike_id}"><img src="/vendor/icons/save.svg" alt="">Lưu</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -544,7 +909,8 @@ function fleetTable() {
 function adminForms() {
   return `
     <section class="panel admin-panel">
-      <div class="section-heading"><h2>Thêm dữ liệu vận hành</h2><span>Admin</span></div>
+      <div class="section-heading"><h2>Dữ liệu vận hành</h2><span>Admin</span></div>
+      ${stationManagementTable()}
       <div class="admin-form-grid">
         <form id="station-form" class="form-grid compact">
           <h3>Bãi xe</h3>
@@ -553,6 +919,13 @@ function adminForms() {
           <label>Vĩ độ<input name="latitude" type="number" step="0.000001" value="20.949000" required></label>
           <label>Kinh độ<input name="longitude" type="number" step="0.000001" value="105.934000" required></label>
           <label>Sức chứa<input name="capacity" type="number" min="1" value="20" required></label>
+          <label>Trạng thái
+            <select name="stationStatus">
+              <option value="active">Hoạt động</option>
+              <option value="paused">Tạm ngưng</option>
+              <option value="maintenance">Bảo trì</option>
+            </select>
+          </label>
           <button class="secondary" type="submit"><img src="/vendor/icons/map-pin-plus.svg" alt="">Thêm bãi</button>
         </form>
         <form id="bike-form" class="form-grid compact">
@@ -577,12 +950,35 @@ function adminForms() {
   `;
 }
 
+function stationManagementTable() {
+  if (!state.stations.length) return '';
+  return `
+    <div class="table-wrap station-manager">
+      <table class="operations-table station-table">
+        <thead><tr><th>Tên bãi</th><th>Địa chỉ</th><th>Sức chứa</th><th>Trạng thái</th><th></th></tr></thead>
+        <tbody>
+          ${state.stations.map((station) => `
+            <tr>
+              <td><input id="station-name-${station.station_id}" value="${escapeAttr(station.station_name)}" aria-label="Tên bãi ${escapeAttr(station.station_name)}"></td>
+              <td><input id="station-address-${station.station_id}" value="${escapeAttr(station.address)}" aria-label="Địa chỉ ${escapeAttr(station.station_name)}"></td>
+              <td><input id="station-capacity-${station.station_id}" type="number" min="1" value="${station.capacity}" aria-label="Sức chứa ${escapeAttr(station.station_name)}"></td>
+              <td>${stationStatusSelect(`station-status-${station.station_id}`, station.station_status)}</td>
+              <td><button class="secondary small" data-save-station="${station.station_id}"><img src="/vendor/icons/save.svg" alt="">Lưu</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 function bindAuthEvents() {
   document.querySelector('#login-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.currentTarget));
     await runAction(async () => {
       state.user = (await api('/api/auth/login', { method: 'POST', body })).user;
+      resetWorkspaceState();
       await refreshData();
       render();
     }, 'Đã đăng nhập');
@@ -593,6 +989,7 @@ function bindAuthEvents() {
     const body = Object.fromEntries(new FormData(event.currentTarget));
     await runAction(async () => {
       state.user = (await api('/api/auth/register', { method: 'POST', body })).user;
+      resetWorkspaceState();
       await refreshData();
       render();
     }, 'Đã tạo tài khoản');
@@ -605,6 +1002,7 @@ function bindAuthEvents() {
           method: 'POST',
           body: { email: button.dataset.demoEmail, password: button.dataset.demoPassword }
         })).user;
+        resetWorkspaceState();
         await refreshData();
         render();
       });
@@ -617,6 +1015,7 @@ function bindAppEvents() {
     await runAction(async () => {
       await api('/api/auth/logout', { method: 'POST' });
       state.user = null;
+      resetWorkspaceState();
       render();
     }, 'Đã đăng xuất');
   });
@@ -634,9 +1033,34 @@ function bindAppEvents() {
   }
 }
 
+function resetWorkspaceState() {
+  state.selectedTypeId = '';
+  state.fleetQuery = '';
+  state.reportPeriod = 'day';
+  state.reportStationId = '';
+  state.reportBikeId = '';
+  state.lastTicket = null;
+}
+
 function bindCustomerEvents() {
   document.querySelectorAll('[data-station]').forEach((button) => {
     button.addEventListener('click', () => selectStation(Number(button.dataset.station)));
+  });
+  document.querySelector('#location-preset')?.addEventListener('change', async (event) => {
+    state.locationPresetId = event.target.value;
+    state.selectedStationId = null;
+    await runAction(async () => {
+      await refreshData();
+      render();
+    }, 'Đã cập nhật vị trí tìm kiếm');
+  });
+  document.querySelector('#station-range')?.addEventListener('change', async (event) => {
+    state.stationRangeKm = Number(event.target.value);
+    state.selectedStationId = null;
+    await runAction(async () => {
+      await refreshData();
+      render();
+    }, 'Đã cập nhật phạm vi tìm bãi');
   });
   document.querySelector('#type-filter').addEventListener('change', async (event) => {
     state.selectedTypeId = event.target.value;
@@ -673,6 +1097,7 @@ function bindCustomerEvents() {
       }, 'Đã gửi yêu cầu thuê xe');
     });
   });
+  bindCancelRequestButtons();
 }
 
 async function selectStation(stationId) {
@@ -694,18 +1119,46 @@ function bindOpsEvents() {
       });
     });
   }
+  const reportStation = document.querySelector('#report-station');
+  if (reportStation) {
+    reportStation.addEventListener('change', async (event) => {
+      state.reportStationId = event.target.value;
+      await runAction(async () => {
+        await refreshData();
+        render();
+      });
+    });
+  }
+  const reportBike = document.querySelector('#report-bike');
+  if (reportBike) {
+    reportBike.addEventListener('change', async (event) => {
+      state.reportBikeId = event.target.value;
+      await runAction(async () => {
+        await refreshData();
+        render();
+      });
+    });
+  }
+  document.querySelector('#export-report')?.addEventListener('click', () => {
+    exportReportCsv();
+  });
+  document.querySelector('#fleet-search')?.addEventListener('change', (event) => {
+    state.fleetQuery = event.target.value;
+    render();
+  });
 
   document.querySelectorAll('[data-handover]').forEach((button) => {
     button.addEventListener('click', async () => {
+      const requestId = Number(button.dataset.handover);
       await runAction(async () => {
         await api('/api/staff/handover', {
           method: 'POST',
           body: {
-            requestId: Number(button.dataset.handover),
-            identityDocumentType: 'CCCD',
-            identityDocumentNumber: button.dataset.identity,
-            depositAmount: 200000,
-            depositDocumentHeld: button.dataset.identity
+            requestId,
+            identityDocumentType: document.querySelector(`#doc-type-${requestId}`).value,
+            identityDocumentNumber: document.querySelector(`#identity-${requestId}`).value,
+            depositAmount: Number(document.querySelector(`#deposit-${requestId}`).value),
+            depositDocumentHeld: document.querySelector(`#held-doc-${requestId}`).value
           }
         });
         await refreshData();
@@ -723,9 +1176,12 @@ function bindOpsEvents() {
           body: {
             rentalId,
             returnStationId: Number(document.querySelector(`#return-station-${rentalId}`).value),
-            bicycleCondition: document.querySelector(`#condition-${rentalId}`).value
+            returnedAt: toIsoFromDatetimeLocal(document.querySelector(`#returned-at-${rentalId}`).value),
+            bicycleCondition: document.querySelector(`#condition-${rentalId}`).value,
+            conditionNote: document.querySelector(`#condition-note-${rentalId}`).value
           }
         })).ticket;
+        state.lastTicket = ticket;
         await refreshData();
         render();
         notify(`Vé TCK${ticket.ticket_id}: ${money(ticket.total_amount)}`);
@@ -733,20 +1189,49 @@ function bindOpsEvents() {
     });
   });
 
-  document.querySelectorAll('[data-status]').forEach((button) => {
+  document.querySelectorAll('[data-save-bike]').forEach((button) => {
     button.addEventListener('click', async () => {
-      const bikeId = Number(button.dataset.status);
+      const bikeId = Number(button.dataset.saveBike);
       await runAction(async () => {
+        if (state.user.role === 'admin') {
+          await api(`/api/admin/bikes/${bikeId}`, {
+            method: 'PATCH',
+            body: {
+              bikeCode: document.querySelector(`#bike-code-${bikeId}`).value,
+              stationId: Number(document.querySelector(`#bike-station-${bikeId}`).value),
+              bikeTypeId: Number(document.querySelector(`#bike-type-${bikeId}`).value)
+            }
+          });
+        }
         await api(`/api/admin/bikes/${bikeId}/status`, {
           method: 'PATCH',
           body: {
             bikeStatus: document.querySelector(`#bike-status-${bikeId}`).value,
-            reason: 'Cập nhật từ dashboard vận hành'
+            reason: document.querySelector(`#bike-reason-${bikeId}`).value
           }
         });
         await refreshData();
         render();
-      }, 'Đã cập nhật trạng thái xe');
+      }, 'Đã cập nhật xe');
+    });
+  });
+
+  document.querySelectorAll('[data-save-station]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const stationId = Number(button.dataset.saveStation);
+      await runAction(async () => {
+        await api(`/api/admin/stations/${stationId}`, {
+          method: 'PATCH',
+          body: {
+            stationName: document.querySelector(`#station-name-${stationId}`).value,
+            address: document.querySelector(`#station-address-${stationId}`).value,
+            capacity: Number(document.querySelector(`#station-capacity-${stationId}`).value),
+            stationStatus: document.querySelector(`#station-status-${stationId}`).value
+          }
+        });
+        await refreshData();
+        render();
+      }, 'Đã cập nhật bãi xe');
     });
   });
 
@@ -785,6 +1270,72 @@ function bindOpsEvents() {
       }, 'Đã thêm xe');
     });
   }
+
+  bindCancelRequestButtons();
+}
+
+function bindCancelRequestButtons() {
+  document.querySelectorAll('[data-cancel-request]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const requestId = Number(button.dataset.cancelRequest);
+      await runAction(async () => {
+        await api(`/api/rental-requests/${requestId}/cancel`, { method: 'POST' });
+        await refreshData();
+        render();
+      }, 'Đã hủy yêu cầu thuê');
+    });
+  });
+}
+
+function exportReportCsv() {
+  if (!state.reports || !state.reports.rows.length) {
+    notify('Không có dữ liệu báo cáo để xuất', true);
+    return;
+  }
+  const rows = [
+    ['Ky', 'Luot', 'Phi thue', 'Giam cu dan', 'Phu thu', 'Tong'],
+    ...state.reports.rows.map((row) => [
+      row.period_label || '-',
+      row.rental_count || 0,
+      row.base_revenue || 0,
+      row.resident_discounts || 0,
+      row.late_revenue || 0,
+      row.total_revenue || 0
+    ])
+  ];
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const suffix = [state.reportPeriod, state.reportStationId || 'all-stations', state.reportBikeId || 'all-bikes'].join('-');
+  downloadText(`ecopark-report-${suffix}.csv`, csv, 'text/csv;charset=utf-8');
+  notify('Đã xuất báo cáo CSV');
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadText(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function filteredFleet() {
+  const query = state.fleetQuery.trim().toLowerCase();
+  if (!query) return state.fleet;
+  return state.fleet.filter((bike) => [
+    bike.bike_code,
+    bike.type_name,
+    bike.station_name,
+    statusLabel(bike.bike_status),
+    bike.bike_status
+  ].some((value) => String(value || '').toLowerCase().includes(query)));
 }
 
 async function runAction(action, message) {
@@ -840,6 +1391,23 @@ function stationSelect(id, selectedId) {
   `;
 }
 
+function bikeTypeSelect(id, selectedId) {
+  return `
+    <select id="${id}" name="bikeTypeId">
+      ${state.bikeTypes.map((type) => `<option value="${type.bike_type_id}" ${Number(selectedId) === type.bike_type_id ? 'selected' : ''}>${escapeHtml(type.type_name)}</option>`).join('')}
+    </select>
+  `;
+}
+
+function stationStatusSelect(id, selectedStatus) {
+  const labels = { active: 'Hoạt động', paused: 'Tạm ngưng', maintenance: 'Bảo trì' };
+  return `
+    <select id="${id}" name="stationStatus">
+      ${Object.entries(labels).map(([value, label]) => `<option value="${value}" ${value === selectedStatus ? 'selected' : ''}>${label}</option>`).join('')}
+    </select>
+  `;
+}
+
 function selectedStationName() {
   return escapeHtml(state.stations.find((station) => station.station_id === state.selectedStationId)?.station_name || '-');
 }
@@ -856,6 +1424,15 @@ function statusLabel(status) {
     rented: 'Đang thuê',
     broken: 'Cần sửa',
     held: 'Chờ nhận'
+  })[status] || status;
+}
+
+function requestStatusLabel(status) {
+  return ({
+    pending_pickup: 'Chờ nhận xe',
+    cancelled: 'Đã hủy',
+    expired: 'Đã hết hạn',
+    converted: 'Đã giao xe'
   })[status] || status;
 }
 
@@ -876,12 +1453,57 @@ function formatTime(value) {
   }).format(new Date(value));
 }
 
+function toDatetimeLocal(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function toIsoFromDatetimeLocal(value) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
 function notify(message, isError = false) {
   toast.textContent = message;
   toast.classList.toggle('error', isError);
   toast.classList.add('show');
+  if (toastTween) toastTween.kill();
+  if (gsap && !prefersReducedMotion()) {
+    toastTween = gsap.fromTo(toast, {
+      autoAlpha: 0,
+      y: 16,
+      scale: 0.98
+    }, {
+      autoAlpha: 1,
+      y: 0,
+      scale: 1,
+      duration: 0.24,
+      ease: 'power2.out',
+      overwrite: true
+    });
+  }
   clearTimeout(notify.timer);
-  notify.timer = setTimeout(() => toast.classList.remove('show'), 3200);
+  notify.timer = setTimeout(() => {
+    if (!gsap || prefersReducedMotion()) {
+      toast.classList.remove('show');
+      return;
+    }
+    if (toastTween) toastTween.kill();
+    toastTween = gsap.to(toast, {
+      autoAlpha: 0,
+      y: 14,
+      duration: 0.2,
+      ease: 'power2.in',
+      overwrite: true,
+      onComplete: () => {
+        toast.classList.remove('show');
+        gsap.set(toast, { clearProps: 'opacity,visibility,transform' });
+      }
+    });
+  }, 3200);
 }
 
 function escapeHtml(value) {

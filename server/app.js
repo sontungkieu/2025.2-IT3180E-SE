@@ -100,6 +100,13 @@ async function handleApi(ctx) {
     return;
   }
 
+  const requestCancelMatch = pathname.match(/^\/api\/rental-requests\/(\d+)\/cancel$/);
+  if (method === 'POST' && requestCancelMatch) {
+    const user = requireRole(ctx, ['customer', 'staff', 'admin']);
+    sendJson(res, 200, { request: cancelRentalRequest(ctx.db, user, Number(requestCancelMatch[1])) });
+    return;
+  }
+
   if (method === 'POST' && pathname === '/api/customer/resident-card') {
     const user = requireRole(ctx, ['customer']);
     const body = await readJson(req);
@@ -272,6 +279,7 @@ function submitResidentCard(db, user, body) {
 }
 
 function createRentalRequest(db, user, body) {
+  expirePendingRequests(db);
   const bikeId = Number(body.bikeId);
   const stationId = Number(body.stationId);
   const requestedDurationMinutes = Number(body.requestedDurationMinutes);
@@ -327,7 +335,30 @@ function createRentalRequest(db, user, body) {
   return getPendingRequest(db, requestId);
 }
 
+function cancelRentalRequest(db, user, requestId) {
+  expirePendingRequests(db);
+  const request = db.prepare(`
+    SELECT rr.*, b.bike_code, s.station_name AS pickup_station
+    FROM rental_requests rr
+    JOIN bikes b ON b.bike_id = rr.bike_id
+    JOIN stations s ON s.station_id = rr.pickup_station_id
+    WHERE rr.request_id = ?
+  `).get(requestId);
+  if (!request) {
+    throw httpError(404, 'Rental request not found');
+  }
+  if (user.role === 'customer' && request.customer_id !== user.user_id) {
+    throw httpError(403, 'Customers can only cancel their own requests');
+  }
+  if (request.request_status !== 'pending_pickup') {
+    throw httpError(409, 'Only pending pickup requests can be cancelled');
+  }
+  db.prepare("UPDATE rental_requests SET request_status = 'cancelled' WHERE request_id = ?").run(requestId);
+  return { ...request, request_status: 'cancelled' };
+}
+
 function handoverBike(db, user, body) {
+  expirePendingRequests(db);
   const requestId = Number(body.requestId);
   const depositAmount = Number(body.depositAmount);
   const documentType = requiredText(body.identityDocumentType, 'Identity document type');
@@ -423,12 +454,17 @@ function returnBike(db, user, body) {
     throw httpError(400, 'Return station must be active');
   }
 
-  const pricing = calculateTicket({
-    plannedDurationMinutes: rental.planned_duration_minutes,
-    startedAt: rental.started_at,
-    returnedAt,
-    discountEligible: Boolean(rental.discount_eligible)
-  });
+  let pricing;
+  try {
+    pricing = calculateTicket({
+      plannedDurationMinutes: rental.planned_duration_minutes,
+      startedAt: rental.started_at,
+      returnedAt,
+      discountEligible: Boolean(rental.discount_eligible)
+    });
+  } catch (error) {
+    throw httpError(400, error.message);
+  }
 
   try {
     db.exec('BEGIN IMMEDIATE');
@@ -476,6 +512,7 @@ function returnBike(db, user, body) {
 }
 
 function getStations(db, searchParams) {
+  expirePendingRequests(db);
   const lat = Number(searchParams.get('lat'));
   const lng = Number(searchParams.get('lng'));
   const rows = db.prepare(`
@@ -509,6 +546,7 @@ function getStations(db, searchParams) {
 }
 
 function getStationBikes(db, stationId, searchParams) {
+  expirePendingRequests(db);
   const typeId = Number(searchParams.get('typeId') || 0);
   const rows = db.prepare(`
     SELECT b.*, bt.type_name, bt.description,
@@ -535,6 +573,7 @@ function getBikeTypes(db) {
 }
 
 function getCustomerHistory(db, customerId) {
+  expirePendingRequests(db);
   return {
     pendingRequests: db.prepare(`
       SELECT rr.*, b.bike_code, s.station_name AS pickup_station
@@ -563,11 +602,21 @@ function getCustomerHistory(db, customerId) {
       JOIN rental_tickets rt ON rt.rental_id = r.rental_id
       WHERE r.customer_id = ? AND r.rental_status = 'completed'
       ORDER BY r.returned_at DESC
+    `).all(customerId),
+    archivedRequests: db.prepare(`
+      SELECT rr.*, b.bike_code, s.station_name AS pickup_station
+      FROM rental_requests rr
+      JOIN bikes b ON b.bike_id = rr.bike_id
+      JOIN stations s ON s.station_id = rr.pickup_station_id
+      WHERE rr.customer_id = ? AND rr.request_status IN ('cancelled', 'expired')
+      ORDER BY rr.created_at DESC
+      LIMIT 5
     `).all(customerId)
   };
 }
 
 function getPendingRequests(db) {
+  expirePendingRequests(db);
   return db.prepare(`
     SELECT rr.*, u.full_name, cp.identity_number, cp.customer_type, cp.discount_eligible,
       b.bike_code, bt.type_name, s.station_name AS pickup_station
@@ -705,6 +754,10 @@ function updateStation(db, stationId, body) {
     capacity: Number.isFinite(Number(body.capacity)) ? Number(body.capacity) : existing.capacity,
     station_status: ['active', 'paused', 'maintenance'].includes(body.stationStatus) ? body.stationStatus : existing.station_status
   };
+  const currentBikeCount = db.prepare('SELECT COUNT(*) AS count FROM bikes WHERE station_id = ?').get(stationId).count;
+  if (next.capacity < currentBikeCount) {
+    throw httpError(409, 'Station capacity cannot be lower than current bikes at that station');
+  }
   db.prepare(`
     UPDATE stations
     SET station_name = ?, address = ?, latitude = ?, longitude = ?, capacity = ?, station_status = ?
@@ -781,6 +834,15 @@ function updateBikeStatus(db, user, bikeId, body) {
     reason
   });
   return getAllBikes(db).find((bike) => bike.bike_id === bikeId);
+}
+
+function expirePendingRequests(db) {
+  db.prepare(`
+    UPDATE rental_requests
+    SET request_status = 'expired'
+    WHERE request_status = 'pending_pickup'
+      AND datetime(expires_at) <= datetime('now')
+  `).run();
 }
 
 function insertBikeLog(db, { bikeId, oldStatus, newStatus, stationId, changedBy, reason }) {
@@ -872,6 +934,10 @@ function resolvePublicPath(urlPath) {
 }
 
 function resolveVendorPath(urlPath) {
+  const gsapMatch = urlPath.match(/^\/vendor\/gsap\/(gsap\.min\.js)$/);
+  if (gsapMatch) {
+    return path.join(ROOT_DIR, 'node_modules', 'gsap', 'dist', gsapMatch[1]);
+  }
   const threeMatch = urlPath.match(/^\/vendor\/(three\.[a-z0-9.-]+\.js)$/);
   if (threeMatch) {
     return path.join(ROOT_DIR, 'node_modules', 'three', 'build', threeMatch[1]);

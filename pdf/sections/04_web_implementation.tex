@@ -9,18 +9,36 @@ luồng dữ liệu, trạng thái xe, yêu cầu thuê, phiếu thuê và báo 
 
 Giao diện được thiết kế theo hướng dashboard vận hành sáng màu, ưu tiên xanh lá
 và xanh dương để bám chủ đề đô thị xanh Ecopark nhưng vẫn giữ nhịp bố cục gọn
-theo cảm hứng từ các ứng dụng vận hành hiện đại. Phần đầu trang có một scene 3D
-nhỏ bằng Three.js mô phỏng mảng xanh, mặt nước và xe đạp. Scene này chỉ đóng vai
-trò nhấn thị giác, không thay thế các bảng, form và trạng thái nghiệp vụ chính.
-Các chi tiết giao diện đã được rà lại qua ba lượt chụp màn hình và tinh chỉnh,
-bao gồm bố cục màn hình đăng nhập, kích thước hero trên mobile, độ dày bảng quản
-trị, vị trí toast và cân bằng giữa scene 3D với nội dung nghiệp vụ.
+theo cảm hứng từ các ứng dụng vận hành hiện đại. Lớp giao diện được tinh chỉnh
+theo hướng sẵn sàng vận hành hơn với thanh trên cố định, panel/form/table có phân
+cấp rõ, trạng thái focus dễ nhận biết và bố cục mobile tự trở về đầu trang khi
+chuyển màn hình làm việc. Phần đầu trang có một scene 3D nhỏ bằng Three.js mô
+phỏng mảng xanh, mặt nước, bãi đỗ xe, rack và ba kiểu xe khác nhau. Scene này
+chỉ đóng vai trò nhấn thị giác, không thay thế các bảng, form và trạng thái
+nghiệp vụ chính.
+
+Các thẻ xe trong luồng khách hàng dùng minh hoạ SVG theo loại xe thay vì dùng
+một icon chung cho mọi dữ liệu. City bike, Family tandem và Child-seat bike có
+màu nhấn và hình dáng khác nhau để người dùng nhận biết loại xe nhanh hơn trước
+khi gửi yêu cầu thuê.
+
+Lớp chuyển động sử dụng GSAP cục bộ từ dependency npm. Các hiệu ứng vào trang được
+gom bằng timeline, ưu tiên transform và opacity để giảm chi phí layout; các tương
+tác nhỏ khi hover và toast cũng dùng GSAP với overwrite phù hợp. Giao diện tôn trọng
+\texttt{prefers-reduced-motion}: khi người dùng giảm chuyển động, các hiệu ứng
+được bỏ qua hoặc rút về trạng thái tĩnh. Các chi tiết giao diện đã được rà lại qua
+các lượt chụp màn hình và tinh chỉnh, bao gồm bố cục màn hình đăng nhập, kích thước
+hero trên mobile, độ dày bảng quản trị, vị trí toast, vị trí cuộn sau đăng nhập và cân
+bằng giữa scene 3D với nội dung nghiệp vụ.
 
 Màn hình khách hàng sử dụng bản đồ thật bằng Leaflet/OpenStreetMap để hiển thị
-vị trí người dùng demo và marker các bãi xe Ecopark. Khi chọn marker hoặc thẻ
-bãi, hệ thống cập nhật bãi đang chọn và danh sách xe sẵn sàng tại bãi đó. Nếu
-tile bản đồ không tải được trong môi trường offline, khung fallback nội bộ vẫn
-giữ pin bãi xe để luồng nghiệp vụ không bị gián đoạn.
+vị trí người dùng demo và marker các bãi xe Ecopark. Khách có thể dùng GPS demo
+hoặc chuyển sang vị trí nhập tay, chọn phạm vi tìm kiếm, chọn marker hoặc thẻ
+bãi để cập nhật danh sách xe sẵn sàng tại bãi đó. Khi không có bãi trong phạm vi
+đã chọn, giao diện hiển thị trạng thái rỗng rõ ràng để kích hoạt alternative
+flow tìm kiếm thủ công/mở rộng phạm vi. Nếu tile bản đồ không tải được trong môi
+trường offline, khung fallback nội bộ vẫn giữ pin bãi xe để luồng nghiệp vụ
+không bị gián đoạn.
 
 \subsection{Ánh xạ use case sang màn hình web}
 \begin{longtable}{P{0.18\textwidth}P{0.34\textwidth}P{0.38\textwidth}}
@@ -28,10 +46,10 @@ giữ pin bãi xe để luồng nghiệp vụ không bị gián đoạn.
 \textbf{Use case} & \textbf{Màn hình / chức năng web} & \textbf{Kết quả triển khai} \\
 \midrule
 UC001 & Đăng ký, đăng nhập, hồ sơ khách, thẻ cư dân & Khách có tài khoản, CCCD/email/số điện thoại/địa chỉ và trạng thái giảm giá cư dân nếu có thẻ hợp lệ. \\
-UC002 & Danh sách bãi gần vị trí Ecopark, lọc loại xe, chọn xe & Hệ thống hiển thị bãi, số xe rảnh, trạng thái từng xe và tạo yêu cầu thuê với thời lượng 1/2/3 giờ. \\
-UC003 & Bảng yêu cầu nhận xe cho Staff/Admin & Nhân sự đối chiếu CCCD, nhận cọc 200k, ghi nhận giấy tờ giữ tại bãi, tạo rental và chuyển xe sang trạng thái đang thuê. \\
-UC004 & Bảng xe đang thuê và thao tác trả xe & Nhân sự nhận xe tại bãi bất kỳ, cập nhật vị trí xe, tính phí thuê, giảm giá cư dân, phụ thu trễ và xuất ticket. \\
-UC005 & Fleet table, form quản lý bãi/xe và dashboard báo cáo & Admin/Operator quản lý bãi xe, xe, trạng thái xe và xem thống kê thuê-trả theo ngày, tuần, tháng. \\
+UC002 & Danh sách bãi theo GPS demo/vị trí nhập tay, lọc loại xe, chọn xe, hủy request & Hệ thống hiển thị bãi trong phạm vi, số xe rảnh, trạng thái từng xe, tạo yêu cầu thuê với thời lượng 1/2/3 giờ và cho hủy request trước khi nhận xe. \\
+UC003 & Bảng yêu cầu nhận xe cho Staff/Admin & Nhân sự đối chiếu loại/số giấy tờ, nhận cọc 200k, ghi nhận giấy tờ giữ tại bãi, hủy yêu cầu không đủ điều kiện, tạo rental và chuyển xe sang trạng thái đang thuê. \\
+UC004 & Bảng xe đang thuê và thao tác trả xe & Nhân sự nhận xe tại bãi bất kỳ, chọn thời điểm trả, ghi chú tình trạng xe, cập nhật vị trí xe, tính phí thuê, giảm giá cư dân, phụ thu trễ và hiển thị phiếu vừa xuất. \\
+UC005 & Fleet table, quản lý bãi/xe, lọc và xuất báo cáo & Admin/Operator quản lý bãi xe, xe, trạng thái xe, tra cứu vị trí xe, lọc thống kê theo ngày/tuần/tháng, theo bãi/xe và xuất CSV. \\
 \bottomrule
 \end{longtable}
 
@@ -62,11 +80,17 @@ Repo cung cấp các lệnh vận hành chính:
   \item \texttt{npm run reset-db}: tạo lại SQLite database demo.
   \item \texttt{npm run dev}: chạy web app tại \texttt{http://127.0.0.1:4173}.
   \item \texttt{npm test}: chạy test nghiệp vụ back-end.
+  \item \texttt{npm run smoke:ui}: kiểm tra render giao diện desktop/mobile bằng Playwright.
+  \item \texttt{npm run smoke:uc}: chạy pipeline UI cho các luồng UC chính và một số alternative flow.
 \end{itemize}
 
 Bộ test hiện kiểm tra đăng ký tài khoản, chống trùng email, loại xe đã giữ chỗ ra
-khỏi danh sách xe sẵn sàng, chuyển yêu cầu thuê thành rental, tính vé trả xe có
+khỏi danh sách xe sẵn sàng, hủy yêu cầu thuê và giải phóng xe, chuyển yêu cầu
+thuê thành rental, chặn giảm sức chứa bãi dưới số xe hiện có, tính vé trả xe có
 giảm giá cư dân/phụ thu trễ và tổng hợp báo cáo.
 Smoke test giao diện bằng Playwright mở các trạng thái desktop/mobile, kiểm tra
-canvas Three.js có render, bản đồ Leaflet được mount với marker thật, không phát
-sinh console error và không có tràn ngang ở cấp trang.
+GSAP vendor đã tải, canvas Three.js có render, bản đồ Leaflet được mount với marker
+thật, không phát sinh console error và không có tràn ngang ở cấp trang.
+Smoke test UC đăng nhập bằng tài khoản cư dân, kiểm tra marker vị trí người dùng,
+thử vị trí nhập tay ngoài phạm vi, gửi và hủy yêu cầu thuê, gửi lại yêu cầu,
+đăng nhập Staff để giao xe, trả xe ở bãi khác, xuất ticket và tải báo cáo CSV.

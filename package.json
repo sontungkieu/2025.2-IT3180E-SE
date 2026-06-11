@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "node server/index.js",
     "reset-db": "node server/reset-db.js",
+    "smoke:uc": "node scripts/uc-flow-smoke.js",
     "smoke:ui": "node scripts/ui-smoke.js",
     "test": "node --test"
   },
   "dependencies": {
+    "gsap": "^3.15.0",
     "leaflet": "^1.9.4",
     "lucide-static": "^1.16.0",
     "three": "^0.184.0"
