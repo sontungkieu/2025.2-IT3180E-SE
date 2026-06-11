@@ -33,13 +33,14 @@ bằng giữa scene 3D với nội dung nghiệp vụ.
 
 Màn hình khách hàng sử dụng bản đồ thật bằng Leaflet/OpenStreetMap để hiển thị
 vị trí người dùng demo và marker các bãi xe Ecopark. Khách có thể dùng GPS demo
-hoặc chuyển sang vị trí nhập tay, chọn phạm vi tìm kiếm, lọc loại xe bằng
-segmented controls, chọn marker hoặc thẻ bãi để cập nhật danh sách xe sẵn sàng
-tại bãi đó. Các controls này tránh popup dropdown native và giữ chiều rộng ổn
-định trên desktop/mobile. Khi không có bãi trong phạm vi đã chọn, giao diện hiển
-thị trạng thái rỗng rõ ràng để kích hoạt alternative flow tìm kiếm thủ công/mở
-rộng phạm vi. Nếu tile bản đồ không tải được trong môi trường offline, khung
-fallback nội bộ vẫn giữ pin bãi xe để luồng nghiệp vụ không bị gián đoạn.
+hoặc chuyển sang vị trí nhập tay, chọn phạm vi tìm kiếm, lọc loại xe bằng custom
+dropdown HTML/CSS, chọn marker hoặc thẻ bãi để cập nhật danh sách xe sẵn sàng
+tại bãi đó. Các dropdown này tránh popup native của trình duyệt, vẫn giữ chiều
+rộng ổn định trên desktop/mobile và có trạng thái option đang chọn rõ ràng. Khi
+không có bãi trong phạm vi đã chọn, giao diện hiển thị trạng thái rỗng rõ ràng
+để kích hoạt alternative flow tìm kiếm thủ công/mở rộng phạm vi. Nếu tile bản đồ
+không tải được trong môi trường offline, khung fallback nội bộ vẫn giữ pin bãi xe
+để luồng nghiệp vụ không bị gián đoạn.
 
 Màn hình vận hành có pipeline trả xe riêng, luôn hiển thị bốn bước: nhận xe, chọn
 bãi trả, kiểm tra tình trạng xe và xuất vé. Bảng chi tiết bên dưới vẫn xử lý các

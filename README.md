@@ -43,8 +43,8 @@ Mở `http://127.0.0.1:4173`.
 
 - Khách hàng tạo tài khoản, đăng nhập, bổ sung thẻ cư dân, tìm bãi gần nhất theo
   GPS demo hoặc vị trí nhập tay, lọc loại xe, chọn xe rảnh, gửi yêu cầu thuê và
-  hủy yêu cầu khi chưa nhận xe. Các bộ lọc tìm bãi dùng segmented controls thay
-  cho dropdown native để tránh popup thô và giữ layout ổn định.
+  hủy yêu cầu khi chưa nhận xe. Các bộ lọc tìm bãi dùng custom dropdown HTML/CSS
+  thay cho dropdown native để tránh popup thô và giữ layout ổn định.
 - Màn hình khách hàng có bản đồ thật bằng Leaflet/OpenStreetMap, hiển thị vị trí
   người dùng demo và marker các bãi xe; chọn marker hoặc thẻ bãi đều cập nhật
   danh sách xe tại bãi.

@@ -111,6 +111,7 @@ let gpsRouteTween = null;
 let motionContext = null;
 let currentView = null;
 let toastTween = null;
+let customSelectEventsBound = false;
 
 init();
 
@@ -702,32 +703,74 @@ function toRad(value) {
 
 function stationSearchControls() {
   const selected = currentLocation();
+  const typeOptions = [
+    { value: '', label: 'Tất cả loại xe', detail: 'Hiển thị toàn bộ xe sẵn sàng', icon: 'filter' },
+    ...state.bikeTypes.map((type) => ({
+      value: String(type.bike_type_id),
+      label: bikeTypeShortLabel(type.type_name),
+      detail: type.description || type.type_name,
+      icon: 'bike'
+    }))
+  ];
+  const locationOptions = LOCATION_PRESETS.map((preset) => ({
+    value: preset.id,
+    label: locationShortLabel(preset),
+    detail: preset.mode === 'gps' ? 'GPS mô phỏng quanh Ecopark Center' : preset.label.replace(/^Nhập tay - /, ''),
+    icon: preset.mode === 'gps' ? 'locate-fixed' : 'map-pinned'
+  }));
+  const rangeOptions = [1, 3, 5, 10].map((range) => ({
+    value: String(range),
+    label: `${range} km`,
+    detail: range <= 3 ? 'Ưu tiên bãi gần nhất' : 'Mở rộng khu vực tìm kiếm',
+    icon: 'ruler'
+  }));
   return `
     <div class="search-workflow" aria-label="Điều kiện tìm bãi">
-      <div class="control-group">
-        <span class="control-label">Loại xe</span>
-        <div class="segmented-control wrap">
-          <button class="segment-option ${state.selectedTypeId === '' ? 'active' : ''}" type="button" data-type-filter="">Tất cả</button>
-          ${state.bikeTypes.map((type) => `<button class="segment-option ${String(type.bike_type_id) === String(state.selectedTypeId) ? 'active' : ''}" type="button" data-type-filter="${type.bike_type_id}">${escapeHtml(bikeTypeShortLabel(type.type_name))}</button>`).join('')}
-        </div>
-      </div>
-      <div class="control-group wide">
-        <span class="control-label">Vị trí tìm kiếm</span>
-        <div class="segmented-control wrap">
-          ${LOCATION_PRESETS.map((preset) => `<button class="segment-option ${preset.id === state.locationPresetId ? 'active' : ''}" type="button" data-location-preset="${preset.id}">${escapeHtml(locationShortLabel(preset))}</button>`).join('')}
-        </div>
-      </div>
-      <div class="control-group">
-        <span class="control-label">Phạm vi</span>
-        <div class="segmented-control">
-          ${[1, 3, 5, 10].map((range) => `<button class="segment-option ${Number(state.stationRangeKm) === range ? 'active' : ''}" type="button" data-station-range="${range}">${range} km</button>`).join('')}
-        </div>
-      </div>
-      <span class="flow-note ${selected.mode === 'gps' ? 'ok' : ''}">
+      ${filterDropdown('type', 'Loại xe', typeOptions, String(state.selectedTypeId), 'data-type-filter')}
+      ${filterDropdown('location', 'Vị trí tìm kiếm', locationOptions, state.locationPresetId, 'data-location-preset')}
+      ${filterDropdown('range', 'Phạm vi', rangeOptions, String(state.stationRangeKm), 'data-station-range')}
+      <span class="flow-note search-state-note ${selected.mode === 'gps' ? 'ok' : ''}">
         <img src="/vendor/icons/${selected.mode === 'gps' ? 'locate-fixed' : 'map-pinned'}.svg" alt="">
         ${selected.mode === 'gps' ? 'GPS demo đang bật' : 'Đang dùng vị trí nhập tay'}
       </span>
     </div>
+  `;
+}
+
+function filterDropdown(name, label, options, selectedValue, dataAttribute) {
+  const selected = options.find((option) => String(option.value) === String(selectedValue)) || options[0];
+  const menuId = `filter-${name}-menu`;
+  return `
+    <div class="control-group select-group select-group-${name}">
+      <span class="control-label">${escapeHtml(label)}</span>
+      <div class="pretty-select" data-select-root>
+        <button class="pretty-select-trigger" type="button" data-select-trigger="${escapeAttr(name)}" aria-expanded="false" aria-controls="${menuId}">
+          <span class="select-leading"><img src="/vendor/icons/${selected.icon}.svg" alt=""></span>
+          <span class="select-value">
+            <strong>${escapeHtml(selected.label)}</strong>
+            <span>${escapeHtml(selected.detail)}</span>
+          </span>
+          <img class="select-chevron" src="/vendor/icons/chevron-down.svg" alt="">
+        </button>
+        <div id="${menuId}" class="pretty-select-menu" role="listbox">
+          ${options.map((option) => filterDropdownOption(option, selectedValue, dataAttribute)).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function filterDropdownOption(option, selectedValue, dataAttribute) {
+  const active = String(option.value) === String(selectedValue);
+  return `
+    <button class="pretty-select-option ${active ? 'active' : ''}" type="button" role="option" aria-selected="${active}" ${dataAttribute}="${escapeAttr(option.value)}">
+      <span class="select-leading"><img src="/vendor/icons/${option.icon}.svg" alt=""></span>
+      <span class="select-option-copy">
+        <strong>${escapeHtml(option.label)}</strong>
+        <span>${escapeHtml(option.detail)}</span>
+      </span>
+      <img class="select-check" src="/vendor/icons/check.svg" alt="">
+    </button>
   `;
 }
 
@@ -1252,7 +1295,7 @@ function runPageMotion(view, isViewSwitch) {
 
 function bindMotionInteractions() {
   if (!gsap || prefersReducedMotion()) return;
-  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .segment-option, .gps-chip, .station-card, .bike-card').forEach((element) => {
+  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .pretty-select-trigger, .pretty-select-option, .gps-chip, .station-card, .bike-card').forEach((element) => {
     element.addEventListener('pointerenter', () => {
       if (element.disabled) return;
       gsap.to(element, {
@@ -1684,7 +1727,39 @@ function resetWorkspaceState() {
   state.lastTicket = null;
 }
 
+function bindCustomSelectEvents() {
+  document.querySelectorAll('[data-select-trigger]').forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      const root = trigger.closest('[data-select-root]');
+      const isOpen = root.classList.contains('open');
+      closeCustomSelects(root);
+      root.classList.toggle('open', !isOpen);
+      trigger.setAttribute('aria-expanded', String(!isOpen));
+    });
+  });
+
+  if (customSelectEventsBound) return;
+  customSelectEventsBound = true;
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-select-root]')) {
+      closeCustomSelects();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeCustomSelects();
+  });
+}
+
+function closeCustomSelects(exceptRoot = null) {
+  document.querySelectorAll('[data-select-root].open').forEach((root) => {
+    if (exceptRoot && root === exceptRoot) return;
+    root.classList.remove('open');
+    root.querySelector('[data-select-trigger]')?.setAttribute('aria-expanded', 'false');
+  });
+}
+
 function bindCustomerEvents() {
+  bindCustomSelectEvents();
   document.querySelectorAll('[data-station]').forEach((button) => {
     button.addEventListener('click', () => selectStation(Number(button.dataset.station)));
   });
