@@ -1,5 +1,21 @@
 # Milestones
 
+## 2026-06-11 - Civic command fancy UI branch
+
+- Created branch `ui/civic-command-fancy` for the named design-system pass.
+- Reframed the application visual language as Civic Mobility Command Center:
+  dark command rail, bright workspace, crisp operational panels and restrained
+  green/sky/amber accents.
+- Added a persistent workspace rail with role-aware scroll targets and live local
+  status while preserving the existing Customer/Admin/Staff feature set.
+- Restyled auth, dashboard hero, tables, cards, map panels, custom dropdowns,
+  native selects, session chip and `/gps` demo panels so the interface feels
+  closer to production operations software and less like a generic generated UI.
+- Verified the redesign with desktop/mobile screenshots, open-dropdown review,
+  backend tests and Playwright smoke tests for UI and UC flows.
+- Updated README and PDF implementation notes for the Civic Mobility Command
+  Center design direction.
+
 ## 2026-06-11 - GSAP production UI branch
 
 - Created branch `ui/gsap-production-grade` for the UI refinement pass.
@@ -75,4 +91,7 @@
 - Mindmap/drawio 2026-06-11 concurrent demo sessions: reviewed; no update
   required because this only adds extra seeded accounts and session isolation for
   the existing Customer/Admin actors.
+- Mindmap/drawio 2026-06-11 Civic command fancy UI: reviewed; no update required
+  because the change only affects visual language, layout density and motion
+  presentation for existing UC001-UC005 screens.
 - Version bump: N/A because the repo has no `VERSION` or `versioning.py`.

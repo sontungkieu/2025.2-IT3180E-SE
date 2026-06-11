@@ -304,42 +304,83 @@ function authView() {
 function shellView() {
   const isCustomer = state.user.role === 'customer';
   return `
-    <div class="app-shell">
-      <header class="topbar">
-        <div class="brand-row">
-          <span class="brand-mark"><img src="/vendor/icons/bike.svg" alt=""></span>
+    <div class="app-shell command-shell">
+      <aside class="command-rail" aria-label="Điều hướng workspace">
+        <div class="rail-brand">
+          <span class="brand-mark rail-mark"><img src="/vendor/icons/bike.svg" alt=""></span>
           <div>
-            <strong>Ecopark Bicycle Parking</strong>
+            <strong>EBP</strong>
             <span>${roleLabel(state.user.role)}</span>
           </div>
         </div>
-        <div class="user-actions">
-          <span>${escapeHtml(state.user.full_name)}</span>
-          <button id="refresh" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
-          <button id="logout" class="ghost" type="button"><img src="/vendor/icons/log-out.svg" alt="">Đăng xuất</button>
+        <nav class="rail-nav">
+          ${railItem('layout-dashboard', 'Tổng quan', true, 'workspace-overview')}
+          ${isCustomer
+            ? `${railItem('map-pin', 'Tìm bãi', false, 'workspace-stations')}${railItem('bike', 'Xe rảnh', false, 'workspace-bikes')}${railItem('history', 'Lịch sử', false, 'workspace-history')}`
+            : `${railItem('clipboard-check', 'Nhận xe', false, 'workspace-pickup')}${railItem('receipt-text', 'Trả xe', false, 'workspace-return')}${railItem('bar-chart-3', 'Báo cáo', false, 'workspace-reports')}`}
+        </nav>
+        <div class="rail-status">
+          <span><img src="/vendor/icons/radio-tower.svg" alt="">Live local</span>
+          <strong>${isCustomer ? `${state.stations.length} bãi gần bạn` : `${state.pendingRequests.length} yêu cầu chờ`}</strong>
         </div>
-      </header>
-      <section class="dashboard-hero">
-        <div class="hero-copy">
-          <p class="eyebrow">${isCustomer ? 'Customer workspace' : 'Operations workspace'}</p>
-          <h1>${isCustomer ? 'Tìm bãi gần nhất, chọn xe rảnh và theo dõi lượt thuê.' : 'Xử lý nhận xe, trả xe, đội xe và thống kê tập trung.'}</h1>
-          <div class="metric-strip">
-            ${metric('Bãi hoạt động', state.stations.filter((s) => s.station_status === 'active').length, 'map-pin')}
-            ${metric('Xe sẵn sàng', state.stations.reduce((sum, s) => sum + Number(s.available_bikes || 0), 0), 'bike')}
-            ${metric(isCustomer ? 'Lượt đã lưu' : 'Yêu cầu chờ', isCustomer ? state.history.completedRentals.length : state.pendingRequests.length, isCustomer ? 'history' : 'clipboard-check')}
+      </aside>
+      <div class="workspace-main">
+        <header class="topbar">
+          <div class="brand-row">
+            <span class="brand-mark"><img src="/vendor/icons/bike.svg" alt=""></span>
+            <div>
+              <strong>Ecopark Bicycle Parking</strong>
+              <span>${roleLabel(state.user.role)}</span>
+            </div>
           </div>
-        </div>
-        <div id="scene" class="scene hero-scene" aria-hidden="true"></div>
-      </section>
-      ${isCustomer ? customerView() : operationsView()}
+          <div class="user-actions">
+            <span class="session-chip"><span class="session-avatar">${userInitials(state.user.full_name)}</span>${escapeHtml(state.user.full_name)}</span>
+            <button id="refresh" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
+            <button id="logout" class="ghost" type="button"><img src="/vendor/icons/log-out.svg" alt="">Đăng xuất</button>
+          </div>
+        </header>
+        <section id="workspace-overview" class="dashboard-hero">
+          <div class="hero-copy">
+            <p class="eyebrow">${isCustomer ? 'Customer workspace' : 'Operations workspace'}</p>
+            <h1>${isCustomer ? 'Tìm bãi gần nhất, chọn xe rảnh và theo dõi lượt thuê.' : 'Xử lý nhận xe, trả xe, đội xe và thống kê tập trung.'}</h1>
+            <div class="metric-strip">
+              ${metric('Bãi hoạt động', state.stations.filter((s) => s.station_status === 'active').length, 'map-pin')}
+              ${metric('Xe sẵn sàng', state.stations.reduce((sum, s) => sum + Number(s.available_bikes || 0), 0), 'bike')}
+              ${metric(isCustomer ? 'Lượt đã lưu' : 'Yêu cầu chờ', isCustomer ? state.history.completedRentals.length : state.pendingRequests.length, isCustomer ? 'history' : 'clipboard-check')}
+            </div>
+          </div>
+          <div id="scene" class="scene hero-scene" aria-hidden="true"></div>
+        </section>
+        ${isCustomer ? customerView() : operationsView()}
+      </div>
     </div>
   `;
+}
+
+function railItem(icon, label, active, targetId) {
+  const current = active ? ' aria-current="page"' : '';
+  return `
+    <button class="rail-item ${active ? 'active' : ''}" type="button" data-rail-target="${targetId}"${current}>
+      <img src="/vendor/icons/${icon}.svg" alt="">
+      <span>${label}</span>
+    </button>
+  `;
+}
+
+function userInitials(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((part) => part[0] || '')
+    .join('')
+    .toUpperCase() || 'U';
 }
 
 function customerView() {
   return `
     <main class="content-grid customer-grid">
-      <section class="panel account-panel">
+      <section class="panel account-panel" id="workspace-account">
         <div class="section-heading">
           <h2>Tài khoản</h2>
           <span class="status-pill ${state.user.profile.discount_eligible ? 'ok' : ''}">${state.user.profile.customer_type === 'resident' ? 'Resident' : 'Visitor'}</span>
@@ -356,7 +397,7 @@ function customerView() {
           <button class="secondary" type="submit"><img src="/vendor/icons/badge-check.svg" alt="">Lưu thẻ</button>
         </form>
       </section>
-      <section class="panel stations-panel">
+      <section class="panel stations-panel" id="workspace-stations">
         <div class="section-heading">
           <h2>Bãi xe gần bạn</h2>
           <span>${state.stations.length} bãi</span>
@@ -365,14 +406,14 @@ function customerView() {
         ${stationMapView()}
         <div class="station-grid">${state.stations.map(stationCard).join('') || emptyState('Không có bãi xe trong phạm vi đã chọn')}</div>
       </section>
-      <section class="panel bikes-panel">
+      <section class="panel bikes-panel" id="workspace-bikes">
         <div class="section-heading">
           <h2>Xe tại bãi đã chọn</h2>
           <span>${selectedStationName()}</span>
         </div>
         <div class="bike-grid">${state.stationBikes.map(bikeCard).join('') || emptyState('Không có xe phù hợp')}</div>
       </section>
-      <section class="panel history-panel">
+      <section class="panel history-panel" id="workspace-history">
         <div class="section-heading">
           <h2>Lịch sử thuê</h2>
           <span>${state.history.completedRentals.length} lượt</span>
@@ -386,7 +427,7 @@ function customerView() {
 function operationsView() {
   return `
     <main class="content-grid ops-grid">
-      <section class="panel report-panel">
+      <section class="panel report-panel" id="workspace-reports">
         <div class="section-heading">
           <h2>Thống kê</h2>
           <button id="export-report" class="secondary small" type="button"><img src="/vendor/icons/file-down.svg" alt="">Xuất CSV</button>
@@ -394,14 +435,14 @@ function operationsView() {
         ${reportFilters()}
         ${reportView()}
       </section>
-      <section class="panel pending-panel">
+      <section class="panel pending-panel" id="workspace-pickup">
         <div class="section-heading">
           <h2>Yêu cầu nhận xe</h2>
           <span>${state.pendingRequests.length} pending</span>
         </div>
         ${pendingRequestsTable()}
       </section>
-      <section class="panel return-pipeline-panel">
+      <section class="panel return-pipeline-panel" id="workspace-return">
         <div class="section-heading">
           <h2>Pipeline trả xe</h2>
           <span>${state.activeRentals.length} lượt đang chạy</span>
@@ -1296,7 +1337,7 @@ function runPageMotion(view, isViewSwitch) {
 
 function bindMotionInteractions() {
   if (!gsap || prefersReducedMotion()) return;
-  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .pretty-select-trigger, .pretty-select-option, .gps-chip, .station-card, .bike-card').forEach((element) => {
+  document.querySelectorAll('.primary, .secondary, .ghost, .icon-button, .demo-button, .rail-item, .pretty-select-trigger, .pretty-select-option, .gps-chip, .station-card, .bike-card').forEach((element) => {
     element.addEventListener('pointerenter', () => {
       if (element.disabled) return;
       gsap.to(element, {
@@ -1697,6 +1738,7 @@ function bindAuthEvents() {
 }
 
 function bindAppEvents() {
+  bindRailEvents();
   document.querySelector('#logout').addEventListener('click', async () => {
     await runAction(async () => {
       await api('/api/auth/logout', { method: 'POST' });
@@ -1717,6 +1759,19 @@ function bindAppEvents() {
   } else {
     bindOpsEvents();
   }
+}
+
+function bindRailEvents() {
+  document.querySelectorAll('[data-rail-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const target = document.querySelector(`#${button.dataset.railTarget}`);
+      if (!target) return;
+      target.scrollIntoView({
+        block: 'start',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth'
+      });
+    });
+  });
 }
 
 function resetWorkspaceState() {

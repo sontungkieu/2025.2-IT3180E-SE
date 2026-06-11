@@ -21,8 +21,9 @@ Mở `http://127.0.0.1:4173`.
 
 ## Cấu trúc repo
 
-- `public/`: giao diện HTML/CSS/JavaScript thuần, motion GSAP, scene Three.js
-  và màn hình dashboard khách hàng/nhân sự.
+- `public/`: giao diện HTML/CSS/JavaScript thuần theo phong cách Civic Mobility
+  Command Center, motion GSAP, scene Three.js và màn hình dashboard khách hàng/
+  nhân sự.
 - `server/`: HTTP API Node.js, SQLite schema/seed, auth session cục bộ và các
   luồng thuê-trả xe.
 - `scripts/`: smoke test giao diện bằng Playwright.
@@ -64,11 +65,14 @@ Mở `http://127.0.0.1:4173`.
 - Route demo `http://127.0.0.1:4173/gps` mô phỏng GPS xe đạp cho phần trình bày:
   chọn xe/bãi, kéo thả marker, snap xe về tuyến đường demo và cho xe đi theo
   polyline đường tới bãi nhận/trả thay vì bay thẳng qua hồ hoặc nhà.
-- Giao diện sáng màu theo hướng dashboard vận hành production-grade hơn: topbar
-  sticky, panel/form/table rõ phân cấp, motion GSAP có hỗ trợ
-  `prefers-reduced-motion`, scene Three.js mô phỏng bãi đỗ/rack/nhóm xe và card
-  xe có minh hoạ riêng cho City, Tandem, Child-seat; layout đã được kiểm tra lại
-  trên desktop/mobile để tránh che chữ, tràn ngang và lệch bố cục.
+- Giao diện theo phong cách Civic Mobility Command Center: rail điều hướng tối
+  có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table sắc cạnh,
+  dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar sticky và mật
+  độ thông tin phù hợp phần mềm vận hành.
+  Motion GSAP có hỗ trợ `prefers-reduced-motion`, scene Three.js mô phỏng bãi
+  đỗ/rack/nhóm xe và card xe có minh hoạ riêng cho City, Tandem, Child-seat;
+  layout đã được kiểm tra lại trên desktop/mobile để tránh che chữ, tràn ngang
+  và lệch bố cục.
 
 ## Kiểm thử
 
