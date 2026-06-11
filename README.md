@@ -69,10 +69,10 @@ Mở `http://127.0.0.1:4173`.
   có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table sắc cạnh,
   dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar sticky và mật
   độ thông tin phù hợp phần mềm vận hành.
-  Motion GSAP có hỗ trợ `prefers-reduced-motion`, scene Three.js mô phỏng bãi
-  đỗ/rack/nhóm xe và card xe có minh hoạ riêng cho City, Tandem, Child-seat;
-  layout đã được kiểm tra lại trên desktop/mobile để tránh che chữ, tràn ngang
-  và lệch bố cục.
+  Motion GSAP có hỗ trợ `prefers-reduced-motion`, scene Three.js mô phỏng Bike
+  Hub isometric với đường nội khu, bike lane, canopy, dock/rack, status light và
+  các xe City, Tandem, Child-seat khác hình dáng; layout đã được kiểm tra lại
+  trên desktop/mobile để tránh che chữ, tràn ngang và lệch bố cục.
 
 ## Kiểm thử
 
