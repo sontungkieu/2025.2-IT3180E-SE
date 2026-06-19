@@ -1,5 +1,11 @@
 # Ecopark Bicycle Parking
 
+[![CI](https://github.com/sontungkieu/2025.2-IT3180E-SE/actions/workflows/ci.yml/badge.svg)](https://github.com/sontungkieu/2025.2-IT3180E-SE/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/backend%20coverage-78.9%25-yellowgreen)
+![Node](https://img.shields.io/badge/node-%3E%3D24-43853d)
+![Docker](https://img.shields.io/badge/docker-CI%20build%20configured-0f7b55)
+
 Platform fullstack cho bài toán thuê-trả xe đạp Ecopark, có thể chạy cục bộ để
 demo và đóng gói container để triển khai lên Google Cloud Platform. Frontend dùng
 HTML/CSS/JavaScript thuần, có GSAP cho motion layer, backend dùng Node.js.
@@ -22,6 +28,26 @@ npm run dev
 ```
 
 Mở `http://127.0.0.1:4173`.
+
+## Kiểm thử và CI/CD
+
+```bash
+npm run check
+npm test
+npm run test:coverage
+npm run smoke:ui
+npm run smoke:uc
+npm run screenshots:uc001
+npm run docker:build
+```
+
+- `npm run test:coverage` dùng Node.js built-in test coverage. Mốc hiện tại:
+  line coverage backend `78.93%`, branch `69.31%`, functions `80.58%`.
+- `npm run screenshots:uc001` sinh bộ ảnh UC001/alternative flow 1 vào
+  `pdf/assets/uc001_flow/` để đưa vào report.
+- `.github/workflows/ci.yml` tự động chạy static check, backend coverage test,
+  smoke UI, smoke UC và build Docker image trên mọi push/PR. Bước deploy GCP thật
+  vẫn để cấu hình riêng bằng secrets/project của nhóm.
 
 ## Triển khai GCP
 

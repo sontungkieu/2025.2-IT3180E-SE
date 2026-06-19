@@ -1,5 +1,18 @@
 # Milestones
 
+## 2026-06-19 - UC001 evidence and CI automation
+
+- Added a Playwright screenshot capture script for UC001 account registration,
+  email verification and alternative flow 1 missing required information.
+- Added the generated UC001 action sequence screenshots into the report source
+  and rebuilt the submitted `pdf/main.pdf`.
+- Added README badges for CI, passing tests, backend coverage, Node.js version
+  and Docker build validation.
+- Added GitHub Actions CI automation for syntax checks, Node.js coverage tests,
+  UI smoke, UC smoke and deployable Docker image build.
+- Added a lightweight inline validation toast for registration required fields
+  so alternative flow 1 is visible in the real UI and captured report evidence.
+
 ## 2026-06-19 - Report claim implementation closure
 
 - Added demo-local email verification and password recovery APIs/UI so UC001

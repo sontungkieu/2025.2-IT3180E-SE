@@ -2209,7 +2209,16 @@ function bindAuthEvents() {
     }, 'Đã đăng nhập');
   });
 
-  document.querySelector('#register-form').addEventListener('submit', async (event) => {
+  const registerForm = document.querySelector('#register-form');
+  bindInlineValidation(registerForm, {
+    fullName: 'Vui lòng nhập họ tên khách thuê.',
+    email: 'Vui lòng nhập email hợp lệ.',
+    phone: 'Vui lòng nhập số điện thoại Việt Nam hợp lệ.',
+    password: 'Mật khẩu cần tối thiểu 8 ký tự, gồm chữ và số.',
+    identityNumber: 'Vui lòng nhập CCCD/CMND 9 hoặc 12 chữ số.',
+    address: 'Vui lòng nhập địa chỉ liên hệ.'
+  });
+  registerForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.currentTarget));
     await runAction(async () => {
@@ -2255,6 +2264,30 @@ function bindAuthEvents() {
         render();
       });
     });
+  });
+}
+
+function bindInlineValidation(form, messages = {}) {
+  if (!form) return;
+  form.addEventListener('invalid', (event) => {
+    const field = event.target;
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) return;
+    event.preventDefault();
+    if (form.dataset.validationNotified === 'true') return;
+    form.dataset.validationNotified = 'true';
+    window.setTimeout(() => {
+      delete form.dataset.validationNotified;
+    }, 100);
+    form.querySelectorAll('.field-invalid').forEach((input) => input.classList.remove('field-invalid'));
+    field.classList.add('field-invalid');
+    const message = messages[field.name] || field.validationMessage || 'Vui lòng kiểm tra lại thông tin bắt buộc.';
+    notify(message, true);
+    field.focus({ preventScroll: true });
+  }, true);
+
+  form.querySelectorAll('input, select, textarea').forEach((field) => {
+    field.addEventListener('input', () => field.classList.remove('field-invalid'));
+    field.addEventListener('change', () => field.classList.remove('field-invalid'));
   });
 }
 

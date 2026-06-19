@@ -286,6 +286,13 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(33, 184, 117, 0.16);
 }
 
+input.field-invalid,
+select.field-invalid,
+textarea.field-invalid {
+  border-color: #be4b3f;
+  box-shadow: 0 0 0 4px rgba(190, 75, 63, 0.15);
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {

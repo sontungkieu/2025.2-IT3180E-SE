@@ -4,11 +4,16 @@
   "private": true,
   "description": "GCP-ready fullstack platform for Ecopark Bicycle Parking requirements analysis.",
   "scripts": {
+    "check": "node --check public/app.js public/scene.js server/app.js server/db.js test/app.test.js scripts/ui-smoke.js scripts/uc-flow-smoke.js scripts/capture-uc001-screenshots.js",
+    "ci": "npm run check && npm run test:coverage && npm run smoke:ui && npm run smoke:uc",
+    "docker:build": "docker build -t ecopark-bicycle-parking .",
     "dev": "node server/index.js",
     "reset-db": "node server/reset-db.js",
+    "screenshots:uc001": "node scripts/capture-uc001-screenshots.js",
     "smoke:uc": "node scripts/uc-flow-smoke.js",
     "smoke:ui": "node scripts/ui-smoke.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:coverage": "node --experimental-test-coverage --test --test-timeout=30000 test/app.test.js"
   },
   "dependencies": {
     "gsap": "^3.15.0",
