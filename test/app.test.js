@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { mkdtempSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const path = require('node:path');
@@ -48,35 +49,286 @@ function client(baseUrl) {
   };
 }
 
+function registrationPayload(overrides = {}) {
+  return {
+    fullName: 'Pham Thanh Mai',
+    email: `mai-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`,
+    phone: '0911111111',
+    password: 'secret123',
+    identityNumber: '001203999888',
+    address: 'Ecopark',
+    ...overrides
+  };
+}
+
 test('registration validates duplicate email', async () => {
   const fixture = await startTestServer();
   const api = client(fixture.baseUrl);
   try {
     const first = await api.request('/api/auth/register', {
       method: 'POST',
-      body: {
-        fullName: 'Pham Thanh Mai',
+      body: registrationPayload({
         email: 'mai@example.test',
         phone: '0911111111',
-        password: 'secret1',
         identityNumber: '001203999888',
-        address: 'Ecopark'
-      }
+      })
     });
     assert.equal(first.response.status, 201);
 
     const second = await api.request('/api/auth/register', {
       method: 'POST',
-      body: {
-        fullName: 'Pham Thanh Mai',
+      body: registrationPayload({
         email: 'mai@example.test',
         phone: '0911111112',
-        password: 'secret1',
-        identityNumber: '001203999889',
-        address: 'Ecopark'
-      }
+        identityNumber: '001203999889'
+      })
     });
     assert.equal(second.response.status, 409);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('registration validates name phone and identity inputs', async () => {
+  const fixture = await startTestServer();
+  try {
+    const invalidCases = [
+      {
+        name: 'weak password',
+        body: registrationPayload({ password: 'secret1', phone: '0911111120', identityNumber: '001203999820' }),
+        status: 400,
+        message: /Mật khẩu/
+      },
+      {
+        name: 'digits in full name',
+        body: registrationPayload({ fullName: 'Nguyen 123', phone: '0911111121', identityNumber: '001203999821' }),
+        status: 400,
+        message: /Họ tên/
+      },
+      {
+        name: 'invalid phone format',
+        body: registrationPayload({ phone: '12345', identityNumber: '001203999822' }),
+        status: 400,
+        message: /Số điện thoại/
+      },
+      {
+        name: 'invalid identity format',
+        body: registrationPayload({ phone: '0911111123', identityNumber: 'ABC123' }),
+        status: 400,
+        message: /CCCD\/CMND/
+      },
+      {
+        name: 'duplicate seeded phone',
+        body: registrationPayload({ phone: '0900000003', identityNumber: '001203999824' }),
+        status: 409,
+        message: /Số điện thoại/
+      },
+      {
+        name: 'duplicate seeded identity',
+        body: registrationPayload({ phone: '0911111125', identityNumber: '001203000111' }),
+        status: 409,
+        message: /CCCD\/CMND/
+      }
+    ];
+
+    for (const testCase of invalidCases) {
+      const api = client(fixture.baseUrl);
+      const result = await api.request('/api/auth/register', {
+        method: 'POST',
+        body: testCase.body
+      });
+      assert.equal(result.response.status, testCase.status, testCase.name);
+      assert.match(result.payload.error, testCase.message, testCase.name);
+    }
+
+    const api = client(fixture.baseUrl);
+    const normalizedPhone = await api.request('/api/auth/register', {
+      method: 'POST',
+      body: registrationPayload({
+        fullName: 'Do Minh Chau',
+        email: 'chau@example.test',
+        phone: '+84912345678',
+        identityNumber: '001203999826'
+      })
+    });
+    assert.equal(normalizedPhone.response.status, 201);
+    assert.equal(normalizedPhone.payload.user.phone, '0912345678');
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('legacy password hashes log in and are upgraded to PBKDF2', async () => {
+  const fixture = await startTestServer();
+  const api = client(fixture.baseUrl);
+  try {
+    const legacyHash = crypto.createHash('sha256').update('customer123').digest('hex');
+    fixture.server.db.prepare("UPDATE users SET password_hash = ? WHERE email = 'customer@ecopark.test'").run(legacyHash);
+    const login = await api.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'customer@ecopark.test', password: 'customer123' }
+    });
+    assert.equal(login.response.status, 200);
+    const upgraded = fixture.server.db.prepare("SELECT password_hash FROM users WHERE email = 'customer@ecopark.test'").get().password_hash;
+    assert.match(upgraded, /^pbkdf2_sha256\$/);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('new customers verify email before creating rental requests', async () => {
+  const fixture = await startTestServer();
+  const api = client(fixture.baseUrl);
+  try {
+    const registered = await api.request('/api/auth/register', {
+      method: 'POST',
+      body: registrationPayload({
+        email: 'verify@example.test',
+        phone: '0911111130',
+        identityNumber: '001203999830'
+      })
+    });
+    assert.equal(registered.response.status, 201);
+    assert.ok(registered.payload.demoCode);
+
+    const blocked = await api.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+    });
+    assert.equal(blocked.response.status, 403);
+    assert.match(blocked.payload.error, /Email/);
+
+    const verified = await api.request('/api/auth/verify-email', {
+      method: 'POST',
+      body: { code: registered.payload.demoCode }
+    });
+    assert.equal(verified.response.status, 200);
+    assert.ok(verified.payload.user.email_verified_at);
+
+    const request = await api.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+    });
+    assert.equal(request.response.status, 201);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('password reset demo code updates login credentials', async () => {
+  const fixture = await startTestServer();
+  const api = client(fixture.baseUrl);
+  try {
+    const requested = await api.request('/api/auth/request-password-reset', {
+      method: 'POST',
+      body: { email: 'customer@ecopark.test' }
+    });
+    assert.equal(requested.response.status, 200);
+    assert.ok(requested.payload.demoCode);
+
+    const reset = await api.request('/api/auth/reset-password', {
+      method: 'POST',
+      body: { email: 'customer@ecopark.test', code: requested.payload.demoCode, password: 'newpass123' }
+    });
+    assert.equal(reset.response.status, 200);
+
+    const oldLogin = await api.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'customer@ecopark.test', password: 'customer123' }
+    });
+    assert.equal(oldLogin.response.status, 401);
+    const newLogin = await api.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'customer@ecopark.test', password: 'newpass123' }
+    });
+    assert.equal(newLogin.response.status, 200);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('blocked identities cannot submit rental requests', async () => {
+  const fixture = await startTestServer();
+  const admin = client(fixture.baseUrl);
+  const resident = client(fixture.baseUrl);
+  try {
+    await admin.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@ecopark.test', password: 'admin123' }
+    });
+    const blocked = await admin.request('/api/admin/blocked-identities', {
+      method: 'POST',
+      body: { identityNumber: '001203000222', reason: 'Demo blocked identity' }
+    });
+    assert.equal(blocked.response.status, 201);
+
+    await resident.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'resident@ecopark.test', password: 'resident123' }
+    });
+    const request = await resident.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 60 }
+    });
+    assert.equal(request.response.status, 403);
+    assert.match(request.payload.error, /identity|CCCD/i);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('pending resident card rents as visitor without resident discount', async () => {
+  const fixture = await startTestServer();
+  const customer = client(fixture.baseUrl);
+  const admin = client(fixture.baseUrl);
+  try {
+    const registered = await customer.request('/api/auth/register', {
+      method: 'POST',
+      body: registrationPayload({
+        email: 'pending-resident@example.test',
+        phone: '0911111131',
+        identityNumber: '001203999831',
+        customerType: 'resident',
+        residentCardNumber: 'ECO-PENDING-001'
+      })
+    });
+    assert.equal(registered.response.status, 201);
+    assert.equal(registered.payload.user.profile.discount_eligible, 0);
+    assert.equal(registered.payload.user.profile.resident_verification_status, 'pending');
+    await customer.request('/api/auth/verify-email', {
+      method: 'POST',
+      body: { code: registered.payload.demoCode }
+    });
+    const request = await customer.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+    });
+    assert.equal(request.response.status, 201);
+
+    await admin.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@ecopark.test', password: 'admin123' }
+    });
+    const handover = await admin.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203999831',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203999831'
+      }
+    });
+    const returned = await admin.request('/api/staff/return', {
+      method: 'POST',
+      body: {
+        rentalId: handover.payload.rental.rental_id,
+        returnStationId: 2,
+        returnedAt: new Date(new Date(handover.payload.rental.started_at).getTime() + 60 * 60000).toISOString(),
+        bicycleCondition: 'available'
+      }
+    });
+    assert.equal(returned.payload.ticket.resident_discount_amount, 0);
   } finally {
     await fixture.close();
   }
@@ -165,6 +417,81 @@ test('handover converts request to rental and marks bike rented', async () => {
   }
 });
 
+test('staff can exchange a pending request bike before handover', async () => {
+  const fixture = await startTestServer();
+  const staff = client(fixture.baseUrl);
+  try {
+    await staff.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'staff@ecopark.test', password: 'staff123' }
+    });
+    const pending = await staff.request('/api/staff/pending-requests');
+    const request = pending.payload.requests.find((item) => item.bike_code === 'ECO-004');
+    assert.ok(request);
+
+    const exchanged = await staff.request(`/api/staff/rental-requests/${request.request_id}/exchange-bike`, {
+      method: 'POST',
+      body: { bikeId: 3 }
+    });
+    assert.equal(exchanged.response.status, 200);
+    assert.equal(exchanged.payload.request.bike_code, 'ECO-003');
+
+    const handover = await staff.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: request.identity_number,
+        depositAmount: 200000,
+        depositDocumentHeld: request.identity_number
+      }
+    });
+    assert.equal(handover.response.status, 201);
+    assert.equal(handover.payload.rental.bike_code, 'ECO-003');
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('staff only sees and processes requests at assigned station', async () => {
+  const fixture = await startTestServer();
+  const resident = client(fixture.baseUrl);
+  const staff = client(fixture.baseUrl);
+  try {
+    await resident.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'resident@ecopark.test', password: 'resident123' }
+    });
+    const request = await resident.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 60 }
+    });
+    assert.equal(request.response.status, 201);
+
+    await staff.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'staff@ecopark.test', password: 'staff123' }
+    });
+    const pending = await staff.request('/api/staff/pending-requests');
+    assert.equal(pending.response.status, 200);
+    assert.ok(!pending.payload.requests.some((item) => item.request_id === request.payload.request.request_id));
+
+    const handover = await staff.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203000222',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203000222'
+      }
+    });
+    assert.equal(handover.response.status, 403);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('station capacity update rejects values below current bike count', async () => {
   const fixture = await startTestServer();
   const admin = client(fixture.baseUrl);
@@ -191,7 +518,7 @@ test('station capacity update rejects values below current bike count', async ()
 test('return flow calculates resident discount, late fee, and moves bike', async () => {
   const fixture = await startTestServer();
   const customer = client(fixture.baseUrl);
-  const staff = client(fixture.baseUrl);
+  const admin = client(fixture.baseUrl);
   try {
     await customer.request('/api/auth/login', {
       method: 'POST',
@@ -201,6 +528,70 @@ test('return flow calculates resident discount, late fee, and moves bike', async
       method: 'POST',
       body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 120 }
     });
+
+    await admin.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@ecopark.test', password: 'admin123' }
+    });
+    const handover = await admin.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203000222',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203000222'
+      }
+    });
+    const rental = handover.payload.rental;
+    const returnedAt = new Date(new Date(rental.started_at).getTime() + 150 * 60 * 1000).toISOString();
+    const returned = await admin.request('/api/staff/return', {
+      method: 'POST',
+      body: {
+        rentalId: rental.rental_id,
+        returnStationId: 1,
+        returnedAt,
+        bicycleCondition: 'available'
+      }
+    });
+
+    assert.equal(returned.payload.ticket.base_fee, 70000);
+    assert.equal(returned.payload.ticket.resident_discount_amount, 28000);
+    assert.equal(returned.payload.ticket.late_fee, 30000);
+    assert.equal(returned.payload.ticket.total_amount, 72000);
+
+    const fleet = await admin.request('/api/admin/bikes');
+    const bike = fleet.payload.bikes.find((item) => item.bike_code === 'ECO-007');
+    assert.equal(bike.station_id, 1);
+    assert.equal(bike.bike_status, 'available');
+
+    const audit = await admin.request('/api/admin/bike-status-logs?limit=5');
+    assert.equal(audit.response.status, 200);
+    assert.ok(audit.payload.logs.some((log) => (
+      log.bike_code === 'ECO-007'
+      && log.old_status === 'rented'
+      && log.new_status === 'available'
+      && log.station_name === 'Green Bay Marina'
+    )));
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('demo clock drives active rental countdown and default return penalties', async () => {
+  const fixture = await startTestServer();
+  const customer = client(fixture.baseUrl);
+  const staff = client(fixture.baseUrl);
+  try {
+    await customer.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'resident@ecopark.test', password: 'resident123' }
+    });
+    const request = await customer.request('/api/rental-requests', {
+      method: 'POST',
+      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+    });
+    assert.equal(request.response.status, 201);
 
     await staff.request('/api/auth/login', {
       method: 'POST',
@@ -216,27 +607,39 @@ test('return flow calculates resident discount, late fee, and moves bike', async
         depositDocumentHeld: '001203000222'
       }
     });
-    const rental = handover.payload.rental;
-    const returnedAt = new Date(new Date(rental.started_at).getTime() + 150 * 60 * 1000).toISOString();
+    assert.equal(handover.response.status, 201);
+
+    const afterHandoverBikes = await customer.request('/api/stations/2/bikes');
+    const rentedBike = afterHandoverBikes.payload.bikes.find((bike) => bike.bike_code === 'ECO-003');
+    assert.equal(rentedBike.unavailable_reason, 'rented_by_you');
+    assert.equal(rentedBike.is_current_customer_rental, 1);
+
+    const advancedClock = await staff.request('/api/demo-clock', {
+      method: 'POST',
+      body: { advanceMinutes: 95 }
+    });
+    assert.equal(advancedClock.response.status, 200);
+    assert.equal(advancedClock.payload.offsetMinutes, 95);
+
+    const history = await customer.request('/api/customer/history');
+    const active = history.payload.activeRentals.find((item) => item.rental_id === handover.payload.rental.rental_id);
+    assert.ok(active.late_minutes >= 35);
+    assert.equal(active.estimated_late_fee, 60000);
+
     const returned = await staff.request('/api/staff/return', {
       method: 'POST',
       body: {
-        rentalId: rental.rental_id,
-        returnStationId: 1,
-        returnedAt,
-        bicycleCondition: 'available'
+        rentalId: handover.payload.rental.rental_id,
+        returnStationId: 2,
+        bicycleCondition: 'available',
+        conditionNote: 'Demo clock return'
       }
     });
-
-    assert.equal(returned.payload.ticket.base_fee, 70000);
-    assert.equal(returned.payload.ticket.resident_discount_amount, 28000);
-    assert.equal(returned.payload.ticket.late_fee, 30000);
-    assert.equal(returned.payload.ticket.total_amount, 72000);
-
-    const fleet = await staff.request('/api/admin/bikes');
-    const bike = fleet.payload.bikes.find((item) => item.bike_code === 'ECO-007');
-    assert.equal(bike.station_id, 1);
-    assert.equal(bike.bike_status, 'available');
+    assert.equal(returned.response.status, 201);
+    assert.equal(returned.payload.ticket.base_fee, 50000);
+    assert.equal(returned.payload.ticket.resident_discount_amount, 20000);
+    assert.equal(returned.payload.ticket.late_fee, 60000);
+    assert.equal(returned.payload.ticket.total_amount, 90000);
   } finally {
     await fixture.close();
   }

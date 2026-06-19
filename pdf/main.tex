@@ -8,6 +8,7 @@
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage{enumitem}
+\usepackage{float}
 \usepackage{longtable}
 \usepackage{multirow}
 \usepackage{tabularx}
@@ -15,7 +16,8 @@
 \usepackage[unicode]{hyperref}
 \usepackage{graphicx}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,calc,positioning,shapes.geometric}
+\graphicspath{{assets/}{assets/screenshots/}{assets/drawio/}}
+\usetikzlibrary{arrows.meta,calc,fit,positioning,shapes.geometric,shapes.misc}
 
 \AtBeginDocument{\selectlanguage{vietnamese}}
 \hypersetup{
@@ -32,26 +34,70 @@
 
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 \newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
-
-\title{\textbf{Ecopark Bicycle Parking}\\Requirement Analysis: Use-Case Analysis}
-\author{Nhóm dự án hệ thống thuê xe đạp Ecopark}
-\date{Tháng 5 năm 2026}
+\definecolor{EcoparkGreen}{HTML}{0F7B55}
+\definecolor{EcoparkTeal}{HTML}{0891B2}
+\definecolor{EcoparkAmber}{HTML}{B7791F}
+\definecolor{SoftGreen}{HTML}{E8F7EF}
+\definecolor{Ink}{HTML}{12201A}
 
 \begin{document}
-\maketitle
+
+\begin{titlepage}
+\begin{center}
+
+\textsc{\large \textcolor{black}{\textbf{HANOI UNIVERSITY OF SCIENCE AND TECHNOLOGY}}}\\[0.5cm]
+
+{\Large \uppercase{School of Information Communication Technology}\\[1cm]}
+
+\includegraphics[scale=0.13]{logo-soict-hust-1.png}\\[1cm]
+\textsc{\Large \textbf{Capstone project report:}}\\[0.4cm]
+
+\rule{\linewidth}{0.7mm} \\[0.4cm]
+{\huge \bfseries\color{black!70!black} Ecopark Bicycle Parking Platform \\[0.4cm]}
+\rule{\linewidth}{0.7mm} \\[1cm]
+
+\color{black!80!black}{\large \textbf{\textit{Supervised by}:}}\\[0.6cm]
+
+\begin{tabular}{l}
+\large Ph.D. Bùi Thị Mai Anh \\[1cm]
+\end{tabular}
+
+\color{black!80!black}{\large \textbf{\textit{Presented by}:}}\\[0.6cm]
+\color{black}
+\begin{tabular}{l}
+\large Kiều Sơn Tùng - 20235571 \\[0.4cm]
+\large Nguyễn Phú An - 20235466 \\[0.4cm]
+\large Phạm Chí Bằng - 20235477 \\[0.4cm]
+\large Nguyễn Thanh Lâm - 20235519 \\[0.4cm]
+\large Nguyễn Ngọc Minh - 20235533 \\[0.4cm]
+\end{tabular}
+
+\vfill
+
+{\large \color{black!80!black}{\textbf{Hanoi - Vietnam}}\\[0.2cm] \color{blue!90!black}2026}
+
+\end{center}
+\end{titlepage}
+\setcounter{page}{2}
 
 \begin{center}
-\textit{Tài liệu được điền theo template Use Case Specification của buổi học Requirement Analysis.}
+\textit{Báo cáo phân tích, thiết kế và triển khai nền tảng thuê-trả xe đạp Ecopark trên Google Cloud Platform.}
 \end{center}
 
 \tableofcontents
 \newpage
 
+\input{sections/00_requirements_problem}
+\newpage
 \input{sections/01_overview}
 \newpage
-\input{sections/02_relational_schema}
-\newpage
 \input{sections/03_use_case_specs}
+\newpage
+\input{sections/01b_user_stories}
+\newpage
+\input{sections/04_system_architecture}
+\newpage
+\input{sections/02_relational_schema}
 \newpage
 \input{sections/04_web_implementation}
 

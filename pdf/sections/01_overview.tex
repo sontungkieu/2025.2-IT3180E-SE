@@ -1,4 +1,4 @@
-\section{Phạm vi phân tích use case}
+\section{Use-case analysis}
 
 \subsection{Hệ thống và actor}
 Hệ thống được phân tích là \textbf{Ecopark Bicycle Parking}: hệ thống thông
@@ -8,7 +8,7 @@ xe tại bãi, phiếu thuê, lịch sử thuê và thống kê tập trung theo
 xe và bãi xe.
 
 Phạm vi triển khai có thể gồm một website quản lý tập trung cho nhân sự vận hành
-và một app eBicycle/mobile cho khách thuê. Nếu nhóm chỉ triển khai một hệ thống
+và một module eBicycle/mobile cho khách thuê. Nếu nhóm chỉ triển khai một hệ thống
 web, hệ thống vẫn phải phục vụ được cả người quản lý và người dùng thông thường.
 
 Trong sơ đồ use case, front-end, back-end và database không được xem là actor vì
@@ -84,12 +84,13 @@ nộp thẻ cư dân để nhận giảm giá. Trong lược đồ dữ liệu, 
 bằng USERS $\rightarrow$ CUSTOMER\_PROFILES với customer\_type là \textit{resident}
 và bản ghi RESIDENT\_CARDS tương ứng.
 
-Customer không tự xác minh tài khoản theo nghĩa nghiệp vụ quản trị. Customer chỉ
-nộp email, CCCD/giấy tờ định danh, địa chỉ và thẻ cư dân nếu có. Hệ thống tự kiểm
-tra các điều kiện cơ bản; Admin / Operator có thể rà soát thủ công các hồ sơ nghi
-ngờ hoặc hồ sơ cư dân không khớp. Vì vậy, ``verify account'' không phải use case
-chính riêng của Admin trong 5 use case được chọn, nhưng là luồng thay thế/related
-flow trong UC001.
+Customer tự xác minh email bằng mã demo-local trong platform, đồng thời nộp
+CCCD/giấy tờ định danh, địa chỉ và thẻ cư dân nếu có. Hệ thống kiểm tra định
+dạng, email trùng, CCCD trùng, độ mạnh mật khẩu, giấy tờ bị khóa, thẻ cư dân hợp
+lệ và quyền giảm giá; Admin / Operator xử lý ngoại lệ như khóa/mở tài khoản,
+khóa CCCD hoặc hồ sơ cư dân không khớp. Vì vậy, ``verify account'' không phải
+use case chính riêng của Admin trong 5 use case được chọn, nhưng là luồng thay
+thế/related flow trong UC001.
 
 Station Staff / Station Manager và Admin / Operator có phần giao nhau ở UC005
 nhưng khác rõ về phạm vi quyền. Station Staff / Station Manager xử lý nghiệp vụ
@@ -142,3 +143,37 @@ kho xe.
 \textit{UC002 Find Station and Select Bicycle}, \textit{UC003 Process Bicycle
 Rental and Deposit}, \textit{UC004 Return Bicycle and Issue Ticket}, và
 \textit{UC005 Manage Bikes, Stations and Rental Reports}.
+
+\subsection{Use-case detail diagrams}
+Các sơ đồ dưới đây được export từ file drawio của nhóm và được đưa trực tiếp vào
+report để người đọc không cần mở thêm file nguồn.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth,height=0.72\textheight,keepaspectratio]{uc001.png}
+\caption{UC001 - Register and Verify Customer Account}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth,height=0.72\textheight,keepaspectratio]{uc002.png}
+\caption{UC002 - Find Station and Select Bicycle}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth,height=0.72\textheight,keepaspectratio]{uc003.png}
+\caption{UC003 - Process Bicycle Rental and Deposit}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth,height=0.72\textheight,keepaspectratio]{uc004.png}
+\caption{UC004 - Return Bicycle and Issue Ticket}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth,height=0.72\textheight,keepaspectratio]{uc005.png}
+\caption{UC005 - Manage Bikes, Stations and Rental Reports}
+\end{figure}

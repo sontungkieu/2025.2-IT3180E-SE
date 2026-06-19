@@ -1,0 +1,255 @@
+\section{System architecture}
+
+\subsection{Kiến trúc triển khai tổng thể}
+Platform được thiết kế để chạy trên Google Cloud Platform (GCP) theo hướng web
+fullstack: trình duyệt tải giao diện từ service Node.js, gọi API
+\texttt{/api/*} để xử lý nghiệp vụ và lưu dữ liệu bằng SQLite/WAL. Với scope
+demo và nộp bài, SQLite là lựa chọn phù hợp vì dữ liệu nhỏ, triển khai nhanh và
+dễ backup. Target GCP của nhóm là service Node.js trong một VM/container Compute
+Engine có persistent disk để file SQLite không bị mất khi restart.
+Cloud SQL được xem là hướng nâng cấp nếu hệ thống cần scale nhiều instance sau
+này.
+
+Back-end chịu trách nhiệm session cookie, kiểm tra role, giao dịch thuê-trả,
+tính phí, audit log và báo cáo. Cùng codebase chạy được local bằng SQLite để
+nhóm kiểm thử nhanh trước khi đóng gói và deploy lên GCP.
+
+Leaflet dùng tile OpenStreetMap khi có mạng. Nếu tile không tải được, UI vẫn giữ
+fallback map để các use case chính không bị dừng. Các secret triển khai được đưa
+vào Secret Manager; log vận hành đi qua Cloud Logging/Monitoring.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=3.15cm,minimum height=1.05cm,align=center,font=\scriptsize},
+  gcp/.style={draw=EcoparkTeal,thick,rounded corners=2pt,fill=cyan!8,minimum width=3.15cm,minimum height=1.05cm,align=center,font=\scriptsize},
+  store/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!10,minimum width=3.15cm,minimum height=1.05cm,align=center,font=\scriptsize},
+  arr/.style={-{Latex[length=2.2mm]},thick,draw=Ink}
+]
+\node[box] (client) at (0,0) {Customer / Staff / Admin\\Browser UI};
+\node[gcp] (vm) at (4.5,0) {GCP Compute Engine\\Docker/Node.js service};
+\node[box] (domain) at (9,0) {Domain modules\\Auth, rental, pricing, reports};
+\node[store] (sqlite) at (9,-2.0) {SQLite/WAL database\\users, bikes, rentals, logs};
+\node[store] (disk) at (4.5,-2.0) {Persistent disk\\DB file and backup target};
+\node[gcp] (secrets) at (4.5,1.9) {Secret Manager\\Runtime config};
+\node[gcp] (logs) at (9,1.9) {Cloud Logging\\Monitoring and audit};
+\node[box] (osm) at (0,-2.0) {OpenStreetMap tiles\\Optional map source};
+
+\draw[arr] (client) -- (vm);
+\draw[arr] (vm) -- (domain);
+\draw[arr] (domain) -- (sqlite);
+\draw[arr] (sqlite) -- (disk);
+\draw[arr] (secrets) -- (vm);
+\draw[arr] (vm) -- (logs);
+\draw[arr] (client) -- (osm);
+\end{tikzpicture}
+}
+\caption{Kiến trúc triển khai GCP với Node.js service và SQLite/WAL}
+\end{figure}
+
+\subsection{Đánh giá nhanh phần back-end}
+Back-end hiện tại đã hỗ trợ vòng đời thuê-trả theo scope report: đăng ký/đăng
+nhập, xác minh email bằng mã demo-local, reset mật khẩu demo-local, tách phiên
+theo cookie, giữ chỗ xe bằng request pending, giao xe có cọc/giấy tờ, đổi xe
+trước handover, trả xe khác bãi, tính vé, giảm giá cư dân, cập nhật trạng thái
+xe, mở nhật ký audit và tổng hợp báo cáo có biểu đồ/table/CSV.
+
+\begin{longtable}{P{0.22\textwidth}P{0.38\textwidth}P{0.30\textwidth}}
+\toprule
+\textbf{Mảng back-end} & \textbf{Đã có trong platform} & \textbf{GCP / production note} \\
+\midrule
+Authentication & Session cookie riêng cho từng browser/context; role customer, staff, admin; email verification, reset password và PBKDF2 salted password hash. & Secret Manager cho cấu hình; session store bền vững hơn nếu scale nhiều instance. \\
+Rental lifecycle & Request pending, giữ xe, hủy/hết hạn, đổi xe trước handover, staff scope theo bãi, rental in-progress, return ticket. & SQLite/WAL đủ cho demo single-instance; Cloud SQL là hướng nâng cấp khi scale ngang. \\
+Pricing & Bảng giá 1/2/3 giờ, phụ thu trễ block 30 phút, giảm cư dân 40\%. & Policy có thể versioning để đổi giá không sửa code. \\
+Fleet reports & Chart doanh thu, trạng thái đội xe, lượt thuê/phụ thu, bảng chi tiết và CSV theo bộ lọc. & Có thể backup file SQLite định kỳ lên Cloud Storage nếu cần. \\
+Auditability & Có bảng \texttt{BIKE\_STATUS\_LOGS}, API đọc log và panel nhật ký trạng thái xe. & Cloud Logging giữ log runtime; DB giữ audit nghiệp vụ. \\
+Deployment & Codebase chạy local/demo và đã sẵn sàng đóng gói cho GCP Compute Engine bằng Node.js + SQLite. & Persistent disk giữ file DB; Cloud SQL chỉ cần khi nâng cấp production lớn hơn. \\
+\bottomrule
+\end{longtable}
+
+\section{Component architecture and design}
+
+\subsection{Phân tách component}
+Thiết kế component được tổ chức theo tầng để giữ ranh giới rõ giữa giao diện,
+API, logic nghiệp vụ và dữ liệu. Repo không tách microservice trong scope môn
+học; thay vào đó, mỗi module giữ một trách nhiệm nhỏ và được kiểm tra bằng
+unit/API test hoặc smoke test trình duyệt.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  layer/.style={draw=black!25,rounded corners=4pt,fill=black!2,minimum width=13.2cm,minimum height=1.25cm},
+  label/.style={font=\scriptsize\bfseries,align=left},
+  comp/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=white,minimum width=2.65cm,minimum height=0.66cm,align=center,font=\scriptsize},
+  arr/.style={-{Latex[length=2.0mm]},thick,draw=Ink}
+]
+\node[layer] (l1) at (0,0) {};
+\node[label] at (-5.85,0.42) {Front-end};
+\node[comp] (authui) at (-3.75,0) {Auth/Register};
+\node[comp] (customerui) at (-1.20,0) {Customer rental};
+\node[comp] (opsui) at (1.35,0) {Operations};
+\node[comp] (gpsui) at (3.90,0) {\texttt{/gd} director};
+
+\node[layer] (l2) at (0,-1.65) {};
+\node[label] at (-5.85,-1.23) {HTTP/API};
+\node[comp] (session) at (-2.55,-1.65) {Session + role guard};
+\node[comp] (router) at (0,-1.65) {API router};
+\node[comp] (static) at (2.55,-1.65) {Static/vendor};
+
+\node[layer] (l3) at (0,-3.30) {};
+\node[label] at (-5.85,-2.88) {Business};
+\node[comp] (account) at (-2.55,-3.30) {Account service};
+\node[comp] (rental) at (0,-3.30) {Rental service};
+\node[comp] (fleet) at (2.55,-3.30) {Fleet/report service};
+
+\node[layer] (l4) at (0,-4.95) {};
+\node[label] at (-5.85,-4.53) {Data};
+\node[comp] (db) at (-1.3,-4.95) {SQLite / WAL};
+\node[comp] (logs) at (1.7,-4.95) {Status logs};
+
+\draw[arr] (customerui.south) -- (router.north);
+\draw[arr] (router.south) -- (rental.north);
+\draw[arr] (rental.south) -- (db.north);
+\draw[arr] (fleet.south) -- (logs.north);
+\end{tikzpicture}
+}
+\caption{Component architecture theo tầng}
+\end{figure}
+
+\subsection{Luồng trạng thái thuê xe}
+Luồng nghiệp vụ quan trọng nhất là vòng đời từ xe rảnh đến request, rental và
+ticket. Thiết kế hiện tại chặn khách có nhiều rental đang chạy, chặn xe đã bị giữ
+chỗ, và chỉ chuyển xe sang \textit{available} hoặc \textit{broken} sau khi Staff
+hoàn tất trả xe.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+  state/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=2.45cm,minimum height=0.78cm,align=center,font=\scriptsize},
+  bad/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!12,minimum width=2.45cm,minimum height=0.78cm,align=center,font=\scriptsize},
+  arr/.style={-{Latex[length=2.0mm]},thick,draw=Ink}
+]
+\node[state] (available) at (0,0) {Available\\at station};
+\node[state] (pending) at (2.9,0) {Pending\\pickup};
+\node[state] (rented) at (5.8,0) {Rental\\in progress};
+\node[state] (ticket) at (8.7,0) {Ticket\\completed};
+\node[bad] (cancel) at (2.9,-1.55) {Cancelled\\or expired};
+\node[bad] (broken) at (8.7,-1.55) {Broken\\not rentable};
+
+\draw[arr] (available) -- (pending);
+\draw[arr] (pending) -- (rented);
+\draw[arr] (rented) -- (ticket);
+\draw[arr] (pending) -- (cancel);
+\draw[arr] (cancel.west) -| (available.south);
+\draw[arr] (ticket) -- (broken);
+\end{tikzpicture}
+}
+\caption{Lifecycle từ chọn xe đến xuất vé}
+\end{figure}
+
+\subsection{Sequence diagrams of implemented flows}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  actor/.style={font=\scriptsize\bfseries,align=center},
+  lifeline/.style={draw=black!35,dashed},
+  msg/.style={-{Latex[length=1.8mm]},draw=Ink,thick},
+  note/.style={draw=EcoparkGreen,rounded corners=2pt,fill=SoftGreen,align=left,font=\tiny,inner sep=4pt}
+]
+\node[actor] at (0,0) {Customer};
+\node[actor] at (4.2,0) {Customer UI};
+\node[actor] at (8.4,0) {API Server};
+\node[actor] at (12.6,0) {SQLite};
+\foreach \x in {0,4.2,8.4,12.6} \draw[lifeline] (\x,-0.3) -- (\x,-6.2);
+
+\draw[msg] (0,-0.8) -- node[above,font=\tiny] {1. filter station/type/range} (4.2,-0.8);
+\draw[msg] (4.2,-1.45) -- node[above,font=\tiny] {2. \texttt{GET /api/stations}} (8.4,-1.45);
+\draw[msg] (8.4,-2.1) -- node[above,font=\tiny] {3. station + inventory query} (12.6,-2.1);
+\draw[msg] (8.4,-2.75) -- node[above,font=\tiny] {4. nearby stations + bikes} (4.2,-2.75);
+\node[note] at (4.2,-3.25) {Map marker, station cards and bike cards\\show available/held states clearly};
+\draw[msg] (0,-4.0) -- node[above,font=\tiny] {5. choose bike + duration} (4.2,-4.0);
+\draw[msg] (4.2,-4.65) -- node[above,font=\tiny] {6. \texttt{POST /api/rental-requests}} (8.4,-4.65);
+\draw[msg] (8.4,-5.3) -- node[above,font=\tiny] {7. create pending request} (12.6,-5.3);
+\draw[msg] (4.2,-5.95) -- node[above,font=\tiny] {8. show request / cancel action} (0,-5.95);
+\end{tikzpicture}
+}
+\caption{Sequence - Customer tìm bãi, chọn xe và gửi yêu cầu thuê}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  actor/.style={font=\scriptsize\bfseries,align=center},
+  lifeline/.style={draw=black!35,dashed},
+  msg/.style={-{Latex[length=1.8mm]},draw=Ink,thick},
+  note/.style={draw=EcoparkGreen,rounded corners=2pt,fill=SoftGreen,align=left,font=\tiny,inner sep=4pt}
+]
+\node[actor] at (0,0) {Staff/Admin};
+\node[actor] at (4.2,0) {Operations UI};
+\node[actor] at (8.4,0) {API Server};
+\node[actor] at (12.6,0) {SQLite};
+\foreach \x in {0,4.2,8.4,12.6} \draw[lifeline] (\x,-0.3) -- (\x,-6.8);
+
+\draw[msg] (0,-0.8) -- node[above,font=\tiny] {1. verify identity + deposit} (4.2,-0.8);
+\draw[msg] (4.2,-1.45) -- node[above,font=\tiny] {2. \texttt{POST /api/staff/handover}} (8.4,-1.45);
+\draw[msg] (8.4,-2.1) -- node[above,font=\tiny] {3. create rental, mark rented} (12.6,-2.1);
+\draw[msg] (8.4,-2.75) -- node[above,font=\tiny] {4. active rental} (4.2,-2.75);
+\node[note] at (4.2,-3.25) {Return pipeline is enabled\\when a rental is active};
+\draw[msg] (0,-4.0) -- node[above,font=\tiny] {5. return station/time/condition} (4.2,-4.0);
+\draw[msg] (4.2,-4.65) -- node[above,font=\tiny] {6. \texttt{POST /api/staff/return}} (8.4,-4.65);
+\draw[msg] (8.4,-5.3) -- node[above,font=\tiny] {7. ticket, bike update, audit log} (12.6,-5.3);
+\draw[msg] (8.4,-5.95) -- node[above,font=\tiny] {8. ticket + charts + logs} (4.2,-5.95);
+\draw[msg] (4.2,-6.55) -- node[above,font=\tiny] {9. issue ticket} (0,-6.55);
+\end{tikzpicture}
+}
+\caption{Sequence - Staff handover, return và issue ticket}
+\end{figure}
+
+\subsection{End-to-end activity flow}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  actstep/.style={draw=EcoparkGreen,rounded corners=2pt,fill=SoftGreen,minimum width=3.20cm,minimum height=0.72cm,align=center,font=\scriptsize},
+  sys/.style={draw=EcoparkTeal,rounded corners=2pt,fill=cyan!8,minimum width=3.20cm,minimum height=0.72cm,align=center,font=\scriptsize},
+  staff/.style={draw=EcoparkAmber,rounded corners=2pt,fill=yellow!10,minimum width=3.20cm,minimum height=0.72cm,align=center,font=\scriptsize},
+  arr/.style={-{Latex[length=1.8mm]},draw=Ink,thick}
+]
+\node[font=\bfseries] at (0,0.55) {Customer};
+\node[font=\bfseries] at (4.2,0.55) {System};
+\node[font=\bfseries] at (8.4,0.55) {Staff/Admin};
+
+\node[actstep] (a1) at (0,0) {Đăng nhập / đăng ký};
+\node[sys] (b1) at (4.2,0) {Validate account};
+\node[actstep] (a2) at (0,-1.05) {Tìm bãi và chọn xe};
+\node[sys] (b2) at (4.2,-1.05) {Check available + hold};
+\node[actstep] (a3) at (0,-2.10) {Gửi request};
+\node[staff] (c1) at (8.4,-2.10) {Kiểm tra request};
+\node[staff] (c2) at (8.4,-3.15) {Nhận cọc/giấy tờ};
+\node[sys] (b3) at (4.2,-3.15) {Create rental};
+\node[actstep] (a4) at (0,-4.20) {Sử dụng xe};
+\node[staff] (c3) at (8.4,-4.20) {Nhận xe trả};
+\node[sys] (b4) at (4.2,-5.25) {Calculate ticket + update bike};
+\node[staff] (c4) at (8.4,-5.25) {Xuất vé / xem report};
+
+\draw[arr] (a1) -- (b1);
+\draw[arr] (b1) -- (a2);
+\draw[arr] (a2) -- (b2);
+\draw[arr] (b2) -- (a3);
+\draw[arr] (a3) -- (c1);
+\draw[arr] (c1) -- (c2);
+\draw[arr] (c2) -- (b3);
+\draw[arr] (b3) -- (a4);
+\draw[arr] (a4) -- (c3);
+\draw[arr] (c3) -- (b4);
+\draw[arr] (b4) -- (c4);
+\end{tikzpicture}
+}
+\caption{Activity/swimlane flow cho demo end-to-end}
+\end{figure}

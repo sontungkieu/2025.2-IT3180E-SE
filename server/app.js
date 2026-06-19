@@ -2,11 +2,14 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { createAppDatabase, hashPassword, now } = require('./db');
-const { BASE_PRICES, calculateTicket } = require('./pricing');
+const { createAppDatabase, hashPassword, now, passwordNeedsRehash, verifyPassword } = require('./db');
+const { BASE_PRICES, LATE_FEE_PER_30_MINUTES, calculateTicket } = require('./pricing');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
+const DEMO_CLOCK_OFFSET_KEY = 'demo_clock_offset_minutes';
+const MAX_DEMO_CLOCK_OFFSET_MINUTES = 7 * 24 * 60;
+const MIN_DEMO_CLOCK_OFFSET_MINUTES = -24 * 60;
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -55,6 +58,19 @@ async function handleApi(ctx) {
     return;
   }
 
+  if (method === 'GET' && pathname === '/api/demo-clock') {
+    requireRole(ctx, ['customer', 'staff', 'admin']);
+    sendJson(res, 200, getDemoClock(ctx.db));
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/demo-clock') {
+    requireRole(ctx, ['staff', 'admin']);
+    const body = await readJson(req);
+    sendJson(res, 200, setDemoClock(ctx.db, body));
+    return;
+  }
+
   if (method === 'POST' && pathname === '/api/auth/register') {
     const body = await readJson(req);
     const result = registerCustomer(ctx, body);
@@ -77,6 +93,31 @@ async function handleApi(ctx) {
     return;
   }
 
+  if (method === 'POST' && pathname === '/api/auth/request-email-verification') {
+    const user = requireRole(ctx, ['customer']);
+    sendJson(res, 200, requestEmailVerification(ctx.db, user));
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/auth/verify-email') {
+    const user = requireRole(ctx, ['customer']);
+    const body = await readJson(req);
+    sendJson(res, 200, { user: verifyEmail(ctx.db, user, body) });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/auth/request-password-reset') {
+    const body = await readJson(req);
+    sendJson(res, 200, requestPasswordReset(ctx.db, body));
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/auth/reset-password') {
+    const body = await readJson(req);
+    sendJson(res, 200, resetPassword(ctx.db, body));
+    return;
+  }
+
   if (method === 'GET' && pathname === '/api/bike-types') {
     sendJson(res, 200, { bikeTypes: getBikeTypes(ctx.db) });
     return;
@@ -89,7 +130,7 @@ async function handleApi(ctx) {
 
   const stationBikesMatch = pathname.match(/^\/api\/stations\/(\d+)\/bikes$/);
   if (method === 'GET' && stationBikesMatch) {
-    sendJson(res, 200, { bikes: getStationBikes(ctx.db, Number(stationBikesMatch[1]), requestUrl.searchParams) });
+    sendJson(res, 200, { bikes: getStationBikes(ctx.db, Number(stationBikesMatch[1]), requestUrl.searchParams, getSessionUser(ctx)) });
     return;
   }
 
@@ -107,6 +148,14 @@ async function handleApi(ctx) {
     return;
   }
 
+  const requestExchangeMatch = pathname.match(/^\/api\/staff\/rental-requests\/(\d+)\/exchange-bike$/);
+  if (method === 'POST' && requestExchangeMatch) {
+    const user = requireRole(ctx, ['staff', 'admin']);
+    const body = await readJson(req);
+    sendJson(res, 200, { request: exchangeRentalRequestBike(ctx.db, user, Number(requestExchangeMatch[1]), body) });
+    return;
+  }
+
   if (method === 'POST' && pathname === '/api/customer/resident-card') {
     const user = requireRole(ctx, ['customer']);
     const body = await readJson(req);
@@ -121,14 +170,14 @@ async function handleApi(ctx) {
   }
 
   if (method === 'GET' && pathname === '/api/staff/pending-requests') {
-    requireRole(ctx, ['staff', 'admin']);
-    sendJson(res, 200, { requests: getPendingRequests(ctx.db) });
+    const user = requireRole(ctx, ['staff', 'admin']);
+    sendJson(res, 200, { requests: getPendingRequests(ctx.db, user) });
     return;
   }
 
   if (method === 'GET' && pathname === '/api/staff/active-rentals') {
-    requireRole(ctx, ['staff', 'admin']);
-    sendJson(res, 200, { rentals: getActiveRentals(ctx.db) });
+    const user = requireRole(ctx, ['staff', 'admin']);
+    sendJson(res, 200, { rentals: getActiveRentals(ctx.db, user) });
     return;
   }
 
@@ -147,14 +196,42 @@ async function handleApi(ctx) {
   }
 
   if (method === 'GET' && pathname === '/api/admin/bikes') {
-    requireRole(ctx, ['staff', 'admin']);
-    sendJson(res, 200, { bikes: getAllBikes(ctx.db) });
+    const user = requireRole(ctx, ['staff', 'admin']);
+    sendJson(res, 200, { bikes: getAllBikes(ctx.db, user) });
     return;
   }
 
   if (method === 'GET' && pathname === '/api/admin/reports') {
-    requireRole(ctx, ['staff', 'admin']);
-    sendJson(res, 200, getReports(ctx.db, requestUrl.searchParams));
+    const user = requireRole(ctx, ['staff', 'admin']);
+    sendJson(res, 200, getReports(ctx.db, requestUrl.searchParams, user));
+    return;
+  }
+
+  if (method === 'GET' && pathname === '/api/admin/bike-status-logs') {
+    const user = requireRole(ctx, ['staff', 'admin']);
+    sendJson(res, 200, { logs: getBikeStatusLogs(ctx.db, requestUrl.searchParams, user) });
+    return;
+  }
+
+  const userStatusMatch = pathname.match(/^\/api\/admin\/users\/(\d+)\/status$/);
+  if (method === 'POST' && userStatusMatch) {
+    const user = requireRole(ctx, ['admin']);
+    const body = await readJson(req);
+    sendJson(res, 200, { user: updateUserStatus(ctx.db, user, Number(userStatusMatch[1]), body) });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/admin/blocked-identities') {
+    const user = requireRole(ctx, ['admin']);
+    const body = await readJson(req);
+    sendJson(res, 201, { blockedIdentity: blockIdentity(ctx.db, user, body) });
+    return;
+  }
+
+  const blockedIdentityMatch = pathname.match(/^\/api\/admin\/blocked-identities\/([^/]+)$/);
+  if (method === 'DELETE' && blockedIdentityMatch) {
+    const user = requireRole(ctx, ['admin']);
+    sendJson(res, 200, unblockIdentity(ctx.db, user, blockedIdentityMatch[1]));
     return;
   }
 
@@ -199,20 +276,64 @@ async function handleApi(ctx) {
   throw httpError(404, 'Endpoint not found');
 }
 
+function getDemoClock(db) {
+  const row = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(DEMO_CLOCK_OFFSET_KEY);
+  const offsetMinutes = clampClockOffset(Number(row?.setting_value || 0));
+  const realTime = now();
+  const currentTime = new Date(Date.now() + offsetMinutes * 60000).toISOString();
+  return {
+    currentTime,
+    realTime,
+    offsetMinutes,
+    lateFeePer30Minutes: LATE_FEE_PER_30_MINUTES
+  };
+}
+
+function setDemoClock(db, body) {
+  const current = getDemoClock(db).offsetMinutes;
+  const next = body.reset
+    ? 0
+    : Number.isFinite(Number(body.offsetMinutes))
+      ? Number(body.offsetMinutes)
+      : current + Number(body.advanceMinutes || 0);
+  const offsetMinutes = clampClockOffset(next);
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value)
+    VALUES (?, ?)
+    ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value
+  `).run(DEMO_CLOCK_OFFSET_KEY, String(offsetMinutes));
+  return getDemoClock(db);
+}
+
+function clampClockOffset(value) {
+  const minutes = Math.round(Number.isFinite(value) ? value : 0);
+  return Math.min(MAX_DEMO_CLOCK_OFFSET_MINUTES, Math.max(MIN_DEMO_CLOCK_OFFSET_MINUTES, minutes));
+}
+
+function appNow(db) {
+  return getDemoClock(db).currentTime;
+}
+
+function appDate(db) {
+  return new Date(appNow(db));
+}
+
 function registerCustomer(ctx, body) {
-  const fullName = requiredText(body.fullName, 'Full name');
+  const fullName = requiredFullName(body.fullName);
   const email = requiredEmail(body.email);
-  const phone = requiredText(body.phone, 'Phone');
+  const phone = requiredPhone(body.phone);
   const password = requiredText(body.password, 'Password');
-  const identityNumber = requiredText(body.identityNumber, 'Identity number');
+  const identityNumber = requiredIdentityNumber(body.identityNumber);
   const address = requiredText(body.address, 'Address');
   const customerType = body.customerType === 'resident' ? 'resident' : 'visitor';
-  const discountEligible = customerType === 'resident' && body.residentCardNumber ? 1 : 0;
+  validatePasswordPolicy(password);
+  const identityBlocked = isIdentityBlocked(ctx.db, identityNumber);
+  const residentReview = evaluateResidentCard(body.residentCardNumber, address);
+  const discountEligible = customerType === 'resident' && residentReview.status === 'verified' ? 1 : 0;
+  const identityStatus = identityBlocked ? 'blocked' : 'verified';
   const createdAt = now();
 
-  if (password.length < 6) {
-    throw httpError(400, 'Password must contain at least 6 characters');
-  }
+  ensureUniqueRegistrationFields(ctx.db, { phone, identityNumber });
 
   try {
     ctx.db.exec('BEGIN IMMEDIATE');
@@ -223,21 +344,43 @@ function registerCustomer(ctx, body) {
 
     ctx.db.prepare(`
       INSERT INTO customer_profiles
-        (customer_id, identity_number, address, customer_type, identity_status, discount_eligible, created_at)
-      VALUES (?, ?, ?, ?, 'verified', ?, ?)
-    `).run(userId, identityNumber, address, customerType, discountEligible, createdAt);
+        (customer_id, identity_number, address, customer_type, identity_status, discount_eligible, created_at, identity_review_note, identity_reviewed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      userId,
+      identityNumber,
+      address,
+      customerType,
+      identityStatus,
+      discountEligible,
+      createdAt,
+      identityBlocked ? 'CCCD/CMND đang nằm trong danh sách khóa vận hành' : null,
+      identityBlocked ? createdAt : null
+    );
 
     if (customerType === 'resident' && body.residentCardNumber) {
       const cardId = Number(ctx.db.prepare(`
         INSERT INTO resident_cards
-          (customer_id, card_number, registered_address, verification_status, verified_at)
-        VALUES (?, ?, ?, 'verified', ?)
-      `).run(userId, String(body.residentCardNumber).trim(), address, createdAt).lastInsertRowid);
+          (customer_id, card_number, registered_address, verification_status, verified_at, review_note)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        userId,
+        String(body.residentCardNumber).trim(),
+        address,
+        residentReview.status,
+        residentReview.status === 'verified' ? createdAt : null,
+        residentReview.note
+      ).lastInsertRowid);
       ctx.db.prepare('UPDATE customer_profiles SET resident_card_id = ? WHERE customer_id = ?').run(cardId, userId);
     }
 
+    const verificationCode = issueEmailVerificationCode(ctx.db, userId, createdAt);
+
     ctx.db.exec('COMMIT');
-    return { user: getUserById(ctx.db, userId) };
+    return {
+      user: getUserById(ctx.db, userId),
+      demoCode: demoCodePayload(verificationCode)
+    };
   } catch (error) {
     ctx.db.exec('ROLLBACK');
     if (String(error.message).includes('UNIQUE')) {
@@ -251,35 +394,152 @@ function login(ctx, body) {
   const email = requiredEmail(body.email);
   const password = requiredText(body.password, 'Password');
   const user = ctx.db.prepare("SELECT * FROM users WHERE lower(email) = lower(?) AND status = 'active'").get(email);
-  if (!user || user.password_hash !== hashPassword(password)) {
+  if (!user || !verifyPassword(password, user.password_hash)) {
     throw httpError(401, 'Email or password is incorrect');
+  }
+  if (passwordNeedsRehash(user.password_hash)) {
+    ctx.db.prepare('UPDATE users SET password_hash = ? WHERE user_id = ?').run(hashPassword(password), user.user_id);
   }
   ctx.db.prepare('UPDATE users SET last_login_at = ? WHERE user_id = ?').run(now(), user.user_id);
   return { user: getUserById(ctx.db, user.user_id) };
 }
 
+function requestEmailVerification(db, user) {
+  if (user.email_verified_at) {
+    return { ok: true, alreadyVerified: true };
+  }
+  const code = issueEmailVerificationCode(db, user.user_id, appNow(db));
+  return { ok: true, demoCode: demoCodePayload(code) };
+}
+
+function verifyEmail(db, user, body) {
+  const code = requiredText(body.code, 'Verification code');
+  const row = db.prepare(`
+    SELECT email_verification_code_hash, email_verification_expires_at
+    FROM users
+    WHERE user_id = ?
+  `).get(user.user_id);
+  if (!row?.email_verification_code_hash) {
+    throw httpError(400, 'Verification code was not requested');
+  }
+  if (new Date(row.email_verification_expires_at) <= appDate(db)) {
+    throw httpError(400, 'Verification code has expired');
+  }
+  if (row.email_verification_code_hash !== hashCode(code)) {
+    throw httpError(400, 'Verification code is incorrect');
+  }
+  db.prepare(`
+    UPDATE users
+    SET email_verified_at = ?,
+        email_verification_code_hash = NULL,
+        email_verification_expires_at = NULL
+    WHERE user_id = ?
+  `).run(appNow(db), user.user_id);
+  return getUserById(db, user.user_id);
+}
+
+function requestPasswordReset(db, body) {
+  const email = requiredEmail(body.email);
+  const user = db.prepare("SELECT * FROM users WHERE lower(email) = lower(?) AND status = 'active'").get(email);
+  if (!user) {
+    return { ok: true };
+  }
+  const code = issuePasswordResetCode(db, user.user_id, appNow(db));
+  return { ok: true, demoCode: demoCodePayload(code) };
+}
+
+function resetPassword(db, body) {
+  const email = requiredEmail(body.email);
+  const code = requiredText(body.code, 'Reset code');
+  const password = requiredText(body.password, 'Password');
+  validatePasswordPolicy(password);
+  const user = db.prepare("SELECT * FROM users WHERE lower(email) = lower(?) AND status = 'active'").get(email);
+  if (!user?.password_reset_code_hash) {
+    throw httpError(400, 'Password reset code was not requested');
+  }
+  if (new Date(user.password_reset_expires_at) <= appDate(db)) {
+    throw httpError(400, 'Password reset code has expired');
+  }
+  if (user.password_reset_code_hash !== hashCode(code)) {
+    throw httpError(400, 'Password reset code is incorrect');
+  }
+  db.prepare(`
+    UPDATE users
+    SET password_hash = ?,
+        password_reset_code_hash = NULL,
+        password_reset_expires_at = NULL
+    WHERE user_id = ?
+  `).run(hashPassword(password), user.user_id);
+  return { ok: true };
+}
+
+function issueEmailVerificationCode(db, userId, issuedAt) {
+  const code = createDemoCode();
+  const expiresAt = new Date(new Date(issuedAt).getTime() + 30 * 60000).toISOString();
+  db.prepare(`
+    UPDATE users
+    SET email_verification_code_hash = ?,
+        email_verification_expires_at = ?
+    WHERE user_id = ?
+  `).run(hashCode(code), expiresAt, userId);
+  return code;
+}
+
+function issuePasswordResetCode(db, userId, issuedAt) {
+  const code = createDemoCode();
+  const expiresAt = new Date(new Date(issuedAt).getTime() + 30 * 60000).toISOString();
+  db.prepare(`
+    UPDATE users
+    SET password_reset_code_hash = ?,
+        password_reset_expires_at = ?
+    WHERE user_id = ?
+  `).run(hashCode(code), expiresAt, userId);
+  return code;
+}
+
+function createDemoCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function hashCode(code) {
+  return crypto.createHash('sha256').update(String(code)).digest('hex');
+}
+
+function demoCodePayload(code) {
+  return process.env.NODE_ENV === 'production' ? undefined : code;
+}
+
 function submitResidentCard(db, user, body) {
   const cardNumber = requiredText(body.cardNumber, 'Resident card number');
   const address = requiredText(body.address, 'Registered address');
+  const residentReview = evaluateResidentCard(cardNumber, address);
   const existing = db.prepare('SELECT * FROM customer_profiles WHERE customer_id = ?').get(user.user_id);
   if (!existing) {
     throw httpError(404, 'Customer profile not found');
   }
   const cardId = Number(db.prepare(`
     INSERT INTO resident_cards
-      (customer_id, card_number, registered_address, verification_status, verified_at)
-    VALUES (?, ?, ?, 'verified', ?)
-  `).run(user.user_id, cardNumber, address, now()).lastInsertRowid);
+      (customer_id, card_number, registered_address, verification_status, verified_at, review_note)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    user.user_id,
+    cardNumber,
+    address,
+    residentReview.status,
+    residentReview.status === 'verified' ? now() : null,
+    residentReview.note
+  ).lastInsertRowid);
   db.prepare(`
     UPDATE customer_profiles
-    SET customer_type = 'resident', resident_card_id = ?, discount_eligible = 1, address = ?
+    SET customer_type = 'resident', resident_card_id = ?, discount_eligible = ?, address = ?
     WHERE customer_id = ?
-  `).run(cardId, address, user.user_id);
+  `).run(cardId, residentReview.status === 'verified' ? 1 : 0, address, user.user_id);
   return getUserById(db, user.user_id).profile;
 }
 
 function createRentalRequest(db, user, body) {
   expirePendingRequests(db);
+  const currentTime = appNow(db);
   const bikeId = Number(body.bikeId);
   const stationId = Number(body.stationId);
   const requestedDurationMinutes = Number(body.requestedDurationMinutes);
@@ -288,8 +548,19 @@ function createRentalRequest(db, user, body) {
   }
 
   const profile = db.prepare('SELECT * FROM customer_profiles WHERE customer_id = ?').get(user.user_id);
-  if (!profile || !profile.identity_number || !user.email) {
-    throw httpError(403, 'Customer identity and email must be available before rental');
+  if (!user.email_verified_at) {
+    throw httpError(403, 'Email must be verified before rental');
+  }
+  if (!profile || !profile.identity_number || !user.email || profile.identity_status !== 'verified') {
+    throw httpError(403, 'Customer identity must be verified before rental');
+  }
+  if (isIdentityBlocked(db, profile.identity_number)) {
+    db.prepare(`
+      UPDATE customer_profiles
+      SET identity_status = 'blocked', identity_review_note = ?, identity_reviewed_at = ?
+      WHERE customer_id = ?
+    `).run('CCCD/CMND đang nằm trong danh sách khóa vận hành', currentTime, user.user_id);
+    throw httpError(403, 'CCCD/CMND is blocked by operations policy');
   }
 
   const activeRental = db.prepare(`
@@ -301,8 +572,8 @@ function createRentalRequest(db, user, body) {
 
   const pendingCustomerRequest = db.prepare(`
     SELECT request_id FROM rental_requests
-    WHERE customer_id = ? AND request_status = 'pending_pickup' AND datetime(expires_at) > datetime('now')
-  `).get(user.user_id);
+    WHERE customer_id = ? AND request_status = 'pending_pickup' AND datetime(expires_at) > datetime(?)
+  `).get(user.user_id, currentTime);
   if (pendingCustomerRequest) {
     throw httpError(409, 'Customer already has a pending pickup request');
   }
@@ -319,14 +590,14 @@ function createRentalRequest(db, user, body) {
 
   const pendingBikeRequest = db.prepare(`
     SELECT request_id FROM rental_requests
-    WHERE bike_id = ? AND request_status = 'pending_pickup' AND datetime(expires_at) > datetime('now')
-  `).get(bikeId);
+    WHERE bike_id = ? AND request_status = 'pending_pickup' AND datetime(expires_at) > datetime(?)
+  `).get(bikeId, currentTime);
   if (pendingBikeRequest) {
     throw httpError(409, 'Selected bike is already held for another request');
   }
 
-  const createdAt = now();
-  const expiresAt = new Date(Date.now() + 45 * 60 * 1000).toISOString();
+  const createdAt = currentTime;
+  const expiresAt = new Date(appDate(db).getTime() + 45 * 60 * 1000).toISOString();
   const requestId = Number(db.prepare(`
     INSERT INTO rental_requests
       (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at)
@@ -350,6 +621,7 @@ function cancelRentalRequest(db, user, requestId) {
   if (user.role === 'customer' && request.customer_id !== user.user_id) {
     throw httpError(403, 'Customers can only cancel their own requests');
   }
+  ensureStaffCanAccessStation(user, request.pickup_station_id);
   if (request.request_status !== 'pending_pickup') {
     throw httpError(409, 'Only pending pickup requests can be cancelled');
   }
@@ -357,8 +629,62 @@ function cancelRentalRequest(db, user, requestId) {
   return { ...request, request_status: 'cancelled' };
 }
 
+function exchangeRentalRequestBike(db, user, requestId, body) {
+  expirePendingRequests(db);
+  const nextBikeId = Number(body.bikeId);
+  const request = db.prepare(`
+    SELECT rr.*, b.bike_code AS current_bike_code, s.station_status
+    FROM rental_requests rr
+    JOIN bikes b ON b.bike_id = rr.bike_id
+    JOIN stations s ON s.station_id = rr.pickup_station_id
+    WHERE rr.request_id = ?
+  `).get(requestId);
+  if (!request || request.request_status !== 'pending_pickup') {
+    throw httpError(404, 'Pending rental request not found');
+  }
+  ensureStaffCanAccessStation(user, request.pickup_station_id);
+  if (new Date(request.expires_at) <= appDate(db)) {
+    db.prepare("UPDATE rental_requests SET request_status = 'expired' WHERE request_id = ?").run(requestId);
+    throw httpError(409, 'Rental request has expired');
+  }
+  if (request.station_status !== 'active') {
+    throw httpError(409, 'Pickup station is not active');
+  }
+
+  const nextBike = db.prepare(`
+    SELECT b.*
+    FROM bikes b
+    WHERE b.bike_id = ? AND b.station_id = ? AND b.bike_status = 'available'
+  `).get(nextBikeId, request.pickup_station_id);
+  if (!nextBike) {
+    throw httpError(409, 'Replacement bike must be available at the pickup station');
+  }
+  const heldBike = db.prepare(`
+    SELECT request_id FROM rental_requests
+    WHERE bike_id = ?
+      AND request_status = 'pending_pickup'
+      AND request_id <> ?
+      AND datetime(expires_at) > datetime(?)
+  `).get(nextBikeId, requestId, appNow(db));
+  if (heldBike) {
+    throw httpError(409, 'Replacement bike is already held for another request');
+  }
+
+  db.prepare('UPDATE rental_requests SET bike_id = ? WHERE request_id = ?').run(nextBikeId, requestId);
+  insertBikeLog(db, {
+    bikeId: nextBikeId,
+    oldStatus: 'available',
+    newStatus: 'available',
+    stationId: request.pickup_station_id,
+    changedBy: user.user_id,
+    reason: `Request REQ${requestId} exchanged from ${request.current_bike_code} to ${nextBike.bike_code}`
+  });
+  return getPendingRequest(db, requestId);
+}
+
 function handoverBike(db, user, body) {
   expirePendingRequests(db);
+  const currentDate = appDate(db);
   const requestId = Number(body.requestId);
   const depositAmount = Number(body.depositAmount);
   const documentType = requiredText(body.identityDocumentType, 'Identity document type');
@@ -380,7 +706,8 @@ function handoverBike(db, user, body) {
   if (!request || request.request_status !== 'pending_pickup') {
     throw httpError(404, 'Pending rental request not found');
   }
-  if (new Date(request.expires_at) <= new Date()) {
+  ensureStaffCanAccessStation(user, request.pickup_station_id);
+  if (new Date(request.expires_at) <= currentDate) {
     db.prepare("UPDATE rental_requests SET request_status = 'expired' WHERE request_id = ?").run(requestId);
     throw httpError(409, 'Rental request has expired');
   }
@@ -391,7 +718,7 @@ function handoverBike(db, user, body) {
     throw httpError(409, 'Bike cannot be handed over from this station');
   }
 
-  const startedAt = now();
+  const startedAt = currentDate.toISOString();
   try {
     db.exec('BEGIN IMMEDIATE');
     db.prepare("UPDATE rental_requests SET request_status = 'converted' WHERE request_id = ?").run(requestId);
@@ -434,7 +761,7 @@ function handoverBike(db, user, body) {
 function returnBike(db, user, body) {
   const rentalId = Number(body.rentalId);
   const returnStationId = Number(body.returnStationId);
-  const returnedAt = body.returnedAt ? new Date(body.returnedAt).toISOString() : now();
+  const returnedAt = body.returnedAt ? new Date(body.returnedAt).toISOString() : appNow(db);
   const bicycleCondition = body.bicycleCondition === 'broken' ? 'broken' : 'available';
   const conditionNote = body.conditionNote ? String(body.conditionNote).trim() : 'Returned after customer ride';
 
@@ -453,6 +780,7 @@ function returnBike(db, user, body) {
   if (!station) {
     throw httpError(400, 'Return station must be active');
   }
+  ensureStaffCanAccessStation(user, returnStationId);
 
   let pricing;
   try {
@@ -513,6 +841,7 @@ function returnBike(db, user, body) {
 
 function getStations(db, searchParams) {
   expirePendingRequests(db);
+  const currentTime = appNow(db);
   const lat = Number(searchParams.get('lat'));
   const lng = Number(searchParams.get('lng'));
   const rows = db.prepare(`
@@ -524,7 +853,7 @@ function getStations(db, searchParams) {
           SELECT 1 FROM rental_requests rr
           WHERE rr.bike_id = b.bike_id
             AND rr.request_status = 'pending_pickup'
-            AND datetime(rr.expires_at) > datetime('now')
+            AND datetime(rr.expires_at) > datetime(?)
         )
       THEN 1 ELSE 0 END) AS available_bikes,
       SUM(CASE WHEN b.bike_status = 'rented' THEN 1 ELSE 0 END) AS rented_bikes,
@@ -533,7 +862,7 @@ function getStations(db, searchParams) {
     LEFT JOIN bikes b ON b.station_id = s.station_id
     GROUP BY s.station_id
     ORDER BY s.station_name
-  `).all();
+  `).all(currentTime);
   return rows.map((row) => ({
     ...row,
     distance_km: Number.isFinite(lat) && Number.isFinite(lng)
@@ -545,26 +874,54 @@ function getStations(db, searchParams) {
   });
 }
 
-function getStationBikes(db, stationId, searchParams) {
+function getStationBikes(db, stationId, searchParams, user = null) {
   expirePendingRequests(db);
+  const currentTime = appNow(db);
   const typeId = Number(searchParams.get('typeId') || 0);
   const rows = db.prepare(`
     SELECT b.*, bt.type_name, bt.description,
-      EXISTS (
-        SELECT 1 FROM rental_requests rr
-        WHERE rr.bike_id = b.bike_id
-          AND rr.request_status = 'pending_pickup'
-          AND datetime(rr.expires_at) > datetime('now')
-      ) AS held_for_pickup
+      rr.request_id AS held_request_id,
+      rr.customer_id AS held_customer_id,
+      ru.full_name AS held_customer_name,
+      ar.rental_id AS active_rental_id,
+      ar.customer_id AS active_rental_customer_id,
+      au.full_name AS active_rental_customer_name
     FROM bikes b
     JOIN bike_types bt ON bt.bike_type_id = b.bike_type_id
+    LEFT JOIN rental_requests rr ON rr.request_id = (
+      SELECT request_id
+      FROM rental_requests
+      WHERE bike_id = b.bike_id
+        AND request_status = 'pending_pickup'
+        AND datetime(expires_at) > datetime(?)
+      ORDER BY created_at DESC
+      LIMIT 1
+    )
+    LEFT JOIN users ru ON ru.user_id = rr.customer_id
+    LEFT JOIN rentals ar ON ar.rental_id = (
+      SELECT rental_id
+      FROM rentals
+      WHERE bike_id = b.bike_id
+        AND rental_status = 'in_progress'
+      ORDER BY started_at DESC
+      LIMIT 1
+    )
+    LEFT JOIN users au ON au.user_id = ar.customer_id
     WHERE b.station_id = ?
       AND (? = 0 OR b.bike_type_id = ?)
     ORDER BY b.bike_code
-  `).all(stationId, typeId, typeId);
+  `).all(currentTime, stationId, typeId, typeId);
   return rows.map((bike) => ({
     ...bike,
-    is_available: bike.bike_status === 'available' && !bike.held_for_pickup
+    held_for_pickup: bike.held_request_id ? 1 : 0,
+    is_current_customer_hold: user?.role === 'customer' && Number(bike.held_customer_id) === Number(user.user_id) ? 1 : 0,
+    is_current_customer_rental: user?.role === 'customer' && Number(bike.active_rental_customer_id) === Number(user.user_id) ? 1 : 0,
+    unavailable_reason: bike.held_request_id
+      ? (user?.role === 'customer' && Number(bike.held_customer_id) === Number(user.user_id) ? 'held_by_you' : 'held_by_other')
+      : bike.bike_status === 'rented'
+        ? (user?.role === 'customer' && Number(bike.active_rental_customer_id) === Number(user.user_id) ? 'rented_by_you' : 'rented_by_other')
+        : bike.bike_status,
+    is_available: bike.bike_status === 'available' && !bike.held_request_id
   }));
 }
 
@@ -574,24 +931,31 @@ function getBikeTypes(db) {
 
 function getCustomerHistory(db, customerId) {
   expirePendingRequests(db);
+  const currentTime = appNow(db);
+  const currentDate = new Date(currentTime);
+  const pendingRequests = db.prepare(`
+    SELECT rr.*, b.bike_code, s.station_name AS pickup_station
+    FROM rental_requests rr
+    JOIN bikes b ON b.bike_id = rr.bike_id
+    JOIN stations s ON s.station_id = rr.pickup_station_id
+    WHERE rr.customer_id = ? AND rr.request_status = 'pending_pickup'
+    ORDER BY rr.created_at DESC
+  `).all(customerId).map((item) => ({
+    ...item,
+    pickup_deadline_minutes: minutesBetween(currentDate, new Date(item.expires_at))
+  }));
+  const activeRentals = db.prepare(`
+    SELECT r.*, b.bike_code, ps.station_name AS pickup_station, rd.deposit_status, rd.amount AS deposit_amount
+    FROM rentals r
+    JOIN bikes b ON b.bike_id = r.bike_id
+    JOIN stations ps ON ps.station_id = r.pickup_station_id
+    JOIN rental_deposits rd ON rd.rental_id = r.rental_id
+    WHERE r.customer_id = ? AND r.rental_status = 'in_progress'
+    ORDER BY r.started_at DESC
+  `).all(customerId).map((item) => decorateRentalTiming(item, currentDate));
   return {
-    pendingRequests: db.prepare(`
-      SELECT rr.*, b.bike_code, s.station_name AS pickup_station
-      FROM rental_requests rr
-      JOIN bikes b ON b.bike_id = rr.bike_id
-      JOIN stations s ON s.station_id = rr.pickup_station_id
-      WHERE rr.customer_id = ? AND rr.request_status = 'pending_pickup'
-      ORDER BY rr.created_at DESC
-    `).all(customerId),
-    activeRentals: db.prepare(`
-      SELECT r.*, b.bike_code, ps.station_name AS pickup_station, rd.deposit_status, rd.amount AS deposit_amount
-      FROM rentals r
-      JOIN bikes b ON b.bike_id = r.bike_id
-      JOIN stations ps ON ps.station_id = r.pickup_station_id
-      JOIN rental_deposits rd ON rd.rental_id = r.rental_id
-      WHERE r.customer_id = ? AND r.rental_status = 'in_progress'
-      ORDER BY r.started_at DESC
-    `).all(customerId),
+    pendingRequests,
+    activeRentals,
     completedRentals: db.prepare(`
       SELECT r.*, b.bike_code, ps.station_name AS pickup_station, rs.station_name AS return_station,
         rt.ticket_id, rt.base_fee, rt.resident_discount_amount, rt.late_fee, rt.total_amount, rt.issued_at
@@ -615,8 +979,9 @@ function getCustomerHistory(db, customerId) {
   };
 }
 
-function getPendingRequests(db) {
+function getPendingRequests(db, user = null) {
   expirePendingRequests(db);
+  const stationScope = scopedStationId(user);
   return db.prepare(`
     SELECT rr.*, u.full_name, cp.identity_number, cp.customer_type, cp.discount_eligible,
       b.bike_code, bt.type_name, s.station_name AS pickup_station
@@ -627,8 +992,9 @@ function getPendingRequests(db) {
     JOIN bike_types bt ON bt.bike_type_id = b.bike_type_id
     JOIN stations s ON s.station_id = rr.pickup_station_id
     WHERE rr.request_status = 'pending_pickup'
+      AND (? IS NULL OR rr.pickup_station_id = ?)
     ORDER BY rr.created_at ASC
-  `).all();
+  `).all(stationScope, stationScope);
 }
 
 function getPendingRequest(db, requestId) {
@@ -641,7 +1007,9 @@ function getPendingRequest(db, requestId) {
   `).get(requestId);
 }
 
-function getActiveRentals(db) {
+function getActiveRentals(db, user = null) {
+  const currentDate = appDate(db);
+  const stationScope = scopedStationId(user);
   return db.prepare(`
     SELECT r.*, u.full_name, b.bike_code, ps.station_name AS pickup_station, rd.amount AS deposit_amount
     FROM rentals r
@@ -650,8 +1018,9 @@ function getActiveRentals(db) {
     JOIN stations ps ON ps.station_id = r.pickup_station_id
     JOIN rental_deposits rd ON rd.rental_id = r.rental_id
     WHERE r.rental_status = 'in_progress'
+      AND (? IS NULL OR r.pickup_station_id = ?)
     ORDER BY r.started_at ASC
-  `).all();
+  `).all(stationScope, stationScope).map((item) => decorateRentalTiming(item, currentDate));
 }
 
 function getRental(db, rentalId) {
@@ -676,25 +1045,53 @@ function getTicket(db, ticketId) {
   `).get(ticketId);
 }
 
-function getAllBikes(db) {
+function decorateRentalTiming(item, currentDate) {
+  const startedAt = new Date(item.started_at);
+  const plannedEnd = new Date(startedAt.getTime() + Number(item.planned_duration_minutes || 0) * 60000);
+  const remainingMinutes = minutesBetween(currentDate, plannedEnd);
+  const lateMinutes = Math.max(0, -remainingMinutes);
+  const lateBlocks = lateMinutes === 0 ? 0 : Math.ceil(lateMinutes / 30);
+  return {
+    ...item,
+    current_time: currentDate.toISOString(),
+    planned_end_at: plannedEnd.toISOString(),
+    elapsed_minutes: Math.max(0, minutesBetween(startedAt, currentDate)),
+    remaining_minutes: remainingMinutes,
+    late_minutes: lateMinutes,
+    estimated_late_fee: lateBlocks * LATE_FEE_PER_30_MINUTES
+  };
+}
+
+function minutesBetween(start, end) {
+  const startTime = new Date(start).getTime();
+  const endTime = new Date(end).getTime();
+  if (Number.isNaN(startTime) || Number.isNaN(endTime)) return 0;
+  return Math.ceil((endTime - startTime) / 60000);
+}
+
+function getAllBikes(db, user = null) {
+  const currentTime = appNow(db);
+  const stationScope = scopedStationId(user);
   return db.prepare(`
     SELECT b.*, bt.type_name, s.station_name,
       EXISTS (
         SELECT 1 FROM rental_requests rr
         WHERE rr.bike_id = b.bike_id
           AND rr.request_status = 'pending_pickup'
-          AND datetime(rr.expires_at) > datetime('now')
+          AND datetime(rr.expires_at) > datetime(?)
       ) AS held_for_pickup
     FROM bikes b
     JOIN bike_types bt ON bt.bike_type_id = b.bike_type_id
     JOIN stations s ON s.station_id = b.station_id
+    WHERE (? IS NULL OR b.station_id = ?)
     ORDER BY b.bike_code
-  `).all();
+  `).all(currentTime, stationScope, stationScope);
 }
 
-function getReports(db, searchParams) {
+function getReports(db, searchParams, user = null) {
   const period = ['day', 'week', 'month'].includes(searchParams.get('period')) ? searchParams.get('period') : 'day';
-  const stationId = Number(searchParams.get('stationId') || 0);
+  const stationScope = scopedStationId(user);
+  const stationId = stationScope || Number(searchParams.get('stationId') || 0);
   const bikeId = Number(searchParams.get('bikeId') || 0);
   const grouping = period === 'month' ? "%Y-%m" : period === 'week' ? "%Y-W%W" : "%Y-%m-%d";
   const rows = db.prepare(`
@@ -723,7 +1120,31 @@ function getReports(db, searchParams) {
     acc.late_revenue += row.late_revenue || 0;
     return acc;
   }, { rental_count: 0, total_revenue: 0, late_revenue: 0 });
-  return { period, rows, fleet, totals };
+  return { period, rows, fleet: stationScope ? fleetForStation(db, stationScope) : fleet, totals };
+}
+
+function fleetForStation(db, stationId) {
+  return db.prepare(`
+    SELECT bike_status, COUNT(*) AS count
+    FROM bikes
+    WHERE station_id = ?
+    GROUP BY bike_status
+  `).all(stationId);
+}
+
+function getBikeStatusLogs(db, searchParams, user = null) {
+  const limit = Math.min(Math.max(Number(searchParams.get('limit') || 12), 1), 50);
+  const stationScope = scopedStationId(user);
+  return db.prepare(`
+    SELECT l.*, b.bike_code, s.station_name, u.full_name AS changed_by_name
+    FROM bike_status_logs l
+    JOIN bikes b ON b.bike_id = l.bike_id
+    JOIN stations s ON s.station_id = l.station_id
+    JOIN users u ON u.user_id = l.changed_by
+    WHERE (? IS NULL OR l.station_id = ?)
+    ORDER BY l.changed_at DESC, l.log_id DESC
+    LIMIT ?
+  `).all(stationScope, stationScope, limit);
 }
 
 function createStation(db, body) {
@@ -777,10 +1198,11 @@ function createBike(db, body) {
     throw httpError(400, 'Station and bike type must exist');
   }
   try {
+    const updatedAt = appNow(db);
     const bikeId = Number(db.prepare(`
       INSERT INTO bikes (station_id, bike_type_id, bike_code, bike_status, last_status_updated_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run(stationId, bikeTypeId, bikeCode, bikeStatus, now()).lastInsertRowid);
+    `).run(stationId, bikeTypeId, bikeCode, bikeStatus, updatedAt).lastInsertRowid);
     return getAllBikes(db).find((bike) => bike.bike_id === bikeId);
   } catch (error) {
     if (String(error.message).includes('UNIQUE')) {
@@ -803,13 +1225,14 @@ function updateBike(db, bikeId, body) {
     UPDATE bikes
     SET station_id = ?, bike_type_id = ?, bike_code = ?, last_status_updated_at = ?
     WHERE bike_id = ?
-  `).run(stationId, bikeTypeId, bikeCode, now(), bikeId);
+  `).run(stationId, bikeTypeId, bikeCode, appNow(db), bikeId);
   return getAllBikes(db).find((bike) => bike.bike_id === bikeId);
 }
 
 function updateBikeStatus(db, user, bikeId, body) {
   const existing = db.prepare('SELECT * FROM bikes WHERE bike_id = ?').get(bikeId);
   if (!existing) throw httpError(404, 'Bike not found');
+  ensureStaffCanAccessStation(user, existing.station_id);
   const nextStatus = body.bikeStatus;
   if (!['available', 'rented', 'broken'].includes(nextStatus)) {
     throw httpError(400, 'Bike status must be available, rented or broken');
@@ -824,7 +1247,7 @@ function updateBikeStatus(db, user, bikeId, body) {
   }
   const reason = requiredText(body.reason || 'Manual status update', 'Status change reason');
   db.prepare('UPDATE bikes SET bike_status = ?, last_status_updated_at = ? WHERE bike_id = ?')
-    .run(nextStatus, now(), bikeId);
+    .run(nextStatus, appNow(db), bikeId);
   insertBikeLog(db, {
     bikeId,
     oldStatus: existing.bike_status,
@@ -836,13 +1259,61 @@ function updateBikeStatus(db, user, bikeId, body) {
   return getAllBikes(db).find((bike) => bike.bike_id === bikeId);
 }
 
+function updateUserStatus(db, actor, userId, body) {
+  const nextStatus = body.status === 'blocked' ? 'blocked' : 'active';
+  const existing = db.prepare('SELECT user_id, role FROM users WHERE user_id = ?').get(userId);
+  if (!existing) throw httpError(404, 'User not found');
+  if (existing.user_id === actor.user_id && nextStatus !== 'active') {
+    throw httpError(409, 'Admin cannot block the current session account');
+  }
+  db.prepare('UPDATE users SET status = ? WHERE user_id = ?').run(nextStatus, userId);
+  return getUserById(db, userId);
+}
+
+function blockIdentity(db, user, body) {
+  const identityNumber = requiredIdentityNumber(body.identityNumber);
+  const reason = requiredText(body.reason || 'Blocked by operations policy', 'Block reason');
+  const blockedAt = appNow(db);
+  db.prepare(`
+    INSERT INTO blocked_identities (identity_number, reason, blocked_by, blocked_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(identity_number) DO UPDATE SET
+      reason = excluded.reason,
+      blocked_by = excluded.blocked_by,
+      blocked_at = excluded.blocked_at
+  `).run(identityNumber, reason, user.user_id, blockedAt);
+  db.prepare(`
+    UPDATE customer_profiles
+    SET identity_status = 'blocked',
+        discount_eligible = 0,
+        identity_review_note = ?,
+        identity_reviewed_at = ?
+    WHERE identity_number = ?
+  `).run(reason, blockedAt, identityNumber);
+  return db.prepare('SELECT * FROM blocked_identities WHERE identity_number = ?').get(identityNumber);
+}
+
+function unblockIdentity(db, user, identityNumberValue) {
+  const identityNumber = requiredIdentityNumber(decodeURIComponent(identityNumberValue));
+  db.prepare('DELETE FROM blocked_identities WHERE identity_number = ?').run(identityNumber);
+  db.prepare(`
+    UPDATE customer_profiles
+    SET identity_status = 'verified',
+        identity_review_note = ?,
+        identity_reviewed_at = ?
+    WHERE identity_number = ? AND identity_status = 'blocked'
+  `).run(`Unblocked by ${user.email}`, appNow(db), identityNumber);
+  return { ok: true };
+}
+
 function expirePendingRequests(db) {
+  const currentTime = appNow(db);
   db.prepare(`
     UPDATE rental_requests
     SET request_status = 'expired'
     WHERE request_status = 'pending_pickup'
-      AND datetime(expires_at) <= datetime('now')
-  `).run();
+      AND datetime(expires_at) <= datetime(?)
+  `).run(currentTime);
 }
 
 function insertBikeLog(db, { bikeId, oldStatus, newStatus, stationId, changedBy, reason }) {
@@ -850,7 +1321,20 @@ function insertBikeLog(db, { bikeId, oldStatus, newStatus, stationId, changedBy,
     INSERT INTO bike_status_logs
       (bike_id, old_status, new_status, station_id, changed_by, reason, changed_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(bikeId, oldStatus, newStatus, stationId, changedBy, reason, now());
+  `).run(bikeId, oldStatus, newStatus, stationId, changedBy, reason, appNow(db));
+}
+
+function scopedStationId(user) {
+  if (!user || user.role !== 'staff') return null;
+  return Number(user.staff?.station_id || 0) || -1;
+}
+
+function ensureStaffCanAccessStation(user, stationId) {
+  const stationScope = scopedStationId(user);
+  if (stationScope === null) return;
+  if (Number(stationId) !== stationScope) {
+    throw httpError(403, 'Staff can only process records at their assigned station');
+  }
 }
 
 function getSessionUser(ctx) {
@@ -865,6 +1349,9 @@ function requireRole(ctx, roles) {
   if (!user) {
     throw httpError(401, 'Authentication required');
   }
+  if (user.status !== 'active') {
+    throw httpError(403, 'This account is blocked');
+  }
   if (!roles.includes(user.role)) {
     throw httpError(403, 'This account cannot perform that action');
   }
@@ -873,7 +1360,7 @@ function requireRole(ctx, roles) {
 
 function getUserById(db, userId) {
   const user = db.prepare(`
-    SELECT user_id, full_name, email, phone, role, status, created_at, last_login_at
+    SELECT user_id, full_name, email, phone, role, status, created_at, last_login_at, email_verified_at
     FROM users
     WHERE user_id = ?
   `).get(userId);
@@ -1011,6 +1498,72 @@ function requiredEmail(value) {
     throw httpError(400, 'Email format is invalid');
   }
   return email;
+}
+
+function requiredFullName(value) {
+  const fullName = requiredText(value, 'Full name').replace(/\s+/g, ' ');
+  if (fullName.length < 2 || fullName.length > 80) {
+    throw httpError(400, 'Họ tên phải dài từ 2 đến 80 ký tự');
+  }
+  if (!/^[\p{L}][\p{L}' -]*(?:\s+[\p{L}][\p{L}' -]*)+$/u.test(fullName)) {
+    throw httpError(400, 'Họ tên phải gồm chữ cái và ít nhất hai phần tên');
+  }
+  return fullName;
+}
+
+function requiredPhone(value) {
+  const raw = requiredText(value, 'Phone');
+  const compact = raw.replace(/[\s().-]/g, '');
+  if (!/^(0\d{9}|\+84\d{9})$/.test(compact)) {
+    throw httpError(400, 'Số điện thoại phải là số Việt Nam 10 chữ số, ví dụ 0912345678');
+  }
+  return compact.startsWith('+84') ? `0${compact.slice(3)}` : compact;
+}
+
+function requiredIdentityNumber(value) {
+  const normalized = requiredText(value, 'Identity number').replace(/[\s-]/g, '');
+  if (!/^\d{9}(\d{3})?$/.test(normalized)) {
+    throw httpError(400, 'CCCD/CMND phải gồm 9 hoặc 12 chữ số');
+  }
+  return normalized;
+}
+
+function validatePasswordPolicy(password) {
+  const value = String(password || '');
+  if (value.length < 8 || !/[A-Za-z]/.test(value) || !/\d/.test(value)) {
+    throw httpError(400, 'Mật khẩu phải có ít nhất 8 ký tự, gồm chữ và số');
+  }
+}
+
+function evaluateResidentCard(cardNumber, address) {
+  const card = String(cardNumber || '').trim();
+  if (!card) {
+    return { status: 'pending', note: 'Chưa cung cấp số thẻ cư dân' };
+  }
+  const addressText = String(address || '').toLowerCase();
+  const cardText = card.toLowerCase();
+  if (cardText.includes('reject') || cardText.includes('bad') || cardText.includes('fake')) {
+    return { status: 'rejected', note: 'Thẻ cư dân không khớp quy định demo' };
+  }
+  if (cardText.includes('pending') || !addressText.includes('ecopark')) {
+    return { status: 'pending', note: 'Thẻ cư dân cần nhân sự rà soát' };
+  }
+  return { status: 'verified', note: null };
+}
+
+function isIdentityBlocked(db, identityNumber) {
+  return Boolean(db.prepare('SELECT identity_number FROM blocked_identities WHERE identity_number = ?').get(identityNumber));
+}
+
+function ensureUniqueRegistrationFields(db, { phone, identityNumber }) {
+  const existingPhone = db.prepare('SELECT user_id FROM users WHERE phone = ?').get(phone);
+  if (existingPhone) {
+    throw httpError(409, 'Số điện thoại đã được dùng cho tài khoản khác');
+  }
+  const existingIdentity = db.prepare('SELECT customer_id FROM customer_profiles WHERE identity_number = ?').get(identityNumber);
+  if (existingIdentity) {
+    throw httpError(409, 'CCCD/CMND đã được dùng cho tài khoản khác');
+  }
 }
 
 function maskDocument(value) {

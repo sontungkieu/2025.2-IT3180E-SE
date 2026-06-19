@@ -7,556 +7,278 @@
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,shapes.geometric}
 
 \AtBeginDocument{\selectlanguage{vietnamese}}
 \usetheme{Madrid}
 \usecolortheme{default}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
+\graphicspath{{assets/}{assets/screenshots/}{assets/drawio/}}
 
-\title{Ecopark Bicycle Parking}
-\subtitle{Requirement Analysis: Use-Case Analysis}
-\author{Nhóm dự án hệ thống thuê xe đạp Ecopark}
-\date{Tháng 5 năm 2026}
+\definecolor{EcoparkGreen}{HTML}{0F7B55}
+\definecolor{EcoparkTeal}{HTML}{0891B2}
+\definecolor{EcoparkAmber}{HTML}{B7791F}
+\definecolor{SoftGreen}{HTML}{E8F7EF}
+\definecolor{Ink}{HTML}{12201A}
+\setbeamercolor{structure}{fg=EcoparkGreen}
+\setbeamercolor{frametitle}{fg=white,bg=EcoparkGreen}
 
-\newcommand{\tightitems}{\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}}
-\newcommand{\drawiodiagram}[1]{%
-  \centering
-  \includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{assets/drawio/#1.png}
-}
+\newcommand{\tightitems}{\setlength{\itemsep}{3pt}\setlength{\parskip}{0pt}}
 
 \begin{document}
 
-\begin{frame}
-  \titlepage
+\begin{frame}[plain]
+\centering
+\includegraphics[height=1.15cm]{logo-soict-hust-1.png}\\[0.35cm]
+{\small HANOI UNIVERSITY OF SCIENCE AND TECHNOLOGY}\\[-1mm]
+{\small School of Information Communication Technology}\\[0.65cm]
+{\LARGE \textbf{Ecopark Bicycle Parking Platform}}\\[0.2cm]
+{\large Thuê - trả xe đạp Ecopark trên Google Cloud Platform}\\[0.6cm]
+\begin{tabular}{ll}
+Kiều Sơn Tùng & 20235571 \\
+Nguyễn Phú An & 20235466 \\
+Phạm Chí Bằng & 20235477 \\
+Nguyễn Thanh Lâm & 20235519 \\
+Nguyễn Ngọc Minh & 20235533 \\
+\end{tabular}\\[0.45cm]
+{\small Supervisor: Ph.D. Bùi Thị Mai Anh \hfill Tháng 6 năm 2026}
 \end{frame}
 
-\begin{frame}{Project Context and Rules}
+\begin{frame}{Mục tiêu bài toán}
 \small
 \begin{itemize}\tightitems
-  \item Website quản lý thuê-trả xe đạp cho du khách và cư dân Ecopark.
-  \item Quản lý điểm tập kết, loại xe, số lượng, ID xe duy nhất và trạng thái xe.
-  \item Lần đầu thuê phải tạo tài khoản có email, CCCD/giấy tờ định danh, địa chỉ, số điện thoại.
-  \item Nhận xe tại bãi với Station Staff / Manager: đặt cọc 200k + CCCD hoặc giấy tờ tùy thân.
-  \item Giá thuê: 50k/1 giờ, 70k/2 giờ, 100k/3 giờ; trả muộn: 30k/30 phút.
-  \item Cư dân có địa chỉ và thẻ cư dân hợp lệ được giảm 40\% giá thuê.
+  \item Ecopark có nhiều bãi xe, nhiều loại xe và trạng thái xe thay đổi liên tục theo lượt thuê.
+  \item Khách cần tìm bãi gần mình, chọn xe rảnh, gửi request và theo dõi lượt thuê.
+  \item Staff/Admin cần kiểm giấy tờ, nhận cọc 200k, giao xe, nhận trả xe khác bãi và xuất vé.
+  \item Quản lý cần dashboard doanh thu, trạng thái đội xe, audit log và CSV report theo bộ lọc.
+  \item Nhóm triển khai một platform web có UI desktop/mobile và target deploy lên GCP.
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Actor Model}
-\small
-\begin{tabular}{p{0.30\textwidth}p{0.60\textwidth}}
-\toprule
-\textbf{Actor} & \textbf{Vai trò} \\
-\midrule
-Customer/User & Người dùng thuê xe thông thường: tạo tài khoản, tìm bãi, chọn xe, nhận/trả xe, xem vé/lịch sử. \\
-Resident Customer & Actor chuyên biệt kế thừa Customer/User; có thêm nhánh nộp thẻ cư dân để giảm 40\%. \\
-Station Staff / Manager & Vận hành tại bãi: kiểm tra giấy tờ/cọc, giao nhận xe, cập nhật xe trong bãi; Manager giám sát phạm vi bãi. \\
-Admin / Operator & Vận hành trung tâm/toàn hệ thống: quản lý bãi/xe/chính sách, rà soát, thống kê; Admin có quyền cấu hình cao hơn Operator. \\
-GPS / Map Service & Dịch vụ ngoài hỗ trợ tìm điểm tập kết gần nhất. \\
-\bottomrule
-\end{tabular}
-
-\vspace{0.2cm}
-\textbf{Không xem là actor:} front-end, back-end, database, bảo vệ cổng.
+\begin{frame}{Actor Và Use Case}
+\centering
+\includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{uc_overview.png}
 \end{frame}
 
-\begin{frame}{Use-Case Overview}
-\drawiodiagram{uc_overview}
-\end{frame}
-
-\begin{frame}{Relational Schema Summary}
+\begin{frame}{Scope Đã Implement Theo UC001--UC005}
 \scriptsize
-\begin{tabular}{p{0.28\textwidth}p{0.60\textwidth}}
+\begin{tabular}{p{0.12\textwidth}p{0.31\textwidth}p{0.47\textwidth}}
 \toprule
-\textbf{Area} & \textbf{Tables and relationships} \\
+\textbf{UC} & \textbf{Mục tiêu} & \textbf{Kết quả trong platform} \\
 \midrule
-Accounts & USERS $\rightarrow$ CUSTOMER\_PROFILES; resident is customer\_type=resident + RESIDENT\_CARDS. \\
-Fleet & STATIONS, BIKE\_TYPES, BIKES, BIKE\_STATUS\_LOGS. \\
-Request & CUSTOMER\_PROFILES 1--n RENTAL\_REQUESTS. \\
-Rental lifecycle & RENTAL\_REQUESTS 0..1--1 RENTALS; BIKES 1--n RENTALS. \\
-Deposit and ticket & RENTALS 1--1 RENTAL\_DEPOSITS; RENTALS 1--1 RENTAL\_TICKETS. \\
-Pricing & PRICING\_POLICIES stores 50k/1h, 70k/2h, 100k/3h, 30k/30m and 40\% discount. \\
+UC001 & Tài khoản và xác thực khách & Đăng ký/đăng nhập, validation họ tên, phone, CCCD/CMND, resident discount. \\
+UC002 & Tìm bãi và chọn xe & GPS demo/vị trí nhập tay, range filter, bike type filter, chọn xe rảnh, gửi/hủy request. \\
+UC003 & Giao xe và đặt cọc & Staff xác nhận giấy tờ, cọc 200k, giấy tờ giữ lại và chuyển xe sang rented. \\
+UC004 & Trả xe và xuất vé & Trả khác bãi, tính phí, giảm cư dân, phụ thu trễ, condition note và ticket summary. \\
+UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, audit log, CSV export. \\
 \bottomrule
 \end{tabular}
 \end{frame}
 
-\begin{frame}{UC001 - 1/2/3/5. Register and Verify Account}
-\small
-\begin{tabular}{p{0.18\textwidth}p{0.74\textwidth}}
+\begin{frame}{Kiến Trúc GCP}
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  box/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=3.15cm,minimum height=1.02cm,align=center,font=\scriptsize},
+  gcp/.style={draw=EcoparkTeal,thick,rounded corners=2pt,fill=cyan!8,minimum width=3.15cm,minimum height=1.02cm,align=center,font=\scriptsize},
+  store/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!10,minimum width=3.15cm,minimum height=1.02cm,align=center,font=\scriptsize},
+  arr/.style={-{Latex[length=2.2mm]},thick,draw=Ink}
+]
+\node[box] (client) at (0,0) {Customer / Staff / Admin\\Browser UI};
+\node[gcp] (run) at (4.45,0) {GCP Cloud Run\\Node.js container\\Static UI + API};
+\node[box] (domain) at (8.9,0) {Domain modules\\Auth, rental, pricing\\reports, audit};
+\node[store] (sql) at (8.9,-1.9) {Cloud SQL\\production storage};
+\node[store] (sqlite) at (4.45,-1.9) {SQLite profile\\local/demo tests};
+\node[gcp] (logs) at (8.9,1.75) {Cloud Logging\\Monitoring};
+\node[box] (osm) at (0,-1.9) {OpenStreetMap\\optional tiles};
+
+\draw[arr] (client) -- (run);
+\draw[arr] (run) -- (domain);
+\draw[arr] (domain) -- (sql);
+\draw[arr] (run) -- (sqlite);
+\draw[arr] (run) -- (logs);
+\draw[arr] (client) -- (osm);
+\end{tikzpicture}
+}
+\vspace{0.25cm}
+\small Dockerfile đã cấu hình \texttt{HOST=0.0.0.0}, \texttt{PORT=8080} và DB path cho bản demo cloud.
+\end{frame}
+
+\begin{frame}{Thiết Kế Dữ Liệu}
+\centering
+\resizebox{0.96\textwidth}{!}{%
+\begin{tikzpicture}[
+  group/.style={draw=EcoparkGreen,thick,rounded corners=3pt,fill=SoftGreen,minimum width=3.35cm,minimum height=2.35cm,align=left,font=\scriptsize},
+  core/.style={draw=EcoparkTeal,thick,rounded corners=3pt,fill=cyan!8,minimum width=3.45cm,minimum height=2.55cm,align=left,font=\scriptsize},
+  report/.style={draw=EcoparkAmber,thick,rounded corners=3pt,fill=yellow!10,minimum width=3.35cm,minimum height=1.45cm,align=left,font=\scriptsize},
+  arr/.style={-{Latex[length=2mm]},draw=Ink,thick}
+]
+\node[group] (identity) at (0,0) {
+  \textbf{Người dùng \& hồ sơ}\\[1mm]
+  USERS\\
+  CUSTOMER\_PROFILES\\
+  RESIDENT\_CARDS\\
+  STAFF
+};
+\node[core] (rental) at (4.25,0) {
+  \textbf{Giao dịch thuê - trả}\\[1mm]
+  RENTAL\_REQUESTS\\
+  RENTALS\\
+  DEPOSITS\\
+  TICKETS
+};
+\node[group] (fleet) at (8.65,0) {
+  \textbf{Bãi \& đội xe}\\[1mm]
+  STATIONS\\
+  BIKE\_TYPES\\
+  BIKES\\
+  BIKE\_STATUS\_LOGS
+};
+\node[report] (policy) at (2.1,-3.0) {
+  \textbf{Chính sách phí}\\
+  resident discount, late surcharge, deposit
+};
+\node[report] (ops) at (6.45,-3.0) {
+  \textbf{Báo cáo vận hành}\\
+  revenue, fleet status, audit trail
+};
+\draw[arr] (identity.east) -- (rental.west);
+\draw[arr] (fleet.west) -- (rental.east);
+\draw[arr] (policy.north east) -- (rental.south west);
+\draw[arr] (rental.south east) -- (ops.north west);
+\draw[arr] (fleet.south west) -- (ops.north east);
+\end{tikzpicture}
+}
+\vspace{0.2cm}
+\small ERD chi tiết nằm trong report; slide này gom schema theo cụm để dễ đọc khi thuyết trình.
+\end{frame}
+
+\begin{frame}{Vòng Đời Thuê Xe}
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+  state/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=2.9cm,minimum height=0.92cm,align=center,font=\scriptsize},
+  bad/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!12,minimum width=2.9cm,minimum height=0.92cm,align=center,font=\scriptsize},
+  arr/.style={-{Latex[length=2.2mm]},thick,draw=Ink}
+]
+\node[state] (available) {Bike available};
+\node[state,right=0.95cm of available] (pending) {Request\\pending pickup};
+\node[state,right=0.95cm of pending] (rented) {Rental\\in progress};
+\node[state,right=0.95cm of rented] (ticket) {Ticket\\completed};
+\node[bad,below=0.85cm of pending] (cancel) {Cancel / expired};
+\node[bad,below=0.85cm of ticket] (broken) {Broken / review};
+\draw[arr] (available) -- (pending);
+\draw[arr] (pending) -- (rented);
+\draw[arr] (rented) -- (ticket);
+\draw[arr] (pending) -- (cancel);
+\draw[arr] (cancel) -| (available);
+\draw[arr] (ticket) -- (broken);
+\end{tikzpicture}
+}
+\end{frame}
+
+\begin{frame}{Customer Mobile Flow}
+\begin{columns}[T,totalwidth=0.98\textwidth]
+\begin{column}{0.31\textwidth}
+\centering
+\includegraphics[height=0.70\textheight,trim=0 1748bp 0 0,clip]{customer_mobile.png}\\[-1mm]
+\scriptsize Tổng quan
+\end{column}
+\begin{column}{0.31\textwidth}
+\centering
+\includegraphics[height=0.70\textheight,trim=0 928bp 0 820bp,clip]{customer_mobile.png}\\[-1mm]
+\scriptsize Tìm bãi
+\end{column}
+\begin{column}{0.31\textwidth}
+\centering
+\includegraphics[height=0.70\textheight,trim=0 348bp 0 1400bp,clip]{customer_mobile.png}\\[-1mm]
+\scriptsize Chọn xe
+\end{column}
+\end{columns}
+\vspace{0.15cm}
+\scriptsize Flow mobile được chia thành 3 lát cắt: tổng quan, tìm bãi trên map và chọn xe rảnh để gửi yêu cầu thuê.
+\end{frame}
+
+\begin{frame}{Operations UI}
+\centering
+\includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{operations_desktop.png}
+\end{frame}
+
+\begin{frame}{Demo Director Cho Alternative Flow}
+\centering
+\includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{gps_demo.png}
+\vspace{0.1cm}
+\scriptsize Tab \texttt{/gd} cho phép kéo xe theo polyline đường và tua đồng hồ hệ thống để demo phụ thu trễ.
+\end{frame}
+
+\begin{frame}{API Và Backend Implementation}
+\scriptsize
+\begin{tabular}{p{0.24\textwidth}p{0.20\textwidth}p{0.46\textwidth}}
 \toprule
-\textbf{1. Code} & UC001 \\
-\textbf{2. Description} & Customer tạo tài khoản, đăng nhập và cung cấp thông tin định danh để đủ điều kiện thuê xe. Resident Customer có thể nộp thẻ cư dân để xin giảm 40\%. \\
-\textbf{3. Actors} & Customer; Resident Customer; Admin / Operator cho rà soát thủ công. \\
-\textbf{5. Preconditions} & Email và giấy tờ định danh hợp lệ; hệ thống đã cấu hình chính sách tài khoản; nếu xin giảm giá thì có địa chỉ Ecopark và thẻ cư dân. \\
+\textbf{Nhóm API} & \textbf{Role} & \textbf{Endpoint chính} \\
+\midrule
+Auth/Profile & Public/Customer & \texttt{/api/auth/register}, \texttt{/api/auth/login}, \texttt{/api/customer/resident-card}. \\
+Station/Bike & Customer & \texttt{/api/stations}, \texttt{/api/stations/:id/bikes}, \texttt{/api/rental-requests}. \\
+Handover/Return & Staff/Admin & \texttt{/api/staff/pending-requests}, \texttt{/api/staff/handover}, \texttt{/api/staff/return}. \\
+Admin/Report & Staff/Admin & \texttt{/api/admin/bikes}, \texttt{/api/admin/reports}, \texttt{/api/admin/bike-status-logs}. \\
 \bottomrule
 \end{tabular}
+\vspace{0.25cm}
+\begin{itemize}\tightitems
+  \item Server-side validation cho họ tên, phone, CCCD/CMND và dữ liệu trùng.
+  \item Rental/handover/return chạy qua transaction để tránh double-booking.
+  \item Audit log lưu thay đổi trạng thái xe cùng người đổi, bãi và lý do.
+\end{itemize}
 \end{frame}
 
-\begin{frame}{UC001 - 4. Sub-Use Cases}
-\drawiodiagram{uc001}
-\end{frame}
-
-\begin{frame}{UC001 - 6. Basic Flow}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.48\textwidth}
-\begin{enumerate}\tightitems
-  \item Chọn tạo tài khoản hoặc đăng nhập.
-  \item Hệ thống hiển thị trường bắt buộc.
-  \item Khách nhập tài khoản và thông tin cá nhân.
-  \item Hệ thống kiểm tra định dạng, trùng dữ liệu và mật khẩu.
-  \item Hệ thống tạo tài khoản/hồ sơ.
-\end{enumerate}
-\column{0.48\textwidth}
-\begin{enumerate}\setcounter{enumi}{5}\tightitems
-  \item Khách bổ sung CCCD/giấy tờ định danh.
-  \item Hệ thống đánh dấu đủ điều kiện thuê.
-  \item Nếu là cư dân, khách nộp địa chỉ và thẻ cư dân.
-  \item Hệ thống xác minh hoặc đưa vào chờ rà soát.
-  \item Hiển thị trạng thái tài khoản, giảm giá và lịch sử.
-\end{enumerate}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC001 - 7. Alternative Flows}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.50\textwidth}
-\begin{itemize}\tightitems
-  \item Thiếu email/CCCD/số điện thoại/địa chỉ: yêu cầu bổ sung.
-  \item Email hoặc số điện thoại đã tồn tại: chặn tạo mới.
-  \item Mật khẩu yếu: yêu cầu nhập lại.
-  \item CCCD sai hoặc bị khóa: không đủ điều kiện thuê.
-  \item Hồ sơ cá nhân hợp lệ nhưng chưa có cư dân: thuê như khách thường.
-\end{itemize}
-\column{0.48\textwidth}
-\begin{itemize}\tightitems
-  \item Không có/không muốn nộp thẻ cư dân: bỏ qua giảm giá.
-  \item Thẻ cư dân không khớp/không đọc được: rejected hoặc pending.
-  \item Hồ sơ nghi ngờ: chuyển Admin / Operator rà soát.
-  \item Tài khoản bị khóa: chặn gửi yêu cầu thuê.
-  \item Lịch sử thuê lỗi tạm thời: vẫn cho đăng nhập.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC001 - 8/9/10. Data and Rules}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.32\textwidth}
-\textbf{8. Input}
-\begin{itemize}\tightitems
-  \item FullName, Email, PhoneNumber
-  \item Password
-  \item IdentityNumber, Address
-  \item ResidentCardNumber nếu xin giảm 40\%
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{9. Output}
-\begin{itemize}\tightitems
-  \item CustomerID, AccountStatus
-  \item RentalEligibility
-  \item CustomerType
-  \item DiscountStatus
-  \item RentalHistorySummary
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{10. Rules}
-\begin{itemize}\tightitems
-  \item Không cho thuê nếu thiếu email/định danh hợp lệ.
-  \item Email active là duy nhất.
-  \item Giảm 40\% chỉ khi cư dân được xác nhận.
-  \item Lịch sử thuê gắn với tài khoản.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC002 - 1/2/3/5. Find Station and Select Bicycle}
-\small
-\begin{tabular}{p{0.18\textwidth}p{0.74\textwidth}}
-\toprule
-\textbf{1. Code} & UC002 \\
-\textbf{2. Description} & Customer tìm điểm tập kết gần nhất, xem xe đang rảnh theo loại xe/sở thích và gửi yêu cầu thuê trước khi đến bãi nhận xe. \\
-\textbf{3. Actors} & Customer; GPS / Map Service. \\
-\textbf{5. Preconditions} & Customer đã đăng nhập; tài khoản đủ thông tin định danh theo UC001; hệ thống có dữ liệu bãi, xe, loại xe và trạng thái hiện tại. \\
-\bottomrule
-\end{tabular}
-\end{frame}
-
-\begin{frame}{UC002 - 4. Sub-Use Cases}
-\drawiodiagram{uc002}
-\end{frame}
-
-\begin{frame}{UC002 - 6. Basic Flow}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.48\textwidth}
-\begin{enumerate}\tightitems
-  \item Khách mở chức năng tìm bãi/thuê xe.
-  \item Hệ thống yêu cầu vị trí hoặc địa điểm tìm kiếm.
-  \item GPS / Map Service trả vị trí/khu vực.
-  \item Hệ thống liệt kê bãi gần nhất và số xe khả dụng.
-  \item Khách chọn bãi để xem chi tiết.
-\end{enumerate}
-\column{0.48\textwidth}
-\begin{enumerate}\setcounter{enumi}{5}\tightitems
-  \item Hệ thống hiển thị xe, loại xe, mã xe, trạng thái.
-  \item Khách lọc/chọn xe đang rảnh.
-  \item Hệ thống kiểm tra lại xe, bãi, tài khoản.
-  \item Khách xác nhận gửi yêu cầu thuê.
-  \item Hệ thống tạo RentalRequest và hướng dẫn nhận xe.
-\end{enumerate}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC002 - 7. Alternative Flows}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.50\textwidth}
-\begin{itemize}\tightitems
-  \item Từ chối quyền vị trí: nhập địa điểm thủ công.
-  \item GPS lỗi: dùng tìm kiếm thủ công.
-  \item Không có bãi gần: mở rộng phạm vi.
-  \item Bãi tạm ngưng: gợi ý bãi khác.
-  \item Không có loại xe mong muốn: đổi loại hoặc đổi bãi.
-\end{itemize}
-\column{0.48\textwidth}
-\begin{itemize}\tightitems
-  \item Không có xe sẵn sàng: không tạo yêu cầu.
-  \item Xe vừa bị thuê/hỏng: refresh và chọn lại.
-  \item Tài khoản thiếu định danh: quay về UC001.
-  \item Khách hủy trước khi gửi: không tạo request.
-  \item Request hết hạn: tự hủy và trả xe về available.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC002 - 8/9/10. Data and Rules}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.32\textwidth}
-\textbf{8. Input}
-\begin{itemize}\tightitems
-  \item CustomerID
-  \item Location/SearchArea
-  \item StationID
-  \item BicycleTypeFilter
-  \item BicycleID
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{9. Output}
-\begin{itemize}\tightitems
-  \item StationList
-  \item BicycleAvailability
-  \item RentalRequestID
-  \item RequestStatus
-  \item PickupInstruction
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{10. Rules}
-\begin{itemize}\tightitems
-  \item Chỉ xe available mới được chọn.
-  \item Request gắn với Customer, Station và Bicycle.
-  \item Re-check trạng thái trước khi tạo request.
-  \item Account phải đủ điều kiện thuê.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC003 - 1/2/3/5. Process Rental and Deposit}
-\small
-\begin{tabular}{p{0.18\textwidth}p{0.74\textwidth}}
-\toprule
-\textbf{1. Code} & UC003 \\
-\textbf{2. Description} & Staff xử lý nhận xe tại bãi: kiểm tra request, đối chiếu giấy tờ, nhận cọc 200k/giữ giấy tờ và bàn giao xe. \\
-\textbf{3. Actors} & Customer; Station Staff / Station Manager. \\
-\textbf{5. Preconditions} & Có RentalRequest PendingPickup; Customer có mặt tại đúng bãi và cung cấp giấy tờ; xe còn ở bãi và sẵn sàng; Staff có quyền xử lý. \\
-\bottomrule
-\end{tabular}
-\end{frame}
-
-\begin{frame}{UC003 - 4. Sub-Use Cases}
-\drawiodiagram{uc003}
-\end{frame}
-
-\begin{frame}{UC003 - 6. Basic Flow}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.48\textwidth}
-\begin{enumerate}\tightitems
-  \item Customer xuất trình mã yêu cầu thuê.
-  \item Staff tra cứu RentalRequest.
-  \item Hệ thống hiển thị khách, xe, bãi, thời lượng.
-  \item Staff kiểm tra CCCD/giấy tờ tùy thân.
-  \item Staff xác nhận giấy tờ khớp hồ sơ.
-\end{enumerate}
-\column{0.48\textwidth}
-\begin{enumerate}\setcounter{enumi}{5}\tightitems
-  \item Staff nhận cọc 200k và ghi nhận giấy tờ giữ lại.
-  \item Hệ thống kiểm tra lần cuối trạng thái xe/bãi.
-  \item Staff giao đúng xe cho Customer.
-  \item Hệ thống tạo Rental và bản ghi deposit.
-  \item Hệ thống chuyển xe sang rented và hiển thị biên nhận.
-\end{enumerate}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC003 - 7. Alternative Flows}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.50\textwidth}
-\begin{itemize}\tightitems
-  \item Không tìm thấy request/hết hạn: tạo yêu cầu mới.
-  \item Request thuộc bãi khác: không xử lý tại bãi hiện tại.
-  \item Quên giấy tờ: từ chối giao xe.
-  \item Giấy tờ không khớp: đánh dấu rà soát.
-  \item Không đủ cọc 200k: không tạo Rental.
-  \item Không đồng ý gửi giấy tờ: từ chối giao xe.
-\end{itemize}
-\column{0.48\textwidth}
-\begin{itemize}\tightitems
-  \item Xe vừa hỏng/cần sửa: chặn bàn giao.
-  \item Xe không còn ở bãi: ghi nhận lệch dữ liệu.
-  \item Khách muốn đổi xe: quay lại UC002.
-  \item Lỗi ghi Rental/Deposit: thử lại, không mark rented.
-  \item Biên nhận không in/hiển thị: vẫn lưu rental.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC003 - 8/9/10. Data and Rules}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.32\textwidth}
-\textbf{8. Input}
-\begin{itemize}\tightitems
-  \item RequestID, StaffID
-  \item IdentityDocumentType
-  \item IdentityDocumentNumber
-  \item DepositAmount
-  \item DepositDocumentHeld
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{9. Output}
-\begin{itemize}\tightitems
-  \item RentalID
-  \item RentalStatus
-  \item BicycleStatus
-  \item StartedAt
-  \item DepositReceipt
-  \item PlannedReturnTime
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{10. Rules}
-\begin{itemize}\tightitems
-  \item Không giao xe nếu thiếu cọc hoặc giấy tờ hợp lệ.
-  \item Giao xe thành công phải tạo Rental.
-  \item Request chỉ tạo tối đa một Rental thành công.
-  \item StartedAt dùng để tính phí ở UC004.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC004 - 1/2/3/5. Return Bicycle and Issue Ticket}
-\small
-\begin{tabular}{p{0.18\textwidth}p{0.74\textwidth}}
-\toprule
-\textbf{1. Code} & UC004 \\
-\textbf{2. Description} & Customer trả xe ở bất kỳ bãi Ecopark; Staff nhận xe; hệ thống cập nhật vị trí/trạng thái, tính phí, giảm giá/phụ thu và xuất vé. \\
-\textbf{3. Actors} & Customer; Station Staff / Station Manager. \\
-\textbf{5. Preconditions} & Customer có Rental InProgress; xe trả tại bãi Ecopark; Staff có quyền nhận xe; chính sách giá và giảm giá đang active. \\
-\bottomrule
-\end{tabular}
-\end{frame}
-
-\begin{frame}{UC004 - 4. Sub-Use Cases}
-\drawiodiagram{uc004}
-\end{frame}
-
-\begin{frame}{UC004 - 6. Basic Flow}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.48\textwidth}
-\begin{enumerate}\tightitems
-  \item Customer mang xe đến điểm tập kết Ecopark.
-  \item Staff tra cứu Rental.
-  \item Hệ thống hiển thị lượt thuê, xe, cọc, thời gian.
-  \item Staff kiểm tra tình trạng xe.
-  \item Staff xác nhận bãi trả và thời điểm trả.
-\end{enumerate}
-\column{0.48\textwidth}
-\begin{enumerate}\setcounter{enumi}{5}\tightitems
-  \item Hệ thống cập nhật return station và duration.
-  \item Tính phí cơ bản theo bảng giá 1/2/3 giờ.
-  \item Áp dụng giảm 40\% nếu cư dân hợp lệ.
-  \item Cộng 30k/30 phút nếu trả muộn.
-  \item Xuất vé, lưu lịch sử, cập nhật xe.
-\end{enumerate}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC004 - 7. Alternative Flows}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.50\textwidth}
-\begin{itemize}\tightitems
-  \item Trả khác bãi nhận: vẫn nhận và cập nhật vị trí.
-  \item Không tìm thấy Rental: chuyển review thủ công.
-  \item Cọc lệch biên nhận: đánh dấu đối soát.
-  \item Xe hỏng/cần sửa: mark broken, không cho thuê tiếp.
-  \item Nhập sai bãi/thời điểm: sửa trước khi phát hành vé.
-  \item Thời lượng thấp hơn gói: theo chính sách giá.
-\end{itemize}
-\column{0.48\textwidth}
-\begin{itemize}\tightitems
-  \item Không phải cư dân/chưa verified: không giảm 40\%.
-  \item Trễ không tròn 30 phút: làm tròn theo chính sách.
-  \item Tranh chấp phí trễ: lưu vé và flag review.
-  \item Không in/gửi vé ngay: lưu ticket để xem/in lại.
-  \item Lỗi cập nhật xe: giữ ticket và cảnh báo vận hành.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC004 - 8/9/10. Data and Rules}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.32\textwidth}
-\textbf{8. Input}
-\begin{itemize}\tightitems
-  \item RentalID
-  \item ReturnStationID
-  \item ReturnedAt
-  \item StaffID
-  \item BicycleCondition
-  \item ConditionNote
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{9. Output}
-\begin{itemize}\tightitems
-  \item TicketID
-  \item BaseFee, ResidentDiscount
-  \item LateFee, TotalAmount
-  \item BicycleLocation
-  \item BicycleStatus
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{10. Rules}
-\begin{itemize}\tightitems
-  \item Được trả ở bất kỳ bãi Ecopark active.
-  \item Vé phải có phí cơ bản, giảm giá, phụ thu, tổng tiền.
-  \item Rental hoàn tất vào lịch sử Customer.
-  \item Xe hỏng không xuất hiện trong UC002.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC005 - 1/2/3/5. Manage Bikes, Stations and Reports}
-\small
-\begin{tabular}{p{0.18\textwidth}p{0.74\textwidth}}
-\toprule
-\textbf{1. Code} & UC005 \\
-\textbf{2. Description} & Vận hành trung tâm: quản lý bãi, loại xe, xe, trạng thái/vị trí xe, dữ liệu thuê-trả và thống kê theo ngày, tuần, tháng, xe. \\
-\textbf{3. Actors} & Admin / Operator; Station Staff / Station Manager. \\
-\textbf{5. Preconditions} & Actor đăng nhập đúng quyền; dữ liệu bãi/xe/lượt thuê tồn tại hoặc đang tạo mới; hệ thống có phân quyền quản lý toàn hệ thống và theo bãi. \\
-\bottomrule
-\end{tabular}
-\end{frame}
-
-\begin{frame}{UC005 - 4. Sub-Use Cases}
-\drawiodiagram{uc005}
-\end{frame}
-
-\begin{frame}{UC005 - 6. Basic Flow}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.48\textwidth}
-\begin{enumerate}\tightitems
-  \item Actor mở màn hình quản lý vận hành.
-  \item Chọn quản lý bãi, xe, trạng thái, tìm xe hoặc thống kê.
-  \item Bãi xe: tạo/cập nhật tên, địa chỉ, tọa độ, sức chứa, trạng thái.
-  \item Xe: tạo/cập nhật mã xe, loại xe, bãi hiện tại, trạng thái.
-  \item Tìm đúng xe/vị trí xe rồi cập nhật trạng thái theo thực tế.
-\end{enumerate}
-\column{0.48\textwidth}
-\begin{enumerate}\setcounter{enumi}{5}\tightitems
-  \item Hệ thống ghi log thay đổi trạng thái/vị trí.
-  \item Tìm xe theo mã hoặc bộ lọc.
-  \item Admin chọn kỳ báo cáo và bộ lọc.
-  \item Hệ thống tổng hợp lượt thuê, doanh thu, phí trễ, lượt trả.
-  \item Hiển thị dashboard hoặc xuất báo cáo.
-\end{enumerate}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC005 - 7. Alternative Flows}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.50\textwidth}
-\begin{itemize}\tightitems
-  \item Staff không có quyền toàn hệ thống: giới hạn theo bãi.
-  \item Bãi mới thiếu dữ liệu: từ chối lưu.
-  \item Sức chứa nhỏ hơn số xe hiện có: không cho giảm.
-  \item Mã xe trùng: chặn tạo/cập nhật.
-  \item Xe đang thuê: chặn chuyển bãi thủ công.
-  \item Xe hỏng: loại khỏi danh sách available.
-\end{itemize}
-\column{0.48\textwidth}
-\begin{itemize}\tightitems
-  \item Mở lại xe hỏng: cần ghi chú kiểm tra/sửa chữa.
-  \item Không tìm thấy mã xe: không đổi dữ liệu.
-  \item Bộ lọc thống kê rỗng: hiển thị báo cáo rỗng.
-  \item Dữ liệu chưa đối soát: mark thống kê tạm thời.
-  \item Xuất báo cáo thất bại: giữ bộ lọc và cho thử lại.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{UC005 - 8/9/10. Data and Rules}
-\footnotesize
-\begin{columns}[T,onlytextwidth]
-\column{0.32\textwidth}
-\textbf{8. Input}
-\begin{itemize}\tightitems
-  \item ActorID
-  \item StationData
-  \item BicycleData
-  \item StatusChangeReason
-  \item ReportPeriod
-  \item ReportFilter
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{9. Output}
-\begin{itemize}\tightitems
-  \item StationStatus
-  \item BicycleStatus
-  \item BicycleLocation
-  \item StatusLogID
-  \item RentalCount, RentalRevenue
-  \item ReportFile
-\end{itemize}
-\column{0.32\textwidth}
-\textbf{10. Rules}
-\begin{itemize}\tightitems
-  \item Bike ID duy nhất toàn hệ thống.
-  \item Xe hỏng không available cho UC002.
-  \item Staff bị giới hạn theo quyền.
-  \item Báo cáo theo ngày, tuần, tháng và xe.
-  \item Mọi đổi trạng thái xe phải có log.
-\end{itemize}
-\end{columns}
-\end{frame}
-
-\begin{frame}{Presentation Checklist}
+\begin{frame}{Dashboard Báo Cáo}
 \small
 \begin{itemize}\tightitems
-  \item Start with overview diagram, actor hierarchy, and why 5 UCs were selected.
-  \item For each UC, follow the same template: scope, sub-use cases, basic flow, alternative flows, data and rules.
-  \item Use the imported draw.io diagrams as the visual reference for sub-use cases.
-  \item Emphasize common mistakes avoided: no front-end/back-end/database actors; no action-only UCs.
-  \item Use A4 PDF as SRS-style detailed backup for the complete tables.
+  \item Revenue by period: tổng tiền vé theo ngày/tuần/tháng và filter station/bike.
+  \item Fleet status distribution: số xe available/rented/broken để admin nắm sức khỏe đội xe.
+  \item Rentals and late fees: lượt thuê và phụ thu trễ theo report rows.
+  \item CSV export dùng đúng filter hiện tại, không xuất dữ liệu lệch màn hình đang xem.
+  \item Audit panel giúp truy vết đổi trạng thái xe khi staff/admin thao tác.
 \end{itemize}
+\end{frame}
+
+\begin{frame}{Testing Và Evidence}
+\small
+\begin{itemize}\tightitems
+  \item Backend tests: đăng ký, duplicate data, held bikes, cancel, handover, return pricing, reports, audit log và concurrent sessions.
+  \item UI smoke: desktop/mobile render, GSAP load, Three.js canvas pixel, Leaflet markers, no console errors, no horizontal overflow.
+  \item UC smoke: GPS context, 2 customers + 2 admins, request/cancel, handover, return ticket, charts, audit log và CSV download.
+  \item Report dùng screenshot thật từ app: auth, customer desktop/mobile, operations và \texttt{/gd}.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Demo Script Khi Thuyết Trình}
+\small
+\begin{enumerate}\tightitems
+  \item Mở platform và tab \texttt{/gd}; kéo xe gần bãi nhận và tua giờ nếu cần demo phụ thu.
+  \item Customer đăng nhập, tìm bãi gần nhất, lọc loại xe, chọn xe và gửi request.
+  \item Staff/Admin xác nhận giấy tờ, cọc 200k và giao xe.
+  \item Staff nhận xe trả ở bãi khác, chọn tình trạng, xuất vé và xem tổng tiền.
+  \item Admin xem dashboard chart, audit log và export CSV; nhắc target deploy GCP.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Kết Luận}
+\small
+\begin{itemize}\tightitems
+  \item Platform đã bao phủ UC001--UC005 với cả main flow và alternative flow quan trọng.
+  \item UI đã có phiên bản desktop/mobile, 3D scene, map thật và demo director \texttt{/gd}.
+  \item Backend đã có session role, validation, transaction nghiệp vụ, report chart và audit log.
+  \item Repo đã có Dockerfile để đóng gói triển khai GCP; bước production tiếp theo là Cloud SQL/backup/session store bền vững.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+{\Huge \textbf{Q\&A}}\\[0.45cm]
+{\large Ecopark Bicycle Parking Platform}
 \end{frame}
 
 \end{document}

@@ -5,13 +5,44 @@ const { DatabaseSync } = require('node:sqlite');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DEFAULT_DB_PATH = path.join(ROOT_DIR, 'data', 'ecopark.sqlite');
+const PASSWORD_PREFIX = 'pbkdf2_sha256';
+const PASSWORD_ITERATIONS = 120000;
 
 function now() {
   return new Date().toISOString();
 }
 
 function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const digest = crypto.pbkdf2Sync(String(password), salt, PASSWORD_ITERATIONS, 32, 'sha256').toString('hex');
+  return `${PASSWORD_PREFIX}$${PASSWORD_ITERATIONS}$${salt}$${digest}`;
+}
+
+function legacyHashPassword(password) {
   return crypto.createHash('sha256').update(String(password)).digest('hex');
+}
+
+function verifyPassword(password, storedHash) {
+  const stored = String(storedHash || '');
+  if (stored.startsWith(`${PASSWORD_PREFIX}$`)) {
+    const [, iterationsText, salt, expected] = stored.split('$');
+    const iterations = Number(iterationsText);
+    if (!Number.isInteger(iterations) || !salt || !expected) return false;
+    const actual = crypto.pbkdf2Sync(String(password), salt, iterations, 32, 'sha256').toString('hex');
+    return timingSafeHexEqual(actual, expected);
+  }
+  return timingSafeHexEqual(legacyHashPassword(password), stored);
+}
+
+function passwordNeedsRehash(storedHash) {
+  return !String(storedHash || '').startsWith(`${PASSWORD_PREFIX}$${PASSWORD_ITERATIONS}$`);
+}
+
+function timingSafeHexEqual(actual, expected) {
+  const actualBuffer = Buffer.from(String(actual || ''), 'hex');
+  const expectedBuffer = Buffer.from(String(expected || ''), 'hex');
+  if (!actualBuffer.length || actualBuffer.length !== expectedBuffer.length) return false;
+  return crypto.timingSafeEqual(actualBuffer, expectedBuffer);
 }
 
 function openDatabase(dbPath = process.env.ECOPARK_DB_PATH || DEFAULT_DB_PATH) {
@@ -206,7 +237,41 @@ function migrate(db) {
       FOREIGN KEY (station_id) REFERENCES stations(station_id),
       FOREIGN KEY (changed_by) REFERENCES users(user_id)
     );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      setting_key TEXT PRIMARY KEY,
+      setting_value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS blocked_identities (
+      identity_number TEXT PRIMARY KEY,
+      reason TEXT NOT NULL,
+      blocked_by INTEGER,
+      blocked_at TEXT NOT NULL,
+      FOREIGN KEY (blocked_by) REFERENCES users(user_id)
+    );
   `);
+
+  addColumnIfMissing(db, 'users', 'email_verified_at', 'TEXT');
+  addColumnIfMissing(db, 'users', 'email_verification_code_hash', 'TEXT');
+  addColumnIfMissing(db, 'users', 'email_verification_expires_at', 'TEXT');
+  addColumnIfMissing(db, 'users', 'password_reset_code_hash', 'TEXT');
+  addColumnIfMissing(db, 'users', 'password_reset_expires_at', 'TEXT');
+  addColumnIfMissing(db, 'customer_profiles', 'identity_review_note', 'TEXT');
+  addColumnIfMissing(db, 'customer_profiles', 'identity_reviewed_at', 'TEXT');
+  addColumnIfMissing(db, 'resident_cards', 'review_note', 'TEXT');
+
+  db.prepare(`
+    UPDATE users
+    SET email_verified_at = COALESCE(email_verified_at, created_at)
+    WHERE email_verified_at IS NULL
+  `).run();
+}
+
+function addColumnIfMissing(db, tableName, columnName, definition) {
+  const existing = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  if (existing.some((column) => column.name === columnName)) return;
+  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
 }
 
 function seedDatabase(db) {
@@ -231,14 +296,14 @@ function seedDatabase(db) {
   typeInsert.run('Child-seat bike', 'Xe có ghế trẻ em, phù hợp gia đình có trẻ nhỏ.');
 
   const userInsert = db.prepare(`
-    INSERT INTO users (full_name, email, phone, password_hash, role, status, created_at)
-    VALUES (?, ?, ?, ?, ?, 'active', ?)
+    INSERT INTO users (full_name, email, phone, password_hash, role, status, created_at, email_verified_at)
+    VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
   `);
-  const admin = userInsert.run('Admin Ecopark', 'admin@ecopark.test', '0900000001', hashPassword('admin123'), 'admin', createdAt).lastInsertRowid;
-  const adminBackup = userInsert.run('Operations Admin', 'admin2@ecopark.test', '0900000005', hashPassword('admin2123'), 'admin', createdAt).lastInsertRowid;
-  const staffUser = userInsert.run('Spring Park Staff', 'staff@ecopark.test', '0900000002', hashPassword('staff123'), 'staff', createdAt).lastInsertRowid;
-  const customer = userInsert.run('Nguyen Ha Linh', 'customer@ecopark.test', '0900000003', hashPassword('customer123'), 'customer', createdAt).lastInsertRowid;
-  const resident = userInsert.run('Tran Minh An', 'resident@ecopark.test', '0900000004', hashPassword('resident123'), 'customer', createdAt).lastInsertRowid;
+  const admin = userInsert.run('Admin Ecopark', 'admin@ecopark.test', '0900000001', hashPassword('admin123'), 'admin', createdAt, createdAt).lastInsertRowid;
+  const adminBackup = userInsert.run('Operations Admin', 'admin2@ecopark.test', '0900000005', hashPassword('admin2123'), 'admin', createdAt, createdAt).lastInsertRowid;
+  const staffUser = userInsert.run('Spring Park Staff', 'staff@ecopark.test', '0900000002', hashPassword('staff123'), 'staff', createdAt, createdAt).lastInsertRowid;
+  const customer = userInsert.run('Nguyen Ha Linh', 'customer@ecopark.test', '0900000003', hashPassword('customer123'), 'customer', createdAt, createdAt).lastInsertRowid;
+  const resident = userInsert.run('Tran Minh An', 'resident@ecopark.test', '0900000004', hashPassword('resident123'), 'customer', createdAt, createdAt).lastInsertRowid;
 
   db.prepare('INSERT INTO staff (staff_id, staff_code, staff_role, station_id, active) VALUES (?, ?, ?, ?, 1)')
     .run(admin, 'ADM-001', 'admin', null);
@@ -326,9 +391,21 @@ function ensureDemoAccounts(db) {
   const backupEmail = 'admin2@ecopark.test';
   const existing = db.prepare('SELECT user_id FROM users WHERE lower(email) = lower(?)').get(backupEmail);
   const adminBackupId = existing?.user_id || db.prepare(`
-    INSERT INTO users (full_name, email, phone, password_hash, role, status, created_at)
-    VALUES (?, ?, ?, ?, 'admin', 'active', ?)
-  `).run('Operations Admin', backupEmail, '0900000005', hashPassword('admin2123'), createdAt).lastInsertRowid;
+    INSERT INTO users (full_name, email, phone, password_hash, role, status, created_at, email_verified_at)
+    VALUES (?, ?, ?, ?, 'admin', 'active', ?, ?)
+  `).run('Operations Admin', backupEmail, '0900000005', hashPassword('admin2123'), createdAt, createdAt).lastInsertRowid;
+
+  db.prepare(`
+    UPDATE users
+    SET email_verified_at = COALESCE(email_verified_at, created_at)
+    WHERE lower(email) IN (
+      'admin@ecopark.test',
+      'admin2@ecopark.test',
+      'staff@ecopark.test',
+      'customer@ecopark.test',
+      'resident@ecopark.test'
+    )
+  `).run();
 
   db.prepare(`
     INSERT OR IGNORE INTO staff (staff_id, staff_code, staff_role, station_id, active)
@@ -340,7 +417,10 @@ module.exports = {
   DEFAULT_DB_PATH,
   createAppDatabase,
   hashPassword,
+  legacyHashPassword,
   now,
   openDatabase,
-  resetDatabase
+  passwordNeedsRehash,
+  resetDatabase,
+  verifyPassword
 };
