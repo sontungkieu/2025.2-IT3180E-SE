@@ -1,17 +1,60 @@
-\section{Relational schema}
+\section{Database design}
 
 \subsection{Các quan hệ chính}
 Lược đồ quan hệ dưới đây tập trung vào dữ liệu cần thiết cho 5 use case đã chọn.
 Ký hiệu: \textbf{PK} là khóa chính, \textbf{FK} là khóa ngoại. Lược đồ chỉ giữ các
 quan hệ phục vụ trực tiếp đề hiện hành trong `docs/đề.txt`.
 
-\begin{longtable}{P{0.25\textwidth}P{0.65\textwidth}}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  entity/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=2.75cm,minimum height=0.72cm,align=center,font=\scriptsize\bfseries},
+  weak/.style={draw=EcoparkTeal,thick,rounded corners=2pt,fill=cyan!8,minimum width=2.75cm,minimum height=0.72cm,align=center,font=\scriptsize\bfseries},
+  money/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!10,minimum width=2.75cm,minimum height=0.72cm,align=center,font=\scriptsize\bfseries},
+  rel/.style={-{Latex[length=1.8mm]},draw=Ink,thick}
+]
+\node[entity] (users) at (0,0) {USERS};
+\node[weak] (staff) at (-3.8,-1.25) {STAFF};
+\node[entity] (profiles) at (0,-1.25) {CUSTOMER\_PROFILES};
+\node[weak] (cards) at (3.8,-1.25) {RESIDENT\_CARDS};
+
+\node[entity] (requests) at (0,-2.65) {RENTAL\_REQUESTS};
+\node[entity] (rentals) at (0,-4.05) {RENTALS};
+\node[money] (deposits) at (-3.8,-4.05) {RENTAL\_DEPOSITS};
+\node[money] (tickets) at (3.8,-4.05) {RENTAL\_TICKETS};
+\node[money] (pricing) at (3.8,-5.35) {PRICING\_POLICIES};
+
+\node[entity] (bikes) at (6.9,-2.65) {BIKES};
+\node[weak] (types) at (6.9,-1.25) {BIKE\_TYPES};
+\node[entity] (stations) at (10.2,-2.65) {STATIONS};
+\node[weak] (logs) at (6.9,-4.05) {BIKE\_STATUS\_LOGS};
+
+\draw[rel] (users) -- (profiles);
+\draw[rel] (users) -| (staff);
+\draw[rel] (profiles) -- (cards);
+\draw[rel] (profiles) -- (requests);
+\draw[rel] (requests) -- (rentals);
+\draw[rel] (rentals) -- (deposits);
+\draw[rel] (rentals) -- (tickets);
+\draw[rel] (tickets) -- (pricing);
+\draw[rel] (requests) -- (bikes);
+\draw[rel] (types) -- (bikes);
+\draw[rel] (stations) -- (bikes);
+\draw[rel] (bikes) -- (logs);
+\end{tikzpicture}
+}
+\caption{ERD rút gọn cho dữ liệu thuê-trả xe đạp}
+\end{figure}
+
+\small
+\begin{longtable}{P{0.30\textwidth}P{0.60\textwidth}}
 \toprule
 \textbf{Bảng} & \textbf{Thuộc tính chính} \\
 \midrule
-\textbf{USERS} & \underline{user\_id} (PK), full\_name, email, phone, password\_hash, role, status, created\_at, last\_login\_at \\
-\textbf{CUSTOMER\_PROFILES} & \underline{customer\_id} (PK, FK $\rightarrow$ USERS.user\_id), identity\_number, address, customer\_type, resident\_card\_id (FK, nullable), identity\_status, discount\_eligible, created\_at \\
-\textbf{RESIDENT\_CARDS} & \underline{resident\_card\_id} (PK), customer\_id (FK $\rightarrow$ CUSTOMER\_PROFILES.customer\_id), card\_number, registered\_address, verification\_status, verified\_by (FK $\rightarrow$ USERS.user\_id, nullable), verified\_at \\
+\textbf{USERS} & \underline{user\_id} (PK), full\_name, email, phone, password\_hash, role, status, email\_verified\_at, email\_verification\_code\_hash, password\_reset\_code\_hash, created\_at, last\_login\_at \\
+\textbf{CUSTOMER\_PROFILES} & \underline{customer\_id} (PK, FK $\rightarrow$ USERS.user\_id), identity\_number, address, customer\_type, resident\_card\_id (FK, nullable), identity\_status, discount\_eligible, identity\_review\_note, created\_at \\
+\textbf{RESIDENT\_CARDS} & \underline{resident\_card\_id} (PK), customer\_id (FK $\rightarrow$ CUSTOMER\_PROFILES.customer\_id), card\_number, registered\_address, verification\_status, review\_note, verified\_by (FK $\rightarrow$ USERS.user\_id, nullable), verified\_at \\
 \textbf{STAFF} & \underline{staff\_id} (PK, FK $\rightarrow$ USERS.user\_id), staff\_code, staff\_role, station\_id (FK $\rightarrow$ STATIONS.station\_id, nullable), active \\
 \textbf{STATIONS} & \underline{station\_id} (PK), station\_name, address, latitude, longitude, capacity, station\_status \\
 \textbf{BIKE\_TYPES} & \underline{bike\_type\_id} (PK), type\_name, description, active \\
@@ -22,8 +65,11 @@ quan hệ phục vụ trực tiếp đề hiện hành trong `docs/đề.txt`.
 \textbf{RENTAL\_DEPOSITS} & \underline{deposit\_id} (PK), rental\_id (FK $\rightarrow$ RENTALS.rental\_id), amount, document\_type, document\_reference\_masked, deposit\_status, collected\_at, returned\_at \\
 \textbf{RENTAL\_TICKETS} & \underline{ticket\_id} (PK), rental\_id (FK $\rightarrow$ RENTALS.rental\_id), base\_fee, resident\_discount\_amount, late\_fee, total\_amount, issued\_at \\
 \textbf{BIKE\_STATUS\_LOGS} & \underline{log\_id} (PK), bike\_id (FK $\rightarrow$ BIKES.bike\_id), old\_status, new\_status, station\_id (FK), changed\_by (FK $\rightarrow$ USERS.user\_id), reason, changed\_at \\
+\textbf{BLOCKED\_IDENTITIES} & \underline{identity\_number} (PK), reason, blocked\_by (FK $\rightarrow$ USERS.user\_id), blocked\_at; dùng để chặn CCCD/CMND theo chính sách vận hành. \\
+\textbf{APP\_SETTINGS} & \underline{setting\_key} (PK), setting\_value; dùng cho cấu hình demo như offset đồng hồ hệ thống trong route \texttt{/gd}. \\
 \bottomrule
 \end{longtable}
+\normalsize
 
 \subsection{Quan hệ giữa các bảng}
 \begin{itemize}
@@ -38,6 +84,7 @@ quan hệ phục vụ trực tiếp đề hiện hành trong `docs/đề.txt`.
   \item Mỗi RENTALS có một RENTAL\_DEPOSITS ghi khoản đặt cọc 200k và loại giấy tờ định danh giữ tại bãi.
   \item Mỗi RENTALS khi trả xe có một RENTAL\_TICKETS ghi phí thuê cơ bản, giảm giá cư dân, phụ thu trễ và tổng tiền.
   \item Mọi thay đổi trạng thái xe quan trọng được ghi vào BIKE\_STATUS\_LOGS để truy vết ai đổi, đổi từ trạng thái nào sang trạng thái nào, tại bãi nào.
+  \item APP\_SETTINGS lưu các cấu hình phụ trợ cho demo local, ví dụ offset phút của đồng hồ hệ thống; dữ liệu nghiệp vụ thuê-trả vẫn nằm trong các bảng request/rental/ticket chính.
 \end{itemize}
 
 \subsection{Ràng buộc nghiệp vụ quan trọng}
@@ -52,4 +99,5 @@ quan hệ phục vụ trực tiếp đề hiện hành trong `docs/đề.txt`.
   \item PRICING\_POLICIES phải thể hiện đúng bảng giá 50k/1 giờ, 70k/2 giờ, 100k/3 giờ và phụ thu 30k/30 phút.
   \item Giảm giá cư dân 40\% chỉ được áp dụng khi RESIDENT\_CARDS.verification\_status là \textit{verified} và CUSTOMER\_PROFILES.discount\_eligible là true.
   \item Phí đặt cọc không phải doanh thu thuê xe; RENTAL\_DEPOSITS được quản lý riêng với RENTAL\_TICKETS.
+  \item Đồng hồ demo trong APP\_SETTINGS chỉ thay đổi mốc thời gian hệ thống dùng khi trình bày; phí phạt vẫn được tính từ RENTALS.started\_at, planned\_duration\_minutes và thời điểm trả xe.
 \end{itemize}

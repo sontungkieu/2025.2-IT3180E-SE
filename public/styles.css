@@ -576,14 +576,75 @@ hr {
 }
 
 .customer-grid {
-  grid-template-columns: minmax(280px, 0.78fr) minmax(360px, 1.42fr);
+  grid-template-columns: minmax(0, 1.44fr) minmax(300px, 0.66fr);
   grid-template-areas:
-    "account stations"
-    "history bikes";
+    "rent rent"
+    "history account";
+}
+
+.rental-flow-panel {
+  grid-area: rent;
+  position: relative;
+}
+
+.rental-flow-panel:has(.pretty-select.open) {
+  z-index: 35;
 }
 
 .account-panel {
   grid-area: account;
+}
+
+.account-status-grid,
+.policy-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.account-status-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 4px 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff, var(--surface-soft));
+  padding: 10px;
+}
+
+.account-status-card img {
+  grid-row: span 2;
+  width: 22px;
+  height: 22px;
+}
+
+.account-status-card span {
+  color: var(--ink-500);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.account-status-card strong {
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.account-status-card.ok {
+  border-color: rgba(18, 128, 88, 0.28);
+  background: linear-gradient(135deg, #fff, rgba(232, 248, 238, 0.94));
+}
+
+.account-status-card.warn {
+  border-color: rgba(196, 134, 24, 0.28);
+  background: linear-gradient(135deg, #fff, rgba(255, 248, 229, 0.96));
+}
+
+.inline-verification-form,
+.password-recovery {
+  margin-bottom: 14px;
 }
 
 .stations-panel {
@@ -598,8 +659,52 @@ hr {
   grid-area: history;
 }
 
+.rent-workflow {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.24fr) minmax(300px, 0.76fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.rent-map-column,
+.rent-bike-column {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.inline-panel-heading {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inline-panel-heading h3 {
+  margin-bottom: 0;
+}
+
+.inline-panel-heading span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 5px 9px;
+  color: var(--ink-600);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .ops-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr));
+  align-items: start;
+}
+
+.report-panel,
+.pending-panel,
+.active-panel,
+.fleet-panel {
+  grid-column: 1 / -1;
 }
 
 .admin-panel {
@@ -642,6 +747,39 @@ hr {
 
 .flow-controls label {
   min-width: 0;
+}
+
+.report-controls {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  overflow: visible;
+}
+
+.report-filter {
+  position: relative;
+}
+
+.report-select.open {
+  z-index: 85;
+}
+
+.report-select-trigger {
+  min-height: 54px;
+  grid-template-columns: 32px minmax(0, 1fr) 18px;
+  padding: 9px 11px;
+}
+
+.report-select-trigger .select-leading,
+.report-select-option .select-leading {
+  width: 32px;
+  height: 32px;
+}
+
+.report-select-menu {
+  max-height: min(344px, 46vh);
+}
+
+.report-select-option {
+  min-height: 50px;
 }
 
 .search-workflow {
@@ -825,12 +963,6 @@ hr {
 
 .pretty-select-option.active .select-check {
   opacity: 1;
-}
-
-.search-state-note {
-  align-self: start;
-  width: fit-content;
-  max-width: 100%;
 }
 
 .segmented-control {
@@ -1148,10 +1280,15 @@ hr {
   overflow-wrap: anywhere;
 }
 
-.station-grid,
-.bike-grid {
+.station-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.bike-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -1175,6 +1312,44 @@ hr {
   pointer-events: none;
   border: 1px solid rgba(21, 150, 95, 0.16);
   border-radius: 8px;
+}
+
+.map-status-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 12;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 86px);
+  border: 1px solid rgba(184, 208, 195, 0.9);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink-800);
+  padding: 7px 10px;
+  box-shadow: 0 12px 28px rgba(20, 60, 43, 0.14);
+  backdrop-filter: blur(10px);
+  font-size: 0.82rem;
+  font-weight: 850;
+  pointer-events: none;
+}
+
+.map-status-chip.ok {
+  border-color: rgba(37, 184, 118, 0.5);
+  background: rgba(231, 247, 238, 0.94);
+  color: var(--leaf-800);
+}
+
+.map-status-chip img {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+.map-status-chip + .map-fallback {
+  pointer-events: none;
 }
 
 .map-fallback,
@@ -1508,12 +1683,14 @@ hr {
 
 .bike-card {
   position: relative;
-  overflow: hidden;
-  min-height: 240px;
-  padding: 13px;
+  overflow: visible;
+  min-height: 132px;
+  padding: 12px;
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr;
-  gap: 8px;
+  grid-template-columns: 94px minmax(0, 1fr) auto;
+  grid-template-rows: auto 42px;
+  gap: 10px 12px;
+  align-items: start;
   box-shadow: 0 8px 18px rgba(17, 65, 47, 0.06);
   will-change: transform;
 }
@@ -1523,7 +1700,12 @@ hr {
   position: absolute;
   inset: 0 0 auto;
   height: 3px;
+  border-radius: 8px 8px 0 0;
   background: linear-gradient(90deg, var(--leaf-500), var(--sky-500), var(--amber-600));
+}
+
+.bike-card:has(.pretty-select.open) {
+  z-index: 20;
 }
 
 .bike-card.bike-type-tandem::before {
@@ -1539,8 +1721,11 @@ hr {
 }
 
 .bike-visual {
-  width: 70px;
-  height: 54px;
+  width: 88px;
+  height: 100%;
+  min-height: 108px;
+  grid-row: 1 / -1;
+  align-self: stretch;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -1566,8 +1751,8 @@ hr {
 }
 
 .bike-visual svg {
-  width: 64px;
-  height: 44px;
+  width: 78px;
+  height: 52px;
   display: block;
 }
 
@@ -1599,20 +1784,145 @@ hr {
   fill: currentColor;
 }
 
-.bike-card h3 {
-  margin-bottom: 0;
+.bike-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
-.bike-card p {
+.bike-card-copy h3 {
   margin-bottom: 0;
+  line-height: 1.1;
+}
+
+.bike-card-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bike-card-meta > span:first-child {
+  min-width: 0;
+  overflow: hidden;
   color: var(--ink-500);
+  font-size: 0.88rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bike-card-meta .status-pill {
+  flex: 0 0 auto;
+}
+
+.bike-status {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  white-space: nowrap;
 }
 
 .rent-row {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  width: 100%;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  align-items: end;
+  align-items: center;
+}
+
+.duration-select,
+.rent-row .primary.small {
+  height: 42px;
+  min-height: 42px;
+  border-radius: 8px;
+}
+
+.duration-select {
+  min-width: 0;
+  position: relative;
+}
+
+.duration-select .pretty-select,
+.duration-select .pretty-select-trigger {
+  height: 100%;
+}
+
+.duration-select .duration-select-trigger {
+  min-height: 42px;
+  border-color: #bcd5c7;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 252, 249, 0.96)),
+    #fff;
+  box-shadow: 0 8px 18px rgba(20, 60, 43, 0.055);
+  padding: 8px 10px 8px 12px;
+}
+
+.duration-select .duration-select-trigger .select-leading {
+  display: none;
+}
+
+.duration-select .duration-select-option .select-leading {
+  display: grid;
+  width: 30px;
+  height: 30px;
+}
+
+.duration-select .select-value strong {
+  font-size: 0.98rem;
+  line-height: 1.08;
+}
+
+.duration-select .duration-select-trigger .select-value {
+  align-self: center;
+  gap: 0;
+}
+
+.duration-select .duration-select-option .select-option-copy span {
+  font-size: 0.72rem;
+}
+
+.duration-select .duration-select-menu {
+  z-index: 70;
+  min-width: min(300px, calc(100vw - 32px));
+  right: auto;
+  max-height: none;
+}
+
+.rent-duration-select:not(.open) .duration-select-menu {
+  display: none;
+}
+
+.rent-duration-select.open .duration-select-menu {
+  display: grid;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.duration-select .duration-select-option {
+  min-height: 48px;
+  grid-template-columns: 30px minmax(0, 1fr) 17px;
+}
+
+.duration-select .duration-select-trigger:hover,
+.duration-select .pretty-select.open .duration-select-trigger {
+  border-color: rgba(17, 132, 91, 0.62);
+  box-shadow: 0 14px 30px rgba(20, 60, 43, 0.12);
+}
+
+.rent-row .primary.small {
+  padding: 0 14px;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(15, 111, 76, 0.18);
 }
 
 .status-pill {
@@ -1632,6 +1942,21 @@ hr {
 .status-pill.ok {
   background: var(--leaf-100);
   color: var(--leaf-800);
+}
+
+.status-pill.mine {
+  background: #e7f2ff;
+  color: var(--sky-700);
+}
+
+.status-pill.busy {
+  background: var(--amber-100);
+  color: var(--amber-600);
+}
+
+.status-pill.danger {
+  background: #fff0ed;
+  color: var(--rose-600);
 }
 
 .auth-panel-header .status-pill {
@@ -1672,9 +1997,21 @@ hr {
   min-width: 0;
 }
 
+.activity-item div strong,
+.activity-item div span,
+.rental-active strong,
+.rental-active span {
+  display: block;
+}
+
 .activity-list strong,
 .activity-list span {
   overflow-wrap: anywhere;
+}
+
+.rental-active {
+  border-color: rgba(30, 156, 201, 0.28) !important;
+  box-shadow: inset 3px 0 0 var(--sky-500);
 }
 
 .muted-activity {
@@ -1782,8 +2119,245 @@ td {
   min-width: 720px;
 }
 
+.export-state {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(231, 245, 251, 0.72), rgba(246, 251, 247, 0.96));
+  margin-top: -4px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  color: var(--ink-700);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.export-state img {
+  width: 18px;
+  height: 18px;
+}
+
+.export-state strong {
+  color: var(--leaf-800);
+}
+
+.report-dashboard {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.08fr) minmax(260px, 0.92fr);
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.report-dashboard .chart-card:last-child {
+  grid-column: 1 / -1;
+}
+
+.chart-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+  box-shadow: 0 8px 22px rgba(17, 65, 47, 0.055);
+}
+
+.chart-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.chart-title h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.chart-title span {
+  color: var(--ink-500);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: -3px 0 9px;
+  color: var(--ink-500);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chart-legend i {
+  width: 18px;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sky-700), var(--sky-500));
+}
+
+.chart-legend .legend-late {
+  background: linear-gradient(90deg, var(--amber-600), #e0a538);
+}
+
+.bar-chart,
+.fleet-distribution,
+.dual-bar-chart {
+  display: grid;
+  gap: 8px;
+}
+
+.chart-row,
+.fleet-status-row,
+.dual-row {
+  display: grid;
+  grid-template-columns: minmax(70px, 0.72fr) minmax(120px, 1.2fr) minmax(88px, 0.68fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  color: var(--ink-700);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.dual-row {
+  grid-template-columns: minmax(92px, 0.34fr) minmax(180px, 1fr) max-content;
+}
+
+.chart-row > span,
+.fleet-status-row > span,
+.dual-row > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-row > strong,
+.fleet-status-row > strong,
+.dual-row > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-900);
+  font-size: 0.76rem;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dual-row > strong {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.chart-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #edf4f0;
+}
+
+.chart-track i {
+  display: block;
+  width: var(--bar);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--leaf-600), var(--sky-500));
+}
+
+.chart-row.revenue .chart-track i {
+  background: linear-gradient(90deg, var(--leaf-700), var(--leaf-500));
+}
+
+.fleet-status-row.rented .chart-track i,
+.dual-bars .late {
+  background: linear-gradient(90deg, var(--amber-600), #e0a538);
+}
+
+.fleet-status-row.broken .chart-track i {
+  background: linear-gradient(90deg, var(--rose-600), #d87968);
+}
+
+.dual-bars {
+  display: grid;
+  gap: 4px;
+}
+
+.dual-bars i {
+  display: block;
+  width: var(--bar);
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sky-700), var(--sky-500));
+}
+
+.empty-chart {
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  padding: 14px;
+  color: var(--ink-500);
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.audit-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.audit-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fff, var(--surface-soft));
+  padding: 10px;
+}
+
+.audit-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--leaf-100);
+}
+
+.audit-icon img {
+  width: 18px;
+  height: 18px;
+}
+
+.audit-item strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.audit-item span,
+.audit-item p {
+  display: block;
+  margin: 3px 0 0;
+  color: var(--ink-500);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
 .requests-table {
-  min-width: 980px;
+  min-width: 1120px;
 }
 
 .fleet-table {
@@ -1844,6 +2418,10 @@ tbody tr:last-child td {
   gap: 16px;
 }
 
+.policy-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
 .station-manager {
   margin-bottom: 16px;
 }
@@ -1857,6 +2435,37 @@ tbody tr:last-child td {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.ops-clock-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 252, 250, 0.86);
+  padding: 9px 10px;
+}
+
+.ops-clock-strip span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-600);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.ops-clock-strip img {
+  width: 17px;
+  height: 17px;
+}
+
+.ops-clock-strip strong {
+  color: var(--ink-900);
 }
 
 .inline-details {
@@ -1928,10 +2537,13 @@ tbody tr:last-child td {
 
   .customer-grid {
     grid-template-areas:
-      "account"
-      "stations"
-      "bikes"
-      "history";
+      "rent"
+      "history"
+      "account";
+  }
+
+  .rent-workflow {
+    grid-template-columns: 1fr;
   }
 
   .auth-copy {
@@ -1998,7 +2610,6 @@ tbody tr:last-child td {
     font-size: 1.08rem;
   }
 
-  .metric-strip,
   .compact-metrics,
   .ticket-summary,
   .inline-details,
@@ -2144,20 +2755,17 @@ body {
   width: min(1500px, 100%);
   grid-template-columns: minmax(340px, 1.04fr) minmax(380px, 460px);
   gap: clamp(28px, 4vw, 68px);
+  align-items: start;
 }
 
 .auth-copy {
-  justify-content: center;
+  min-height: auto;
+  justify-content: flex-start;
+  padding-top: clamp(56px, 10vh, 112px);
 }
 
 .auth-copy::after {
-  left: 0;
-  right: 16%;
-  bottom: 44px;
-  height: 3px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--leaf-700), var(--sky-500), var(--amber-600));
-  opacity: 0.58;
+  display: none;
 }
 
 .brand-mark {
@@ -2194,6 +2802,7 @@ body {
 }
 
 .auth-panel {
+  align-self: start;
   border-top: 4px solid var(--leaf-700);
   box-shadow: 0 28px 70px rgba(20, 60, 43, 0.16);
 }
@@ -2256,8 +2865,26 @@ select {
 }
 
 .auth-scene {
-  width: min(600px, 100%);
-  height: 320px;
+  width: min(760px, 100%);
+  height: clamp(220px, 22vh, 260px);
+  min-height: 220px;
+  margin-top: clamp(24px, 3vw, 36px);
+  align-self: flex-start;
+  overflow: hidden;
+  border: 1px solid rgba(184, 208, 195, 0.72);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(233, 246, 250, 0.42)),
+    linear-gradient(90deg, rgba(6, 25, 18, 0.045) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(6, 25, 18, 0.035) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+  box-shadow: 0 18px 42px rgba(20, 60, 43, 0.08);
+  opacity: 1;
+}
+
+.auth-scene .park-scene-canvas {
+  transform: scale(1.55);
+  transform-origin: center;
 }
 
 .command-shell {
@@ -2371,6 +2998,10 @@ select {
 
 .rail-item.active {
   box-shadow: inset 3px 0 0 var(--leaf-500);
+}
+
+.rail-mobile-action {
+  display: none;
 }
 
 .rail-status {
@@ -2530,15 +3161,20 @@ select {
 }
 
 .customer-grid {
-  grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1.48fr);
+  grid-template-columns: minmax(0, 1.44fr) minmax(320px, 0.66fr);
   grid-template-areas:
-    "account stations"
-    "history stations"
-    "history bikes";
+    "rent rent"
+    "history account";
 }
 
+.rental-flow-panel,
 .stations-panel {
   min-width: 0;
+}
+
+.rent-workflow {
+  grid-template-columns: minmax(440px, 1.28fr) minmax(320px, 0.72fr);
+  gap: 16px;
 }
 
 .search-workflow {
@@ -2590,10 +3226,6 @@ select {
     #f6fbf8;
 }
 
-.search-state-note {
-  height: 42px;
-}
-
 .station-map,
 .gps-demo-map {
   border-color: #b8d9ca;
@@ -2627,15 +3259,22 @@ select {
 }
 
 .bike-card {
-  min-height: 252px;
+  min-height: 132px;
+  grid-template-columns: 94px minmax(0, 1fr) auto;
+  grid-template-rows: auto 42px;
+  gap: 10px 12px;
+  align-items: start;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(249, 252, 250, 0.98)),
     #fff;
 }
 
 .bike-visual {
-  width: 86px;
-  height: 64px;
+  width: 88px;
+  height: 100%;
+  min-height: 108px;
+  grid-row: 1 / -1;
+  align-self: stretch;
 }
 
 .bike-visual svg {
@@ -2644,7 +3283,10 @@ select {
 }
 
 .rent-row {
-  align-self: end;
+  grid-column: 2 / -1;
+  grid-row: 2;
+  width: 100%;
+  align-self: start;
 }
 
 .table-wrap {
@@ -2689,7 +3331,18 @@ td {
 
 .gps-demo-grid {
   grid-template-columns: minmax(300px, 0.68fr) minmax(540px, 1.32fr);
+  grid-template-areas:
+    "clock map"
+    "control map"
+    "status status";
   gap: 18px;
+  align-items: start;
+}
+
+.demo-clock-panel {
+  grid-area: clock;
+  display: grid;
+  gap: 12px;
 }
 
 .gps-demo-panel,
@@ -2698,10 +3351,74 @@ td {
   background: var(--surface-raised);
 }
 
+.gps-demo-panel {
+  grid-area: control;
+}
+
 .gps-map-panel {
+  grid-area: map;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 590px;
+}
+
+.gps-status-panel {
+  grid-area: status;
+}
+
+.demo-clock-face {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 250, 247, 0.92)),
+    #fff;
+  padding: 12px;
+}
+
+.demo-clock-face > img {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--leaf-100);
+  padding: 8px;
+}
+
+.demo-clock-face strong,
+.demo-clock-face span {
+  display: block;
+}
+
+.demo-clock-face strong {
+  color: var(--ink-900);
+  font-size: 1.08rem;
+  line-height: 1.15;
+}
+
+.demo-clock-face span,
+.clock-note {
+  color: var(--ink-500);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.clock-note {
+  margin: 0;
+}
+
+.demo-clock-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.demo-clock-actions .small {
+  min-width: 0;
+  padding-inline: 8px;
 }
 
 .gps-demo-map {
@@ -2723,6 +3440,125 @@ td {
 .toast {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: var(--leaf-900);
+}
+
+@media (max-width: 1365px) {
+  .view-operations .dashboard-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .view-operations .dashboard-hero h1 {
+    max-width: none;
+    font-size: clamp(1.64rem, 2.35vw, 2.08rem);
+  }
+
+  .view-operations .metric-strip {
+    max-width: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .view-operations .hero-scene {
+    height: 118px;
+    min-height: 118px;
+  }
+
+  .view-operations .report-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .view-operations .report-dashboard .chart-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .view-operations .table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    scrollbar-gutter: auto;
+  }
+
+  .view-operations .operations-table,
+  .view-operations .report-table,
+  .view-operations .requests-table,
+  .view-operations .fleet-table,
+  .view-operations .active-rentals-table,
+  .view-operations .station-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+  }
+
+  .view-operations .operations-table thead,
+  .view-operations .operations-table colgroup {
+    display: none;
+  }
+
+  .view-operations .operations-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .view-operations .operations-table tr {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(184, 208, 195, 0.9);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 252, 250, 0.96)),
+      #fff;
+    padding: 10px;
+    box-shadow: 0 8px 20px rgba(20, 60, 43, 0.055);
+  }
+
+  .view-operations .operations-table td {
+    display: grid;
+    grid-template-columns: minmax(82px, 0.38fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    white-space: normal;
+  }
+
+  .view-operations .operations-table td::before {
+    content: attr(data-label);
+    color: var(--ink-500);
+    font-size: 0.72rem;
+    font-weight: 850;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .view-operations .operations-table .actions-cell,
+  .view-operations .operations-table .empty-table-cell {
+    display: block;
+  }
+
+  .view-operations .operations-table .actions-cell::before,
+  .view-operations .operations-table .empty-table-cell::before {
+    display: none;
+  }
+
+  .view-operations .operations-table input,
+  .view-operations .operations-table select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .view-operations .operations-table .small {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .view-operations .row-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1180px) {
@@ -2752,12 +3588,27 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .gps-demo-grid {
+    grid-template-areas:
+      "clock"
+      "control"
+      "map"
+      "status";
+  }
+
   .customer-grid {
     grid-template-areas:
-      "account"
-      "stations"
-      "bikes"
-      "history";
+      "rent"
+      "history"
+      "account";
+  }
+
+  .rent-workflow {
+    grid-template-columns: 1fr;
+  }
+
+  .report-dashboard {
+    grid-template-columns: 1fr;
   }
 
   .gps-status-panel {
@@ -2778,45 +3629,167 @@ td {
     line-height: 1.09;
   }
 
+  .auth-copy {
+    padding-inline: 4px;
+    padding-top: 24px;
+  }
+
+  .auth-copy h1 {
+    font-size: 1.62rem;
+    line-height: 1.1;
+  }
+
   .command-shell,
   .gps-demo-shell {
     width: min(100% - 18px, 1540px);
     padding-top: 9px;
   }
 
+  .command-shell {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  }
+
+  #workspace-overview,
+  .content-grid > .panel {
+    scroll-margin-top: 92px;
+  }
+
   .command-rail {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    padding: 13px;
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    top: auto;
+    z-index: 35;
+    min-height: 0;
+    display: block;
+    width: min(336px, calc(100% - 24px));
+    border-radius: 13px;
+    padding: 6px;
+    overflow: visible;
+    transform: translateX(-50%);
+    box-shadow: 0 18px 44px rgba(3, 17, 12, 0.3);
+    backdrop-filter: blur(14px);
   }
 
-  .rail-nav {
-    grid-auto-columns: minmax(104px, 1fr);
-  }
-
+  .rail-brand,
   .rail-status {
     display: none;
   }
 
-  .topbar {
-    top: 0;
-    padding: 10px;
+  .rail-nav {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 6px;
+    overflow: visible;
+    padding: 0;
   }
 
-  .session-chip {
-    max-width: 100%;
+  .rail-mobile-action {
+    display: grid;
+  }
+
+  .rail-item {
+    min-height: 40px;
+    grid-template-columns: 1fr;
+    place-items: center;
+    gap: 0;
+    border-radius: 10px;
+    padding: 0;
+    text-align: center;
+  }
+
+  .rail-item span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .rail-item img {
+    width: 19px;
+    height: 19px;
+    opacity: 0.9;
+  }
+
+  .rail-item.active {
+    box-shadow: inset 0 -3px 0 var(--leaf-500);
+  }
+
+  .workspace-main {
+    display: grid;
+    gap: 12px;
+  }
+
+  .topbar {
+    display: none;
   }
 
   .dashboard-hero {
-    padding: 18px;
+    margin-top: 0;
+    gap: 12px;
+    padding: 12px;
   }
 
   .hero-scene {
-    min-height: 190px;
-    height: 190px;
+    order: -1;
+    min-height: 142px;
+    height: 142px;
   }
 
-  .metric-strip,
+  .dashboard-hero .eyebrow {
+    margin-bottom: 4px;
+    font-size: 0.68rem;
+  }
+
+  .dashboard-hero h1 {
+    margin-bottom: 10px;
+    font-size: 1.42rem;
+    line-height: 1.08;
+  }
+
+  .metric-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric {
+    min-height: 62px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 3px;
+    justify-items: center;
+    padding: 8px 5px 7px;
+    text-align: center;
+  }
+
+  .metric::before {
+    inset: auto 0 0 0;
+    width: auto;
+    height: 3px;
+    background: linear-gradient(90deg, var(--leaf-500), var(--sky-500));
+  }
+
+  .metric img {
+    width: 19px;
+    height: 19px;
+    grid-row: auto;
+  }
+
+  .metric span {
+    min-height: 1.8em;
+    font-size: 0.62rem;
+    line-height: 1.05;
+  }
+
+  .metric strong {
+    font-size: 1rem;
+  }
+
   .compact-metrics,
   .ticket-summary,
   .inline-details,
@@ -2827,20 +3800,98 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .chart-row,
+  .fleet-status-row,
+  .dual-row {
+    grid-template-columns: minmax(0, 0.72fr) minmax(88px, 1fr);
+  }
+
+  .chart-row > strong,
+  .fleet-status-row > strong,
+  .dual-row > strong {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
   .panel {
     padding: 15px;
   }
 
   .section-heading {
-    align-items: flex-start;
+    align-items: center;
+    flex-direction: row;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .section-heading h2 {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .section-heading > span {
-    max-width: 100%;
+    flex: 0 1 auto;
+    max-width: 46%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .account-panel .section-heading > .status-pill {
+    flex: 0 0 auto;
+    max-width: none;
   }
 
   .pretty-select-trigger {
     min-height: 58px;
+  }
+
+  .bike-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bike-card {
+    min-height: 0;
+    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    gap: 10px 10px;
+  }
+
+  .bike-visual {
+    width: 82px;
+    min-height: 78px;
+    height: 78px;
+    grid-row: 1;
+  }
+
+  .bike-visual svg {
+    width: 70px;
+    height: 48px;
+  }
+
+  .bike-card-copy {
+    grid-column: 2;
+    grid-row: 1;
+    padding-right: 70px;
+  }
+
+  .bike-status {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-self: end;
+  }
+
+  .rent-row {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .duration-select .duration-select-menu {
+    min-width: 0;
+    width: min(260px, calc(100vw - 32px));
   }
 
   .select-value span,
@@ -2858,6 +3909,105 @@ td {
 
   .gps-demo-map {
     min-height: 380px;
+  }
+
+  .demo-clock-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ops-clock-strip {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .table-wrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    scrollbar-gutter: auto;
+  }
+
+  .operations-table,
+  .report-table,
+  .requests-table,
+  .fleet-table,
+  .active-rentals-table,
+  .station-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+  }
+
+  .operations-table thead,
+  .operations-table colgroup {
+    display: none;
+  }
+
+  .operations-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .operations-table tr {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(184, 208, 195, 0.9);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 252, 250, 0.96)),
+      #fff;
+    padding: 10px;
+    box-shadow: 0 8px 20px rgba(20, 60, 43, 0.055);
+  }
+
+  .operations-table td {
+    display: grid;
+    grid-template-columns: minmax(82px, 0.38fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    white-space: normal;
+  }
+
+  .operations-table td::before {
+    content: attr(data-label);
+    color: var(--ink-500);
+    font-size: 0.72rem;
+    font-weight: 850;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .operations-table .actions-cell,
+  .operations-table .empty-table-cell {
+    display: block;
+  }
+
+  .operations-table .actions-cell::before,
+  .operations-table .empty-table-cell::before {
+    display: none;
+  }
+
+  .operations-table input,
+  .operations-table select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .operations-table .small {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .row-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

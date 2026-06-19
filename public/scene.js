@@ -1,521 +1,919 @@
+/**
+ * scene.js — Ecopark Bicycle Parking Dashboard
+ * Isometric "Civic Mobility Command Center" scene
+ *
+ * API: export function mountScene(target: HTMLElement): () => void
+ * Depends only on /vendor/three.module.js (provided by host app).
+ */
+
 import * as THREE from '/vendor/three.module.js';
 
-let cleanupScene = null;
-
-const COLORS = {
-  concrete: 0xdce4e5,
-  concreteDark: 0xb9c7c8,
-  asphalt: 0x47545b,
-  lane: 0x158760,
-  laneStripe: 0xddeee5,
-  grass: 0x78b56f,
-  grassDark: 0x4f8a58,
-  water: 0x55a9c8,
-  waterFoam: 0xbcebf2,
-  rail: 0x60727a,
-  railDark: 0x34454d,
-  sign: 0x0b2f24,
-  signAccent: 0x16a06e,
-  statusOn: 0x2bd977,
-  statusOff: 0xd65a4f,
-  treeTrunk: 0x7b5937,
-  treeA: 0x238d5d,
-  treeB: 0x42b371,
-  bollard: 0xeff5f2,
-  bollardCap: 0xd6a22a,
-  city: 0x11845b,
-  tandem: 0x169fc7,
-  child: 0xb97618,
-  metal: 0xb8c8ca,
-  tire: 0x172326,
-  saddle: 0x4b3425,
-  white: 0xffffff
+/* ─────────────────────────── PALETTE ─────────────────────────── */
+const C = {
+  plaza:      0xd8dfe8,
+  road:       0x4a5568,
+  lane:       0x6b7c93,
+  kerb:       0xb0bac8,
+  grass:      0x5a8a5a,
+  treeTop:    0x3a7a3a,
+  treeTrunk:  0x6b4a2a,
+  water:      0x5b9bd5,
+  rack:       0x8899aa,
+  rackBase:   0x5c6e82,
+  signBg:     0x1a3a5c,
+  bollard:    0x9baabd,
+  bollardTop: 0xf5d020,
+  statusOn:   0x22d95e,
+  statusOff:  0xe05555,
+  bikeCity:   0x27ae60,
+  bikeTandem: 0x2980b9,
+  bikeChild:  0xe67e22,
+  bikeGrey:   0x7f8c8d,
+  bikeBlack:  0x2c2c2c,
+  bikeSaddle: 0x4a2c0a,
+  bikeRim:    0xd0d8e0,
+  personA:    0xe74c3c,   // red jacket
+  personB:    0x8e44ad,   // purple jacket
+  personC:    0xf39c12,   // yellow jacket (child)
+  skin:       0xf0c080,
+  pants:      0x34495e,
+  ambientLight: 0x8090b0,
+  sunLight:   0xfff8e8,
 };
 
-export function mountScene(target) {
-  if (!target) return;
-  if (cleanupScene) cleanupScene();
+/* ─────────────────────────── MODULE-LEVEL STATE ─────────────────
+ * Allows mountScene to clean up any previously mounted scene
+ * before creating a new one (module-singleton pattern).
+ */
+let cleanupScene = null;
 
-  const canvas = document.createElement('canvas');
-  canvas.className = 'park-scene-canvas';
-  target.replaceChildren(canvas);
-
-  const store = createDisposableStore();
-  const renderer = new THREE.WebGLRenderer({
-    canvas,
-    antialias: true,
-    alpha: true,
-    preserveDrawingBuffer: true
-  });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.setClearColor(0x000000, 0);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-  const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-8, 8, 5, -5, 0.1, 100);
-  camera.position.set(9.6, 8.2, 9.4);
-  camera.lookAt(0.2, 0.2, 0.1);
-
-  const mats = createMaterials(store);
-  const world = new THREE.Group();
-  world.rotation.y = -0.09;
-  scene.add(world);
-
-  addLighting(scene);
-  const water = addGroundAndRoad(world, mats, store);
-  const statusLights = addBikeHub(world, mats, store);
-  addTrees(world, mats, store);
-  addBollards(world, mats, store);
-  const bikes = addBikes(world, mats, store);
-
-  world.traverse((node) => {
-    if (!node.isMesh) return;
-    node.castShadow = true;
-    node.receiveShadow = true;
-  });
-
-  function resize() {
-    const rect = target.getBoundingClientRect();
-    const width = Math.max(320, Math.floor(rect.width));
-    const height = Math.max(220, Math.floor(rect.height));
-    renderer.setSize(width, height, false);
-
-    const aspect = width / height;
-    const frustum = aspect < 1.45 ? 6.25 : 5.1;
-    camera.left = -frustum * aspect;
-    camera.right = frustum * aspect;
-    camera.top = frustum;
-    camera.bottom = -frustum;
-    camera.updateProjectionMatrix();
+/* ─────────────────────────── DISPOSE STORE ─────────────────────── */
+class DisposeStore {
+  constructor() {
+    this._geos  = new Set();
+    this._mats  = new Set();
+    this._texs  = new Set();
   }
-
-  let frame = 0;
-  let rafId = 0;
-  function animate() {
-    frame += 0.012;
-    water.material.opacity = 0.74 + Math.sin(frame * 1.8) * 0.04;
-    water.position.y = 0.045 + Math.sin(frame * 1.5) * 0.008;
-
-    statusLights.forEach((light, index) => {
-      const pulse = 1 + Math.abs(Math.sin(frame * (2.2 + index * 0.12))) * (light.userData.available ? 0.18 : 0.07);
-      light.scale.setScalar(pulse);
-    });
-
-    bikes.forEach((bike, index) => {
-      bike.rotation.z = Math.sin(frame * 0.55 + index) * 0.008;
-    });
-
-    world.rotation.y = -0.09 + Math.sin(frame * 0.28) * 0.024;
-    renderer.render(scene, camera);
-    rafId = requestAnimationFrame(animate);
+  geo(g)  { this._geos.add(g);  return g; }
+  mat(m)  { this._mats.add(m);  return m; }
+  tex(t)  { this._texs.add(t);  return t; }
+  flush() {
+    this._geos.forEach(g => g.dispose());
+    this._texs.forEach(t => t.dispose());
+    this._mats.forEach(m => m.dispose());
+    this._geos.clear();
+    this._texs.clear();
+    this._mats.clear();
   }
-
-  resize();
-  animate();
-  window.addEventListener('resize', resize);
-
-  cleanupScene = () => {
-    cancelAnimationFrame(rafId);
-    window.removeEventListener('resize', resize);
-    renderer.dispose();
-    store.dispose();
-    target.replaceChildren();
-    cleanupScene = null;
-  };
 }
 
-function createDisposableStore() {
-  const geometries = new Set();
-  const materials = new Set();
-  const textures = new Set();
-
+/* ─────────────────────────── MATERIALS ─────────────────────────── */
+function makeMats(store) {
+  const lam  = col => store.mat(new THREE.MeshLambertMaterial({ color: col }));
+  const basic = col => store.mat(new THREE.MeshBasicMaterial({ color: col }));
   return {
-    geometry(geometry) {
-      geometries.add(geometry);
-      return geometry;
-    },
-    material(material) {
-      materials.add(material);
-      return material;
-    },
-    texture(texture) {
-      textures.add(texture);
-      return texture;
-    },
-    dispose() {
-      geometries.forEach((geometry) => geometry.dispose());
-      textures.forEach((texture) => texture.dispose());
-      materials.forEach((material) => material.dispose());
-      geometries.clear();
-      textures.clear();
-      materials.clear();
-    }
+    plaza:      lam(C.plaza),
+    road:       lam(C.road),
+    lane:       lam(C.lane),
+    kerb:       lam(C.kerb),
+    grass:      lam(C.grass),
+    treeTop:    lam(C.treeTop),
+    treeTrunk:  lam(C.treeTrunk),
+    rack:       lam(C.rack),
+    rackBase:   lam(C.rackBase),
+    signBg:     lam(C.signBg),
+    bollard:    lam(C.bollard),
+    bollardTop: lam(C.bollardTop),
+    bikeCity:   lam(C.bikeCity),
+    bikeTandem: lam(C.bikeTandem),
+    bikeChild:  lam(C.bikeChild),
+    bikeGrey:   lam(C.bikeGrey),
+    bikeBlack:  lam(C.bikeBlack),
+    bikeSaddle: lam(C.bikeSaddle),
+    bikeRim:    lam(C.bikeRim),
+    personA:    lam(C.personA),
+    personB:    lam(C.personB),
+    personC:    lam(C.personC),
+    skin:       lam(C.skin),
+    pants:      lam(C.pants),
+    water: store.mat(new THREE.MeshBasicMaterial({
+      color: 0x4a9fd4, transparent: true, opacity: 0.88,
+    })),
+    statusOn:  basic(C.statusOn),
+    statusOff: basic(C.statusOff),
+    dashLine:  basic(0xffd700),
+    signText:  basic(0xf0f8ff),
   };
 }
 
-function createMaterials(store) {
-  const standard = (color, options = {}) => store.material(new THREE.MeshStandardMaterial({
-    color,
-    roughness: 0.72,
-    metalness: 0.04,
-    ...options
-  }));
-  const basic = (color, options = {}) => store.material(new THREE.MeshBasicMaterial({ color, ...options }));
+/* ─────────────────────────── GEO / MESH HELPERS ─────────────────── */
+const box   = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const cyl   = (rt, rb, h, s = 8) => new THREE.CylinderGeometry(rt, rb, h, s);
+const torus = (r, t, rs = 8, ts = 16) => new THREE.TorusGeometry(r, t, rs, ts);
+const sph   = (r, ws = 6, hs = 6)     => new THREE.SphereGeometry(r, ws, hs);
 
-  return {
-    concrete: standard(COLORS.concrete, { roughness: 0.86 }),
-    concreteDark: standard(COLORS.concreteDark, { roughness: 0.82 }),
-    asphalt: standard(COLORS.asphalt, { roughness: 0.88 }),
-    lane: standard(COLORS.lane, { roughness: 0.82 }),
-    laneStripe: standard(COLORS.laneStripe, { roughness: 0.78 }),
-    grass: standard(COLORS.grass, { roughness: 0.9 }),
-    grassDark: standard(COLORS.grassDark, { roughness: 0.9 }),
-    water: standard(COLORS.water, { transparent: true, opacity: 0.78, roughness: 0.28, metalness: 0.02 }),
-    waterFoam: standard(COLORS.waterFoam, { roughness: 0.36 }),
-    rail: standard(COLORS.rail, { metalness: 0.24, roughness: 0.46 }),
-    railDark: standard(COLORS.railDark, { metalness: 0.24, roughness: 0.5 }),
-    sign: standard(COLORS.sign, { roughness: 0.5 }),
-    statusOn: basic(COLORS.statusOn),
-    statusOff: basic(COLORS.statusOff),
-    treeTrunk: standard(COLORS.treeTrunk, { roughness: 0.82 }),
-    treeA: standard(COLORS.treeA, { roughness: 0.86 }),
-    treeB: standard(COLORS.treeB, { roughness: 0.86 }),
-    bollard: standard(COLORS.bollard, { roughness: 0.62 }),
-    bollardCap: standard(COLORS.bollardCap, { roughness: 0.58 }),
-    city: standard(COLORS.city, { metalness: 0.1, roughness: 0.42 }),
-    tandem: standard(COLORS.tandem, { metalness: 0.1, roughness: 0.42 }),
-    child: standard(COLORS.child, { metalness: 0.1, roughness: 0.42 }),
-    metal: standard(COLORS.metal, { metalness: 0.32, roughness: 0.38 }),
-    tire: standard(COLORS.tire, { roughness: 0.56 }),
-    saddle: standard(COLORS.saddle, { roughness: 0.72 }),
-    white: standard(COLORS.white, { roughness: 0.64 })
-  };
+function mkMesh(geo, mat) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow    = true;
+  m.receiveShadow = true;
+  return m;
 }
 
-function addLighting(scene) {
-  scene.add(new THREE.AmbientLight(0xffffff, 1.28));
+function at(obj, x, y, z) { obj.position.set(x, y, z); return obj; }
 
-  const sun = new THREE.DirectionalLight(0xfff7e8, 2.6);
-  sun.position.set(7, 12, 6);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 40;
-  sun.shadow.camera.left = -11;
-  sun.shadow.camera.right = 11;
-  sun.shadow.camera.top = 11;
-  sun.shadow.camera.bottom = -11;
-  scene.add(sun);
+/* ─────────────────────────── WORLD BUILDERS ─────────────────────── */
 
-  const fill = new THREE.DirectionalLight(0xb8e8ff, 0.82);
-  fill.position.set(-7, 7, -5);
-  scene.add(fill);
+function addGround(scene, mats, store) {
+  // Wider ground to accommodate lake on right side
+  const g = mkMesh(store.geo(box(32, 0.15, 20)), mats.plaza);
+  at(g, 2, -0.075, 0);
+  scene.add(g);
 }
 
-function addGroundAndRoad(group, mats, store) {
-  const base = box(store, 14.6, 0.16, 8.4, mats.concrete);
-  base.position.y = -0.08;
-  base.receiveShadow = true;
-  group.add(base);
+function addRoad(scene, mats, store) {
+  // Main road — runs along X axis (left-right in scene space)
+  const road = mkMesh(store.geo(box(32, 0.16, 3.2)), mats.road);
+  at(road, 2, 0, 1.8);
+  scene.add(road);
 
-  const plaza = box(store, 7.3, 0.18, 3.0, mats.concreteDark);
-  plaza.position.set(-1.55, 0.02, -1.25);
-  group.add(plaza);
+  // Bike lane stripe (near side of road)
+  const bikelane = mkMesh(store.geo(box(32, 0.17, 0.85)), mats.lane);
+  at(bikelane, 2, 0, 0.7);
+  scene.add(bikelane);
 
-  const road = box(store, 14.9, 0.17, 1.66, mats.asphalt);
-  road.position.set(0, 0.01, 2.55);
-  group.add(road);
-
-  const bikeLane = box(store, 14.9, 0.19, 0.46, mats.lane);
-  bikeLane.position.set(0, 0.035, 1.86);
-  group.add(bikeLane);
-
-  for (let x = -6.4; x <= 6.4; x += 1.55) {
-    const dash = box(store, 0.68, 0.2, 0.055, mats.laneStripe);
-    dash.position.set(x, 0.055, 1.86);
-    group.add(dash);
+  // Kerbs
+  for (const sz of [-0.5, 3.1]) {
+    const kerb = mkMesh(store.geo(box(32, 0.22, 0.18)), mats.kerb);
+    at(kerb, 2, 0, sz);
+    scene.add(kerb);
   }
 
-  [-1, 1].forEach((side) => {
-    const kerb = box(store, 14.9, 0.26, 0.12, mats.concreteDark);
-    kerb.position.set(0, 0.09, 2.55 + side * 0.91);
-    group.add(kerb);
-  });
-
-  const grassA = box(store, 14.7, 0.14, 1.28, mats.grass);
-  grassA.position.set(0, 0.005, -3.54);
-  group.add(grassA);
-
-  const grassB = box(store, 14.7, 0.14, 0.8, mats.grassDark);
-  grassB.position.set(0, 0.005, 3.84);
-  group.add(grassB);
-
-  const water = roundedPond(store, mats.water);
-  water.position.set(4.8, 0.045, -3.46);
-  group.add(water);
-
-  const foam = roundedPond(store, mats.waterFoam, 1.13);
-  foam.position.set(4.8, 0.024, -3.46);
-  group.add(foam);
-
-  return water;
+  // Dashed centre line
+  for (let x = -13; x < 18; x += 2.4) {
+    const dash = mkMesh(store.geo(box(1.4, 0.17, 0.06)), mats.dashLine);
+    at(dash, x, 0.01, 1.8);
+    scene.add(dash);
+  }
 }
 
-function addBikeHub(group, mats, store) {
-  const statusLights = [];
+function addGrass(scene, mats, store) {
+  // Wide grass strip between road and lake
+  const g1 = mkMesh(store.geo(box(32, 0.16, 8.5)), mats.grass);
+  at(g1, 2, 0, -5.75);
+  scene.add(g1);
 
-  const canopy = box(store, 5.2, 0.14, 1.58, mats.railDark);
-  canopy.position.set(-1.75, 1.78, -1.46);
-  group.add(canopy);
+  // Narrow grass strip on far side of road
+  const g2 = mkMesh(store.geo(box(32, 0.16, 2.8)), mats.grass);
+  at(g2, 2, 0, 6.4);
+  scene.add(g2);
+}
 
-  const fascia = box(store, 4.2, 0.52, 0.08, mats.sign);
-  fascia.position.set(-1.75, 1.5, -2.3);
-  group.add(fascia);
+function addPond(scene, mats, store) {
+  // Large prominent lake — Ecopark landmark feature
+  const pond = mkMesh(store.geo(box(7.5, 0.14, 5.0)), mats.water);
+  at(pond, 8.0, 0.04, -5.5);
+  scene.add(pond);
 
-  const signTexture = createSignTexture(store);
-  const signMaterial = store.material(new THREE.MeshBasicMaterial({ map: signTexture, transparent: true }));
-  const signText = plane(store, 4.05, 0.42, signMaterial);
-  signText.position.set(-1.75, 1.505, -2.345);
-  signText.rotation.x = 0;
-  group.add(signText);
-
-  for (const x of [-4.02, 0.52]) {
-    for (const z of [-0.68, -2.18]) {
-      const post = cylinderBetween(store, [x, 0.1, z], [x, 1.75, z], mats.rail);
-      group.add(post);
-    }
+  // Stone/kerb rim around lake
+  for (const [w, d, ox, oz] of [
+    [8.1, 0.28, 8.0,  -8.15],   // far edge
+    [8.1, 0.28, 8.0,  -2.85],   // near edge
+    [0.28, 5.3, 4.05, -5.5],    // left edge
+    [0.28, 5.3, 11.95,-5.5],    // right edge
+  ]) {
+    const rim = mkMesh(store.geo(box(w, 0.20, d)), mats.kerb);
+    at(rim, ox, 0.04, oz);
+    scene.add(rim);
   }
 
-  const dockBase = box(store, 5.6, 0.12, 0.54, mats.railDark);
-  dockBase.position.set(-1.75, 0.08, -1.33);
-  group.add(dockBase);
-
-  [-3.78, -2.74, -1.7, -0.66, 0.38].forEach((x, index) => {
-    const rack = addRack(group, mats, store, x, -1.32);
-    const light = sphere(store, 0.065, index % 2 === 0 ? mats.statusOn : mats.statusOff, 16);
-    light.position.set(x, 0.74, -1.72);
-    light.userData.available = index % 2 === 0;
-    group.add(light);
-    statusLights.push(light);
-    return rack;
-  });
-
-  return statusLights;
-}
-
-function addRack(group, mats, store, x, z) {
-  const left = cylinderBetween(store, [x - 0.25, 0.08, z], [x - 0.25, 0.62, z], mats.rail, 0.028);
-  const right = cylinderBetween(store, [x + 0.25, 0.08, z], [x + 0.25, 0.62, z], mats.rail, 0.028);
-  const top = cylinderBetween(store, [x - 0.25, 0.62, z], [x + 0.25, 0.62, z], mats.rail, 0.028);
-  group.add(left, right, top);
-}
-
-function addTrees(group, mats, store) {
-  [
-    [-6.3, -3.45, 0.68], [-5.2, -3.52, 0.55], [-3.8, -3.52, 0.62],
-    [1.5, -3.58, 0.6], [2.7, -3.46, 0.52], [6.4, -3.45, 0.68],
-    [-6.3, 3.78, 0.55], [-4.8, 3.72, 0.58], [-3.2, 3.82, 0.5],
-    [1.0, 3.8, 0.56], [2.6, 3.78, 0.5]
-  ].forEach(([x, z, scale]) => addTree(group, mats, store, x, z, scale));
-}
-
-function addTree(group, mats, store, x, z, scale = 1) {
-  const trunk = cylinderBetween(store, [x, 0.06, z], [x, 0.58 * scale, z], mats.treeTrunk, 0.07 * scale);
-  const crownA = sphere(store, 0.36 * scale, mats.treeA, 12);
-  crownA.position.set(x, 0.78 * scale, z);
-  crownA.scale.y = 0.88;
-  const crownB = sphere(store, 0.28 * scale, mats.treeB, 10);
-  crownB.position.set(x - 0.18 * scale, 0.68 * scale, z + 0.08 * scale);
-  const crownC = sphere(store, 0.26 * scale, mats.treeB, 10);
-  crownC.position.set(x + 0.2 * scale, 0.68 * scale, z - 0.05 * scale);
-  group.add(trunk, crownA, crownB, crownC);
-}
-
-function addBollards(group, mats, store) {
-  for (let x = -5.8; x <= 1.8; x += 1.25) addBollard(group, mats, store, x, 0.24);
-  for (let x = -5.1; x <= 2.4; x += 1.25) addBollard(group, mats, store, x, 3.37);
-}
-
-function addBollard(group, mats, store, x, z) {
-  const body = cylinderBetween(store, [x, 0.04, z], [x, 0.42, z], mats.bollard, 0.045);
-  const cap = sphere(store, 0.07, mats.bollardCap, 10);
-  cap.position.set(x, 0.46, z);
-  group.add(body, cap);
-}
-
-function addBikes(group, mats, store) {
-  return [
-    addBike(group, mats, store, { type: 'city', x: -3.75, z: -1.16, rotationY: 0.03, scale: 0.76 }),
-    addBike(group, mats, store, { type: 'tandem', x: -1.65, z: -1.18, rotationY: 0.02, scale: 0.64 }),
-    addBike(group, mats, store, { type: 'child', x: 0.36, z: -1.16, rotationY: 0.02, scale: 0.76 }),
-    addBike(group, mats, store, { type: 'city', x: -5.7, z: 0.9, rotationY: 0.18, scale: 0.7 }),
-    addBike(group, mats, store, { type: 'tandem', x: 4.15, z: 0.4, rotationY: -0.2, scale: 0.6 }),
-    addBike(group, mats, store, { type: 'child', x: 5.48, z: 0.96, rotationY: -0.12, scale: 0.7 })
-  ];
-}
-
-function addBike(group, mats, store, options) {
-  const type = options.type || 'city';
-  const bike = new THREE.Group();
-  bike.position.set(options.x || 0, 0.06, options.z || 0);
-  bike.rotation.y = options.rotationY || 0;
-  bike.scale.setScalar(options.scale || 1);
-
-  const colorMat = type === 'tandem' ? mats.tandem : type === 'child' ? mats.child : mats.city;
-  const wheelbase = type === 'tandem' ? 1.42 : 0.9;
-  const rearX = -wheelbase / 2;
-  const frontX = wheelbase / 2;
-  const wheelRadius = type === 'tandem' ? 0.32 : 0.29;
-
-  const rearWheel = addWheel(store, mats, wheelRadius);
-  rearWheel.position.set(rearX, wheelRadius, 0);
-  const frontWheel = addWheel(store, mats, wheelRadius);
-  frontWheel.position.set(frontX, wheelRadius, 0);
-  bike.add(rearWheel, frontWheel);
-
-  addFrameTube(bike, store, rearX, wheelRadius, -0.18, 0.72, colorMat);
-  addFrameTube(bike, store, -0.18, 0.72, 0.1, 0.42, colorMat);
-  addFrameTube(bike, store, 0.1, 0.42, rearX, wheelRadius, colorMat);
-  addFrameTube(bike, store, 0.1, 0.42, frontX, wheelRadius, colorMat);
-  addFrameTube(bike, store, -0.18, 0.72, frontX - 0.16, 0.7, colorMat);
-  addFrameTube(bike, store, frontX - 0.16, 0.7, frontX, wheelRadius, colorMat);
-
-  const fork = cylinderBetween(store, [frontX, wheelRadius, 0], [frontX - 0.12, 0.88, 0], mats.metal, 0.025);
-  const handle = cylinderBetween(store, [frontX - 0.22, 0.94, -0.16], [frontX - 0.02, 0.94, 0.16], mats.tire, 0.022);
-  const seatPost = cylinderBetween(store, [-0.18, 0.62, 0], [-0.24, 0.94, 0], mats.metal, 0.022);
-  const saddle = box(store, 0.32, 0.05, 0.16, mats.saddle);
-  saddle.position.set(-0.28, 0.98, 0);
-  saddle.rotation.z = -0.06;
-  bike.add(fork, handle, seatPost, saddle);
-
-  if (type === 'tandem') {
-    addFrameTube(bike, store, -0.62, 0.7, 0.28, 0.7, colorMat);
-    const secondPost = cylinderBetween(store, [0.28, 0.62, 0], [0.28, 0.94, 0], mats.metal, 0.022);
-    const secondSaddle = box(store, 0.3, 0.05, 0.16, mats.saddle);
-    secondSaddle.position.set(0.24, 0.98, 0);
-    const rearHandle = cylinderBetween(store, [-0.03, 0.86, -0.13], [0.17, 0.86, 0.13], mats.tire, 0.018);
-    bike.add(secondPost, secondSaddle, rearHandle);
-  } else if (type === 'child') {
-    const childSeat = box(store, 0.28, 0.24, 0.26, colorMat);
-    childSeat.position.set(rearX - 0.08, 0.86, 0);
-    const childBack = box(store, 0.08, 0.38, 0.28, colorMat);
-    childBack.position.set(rearX - 0.22, 1.02, 0);
-    const footLeft = box(store, 0.16, 0.03, 0.04, mats.metal);
-    footLeft.position.set(rearX - 0.06, 0.63, 0.22);
-    const footRight = footLeft.clone();
-    footRight.geometry = footLeft.geometry;
-    footRight.material = footLeft.material;
-    footRight.position.z = -0.22;
-    bike.add(childSeat, childBack, footLeft, footRight);
-  } else {
-    const basket = box(store, 0.28, 0.2, 0.26, mats.metal);
-    basket.position.set(frontX + 0.15, 0.72, 0);
-    basket.rotation.z = -0.05;
-    bike.add(basket);
+  // Pathway stones around lake perimeter
+  for (const [ox, oz, rw, rd] of [
+    [4.3, -5.5, 0.6, 4.6],  // left walkway
+    [11.7, -5.5, 0.6, 4.6], // right walkway
+  ]) {
+    const walk = mkMesh(store.geo(box(rw, 0.16, rd)), mats.plaza);
+    at(walk, ox, 0.04, oz);
+    scene.add(walk);
   }
 
-  const crank = torusMesh(store, 0.09, 0.012, mats.tire);
-  crank.position.set(0.08, 0.42, 0.025);
-  bike.add(crank);
-
-  group.add(bike);
-  return bike;
-}
-
-function addWheel(store, mats, radius) {
-  const wheel = new THREE.Group();
-  const tire = torusMesh(store, radius, 0.035, mats.tire);
-  tire.rotation.y = Math.PI / 2;
-  const rim = torusMesh(store, radius * 0.76, 0.01, mats.metal);
-  rim.rotation.y = Math.PI / 2;
-  const hub = sphere(store, 0.045, mats.metal, 10);
-
-  wheel.add(tire, rim, hub);
-  for (let index = 0; index < 8; index += 1) {
-    const angle = (Math.PI * 2 * index) / 8;
-    const spoke = cylinderBetween(
-      store,
-      [0, 0, 0],
-      [Math.cos(angle) * radius * 0.72, Math.sin(angle) * radius * 0.72, 0],
-      mats.metal,
-      0.004
-    );
-    wheel.add(spoke);
+  // Floating lily pad decorations (small flat circles on water)
+  for (const [px, pz] of [[6.5,-4.8],[9.2,-6.3],[11.0,-4.5],[7.0,-6.8]]) {
+    const lily = mkMesh(store.geo(cyl(0.18, 0.18, 0.04, 8)), mats.grass);
+    at(lily, px, 0.12, pz);
+    scene.add(lily);
   }
-  return wheel;
-}
 
-function addFrameTube(group, store, x1, y1, x2, y2, material) {
-  group.add(cylinderBetween(store, [x1, y1, 0], [x2, y2, 0], material, 0.026));
-}
-
-function createSignTexture(store) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 128;
-  const context = canvas.getContext('2d');
-
-  context.fillStyle = '#0b2f24';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = '#16a06e';
-  context.fillRect(0, 0, 512, 14);
-  context.fillRect(0, 114, 512, 14);
-  context.fillStyle = '#ffffff';
-  context.font = '800 34px Inter, Arial, sans-serif';
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText('ECOPARK BIKE HUB', 256, 54);
-  context.font = '700 19px Inter, Arial, sans-serif';
-  context.fillStyle = '#bfe7d1';
-  context.fillText('CITY / TANDEM / CHILD-SEAT', 256, 88);
-
-  const texture = store.texture(new THREE.CanvasTexture(canvas));
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function roundedPond(store, material, scale = 1) {
-  const shape = new THREE.Shape();
-  const points = [
-    [-1.45, -0.42], [-0.9, -0.82], [0.4, -0.78], [1.32, -0.35],
-    [1.44, 0.35], [0.64, 0.72], [-0.54, 0.68], [-1.42, 0.24]
-  ];
-  points.forEach(([x, z], index) => {
-    if (index === 0) shape.moveTo(x * scale, z * scale);
-    else shape.lineTo(x * scale, z * scale);
-  });
-  shape.closePath();
-  const pond = new THREE.Mesh(store.geometry(new THREE.ShapeGeometry(shape)), material);
-  pond.rotation.x = -Math.PI / 2;
-  pond.receiveShadow = true;
   return pond;
 }
 
-function box(store, width, height, depth, material) {
-  return new THREE.Mesh(store.geometry(new THREE.BoxGeometry(width, height, depth)), material);
+function addTree(scene, mats, store, x, z, scale = 1.0) {
+  const trunkH = 1.2 * scale;
+  const canopyR = 0.95 * scale;
+  const trunk = mkMesh(store.geo(cyl(0.14 * scale, 0.18 * scale, trunkH, 7)), mats.treeTrunk);
+  at(trunk, x, trunkH * 0.5, z);
+  // Layered canopy for fuller look
+  const canopy1 = mkMesh(store.geo(sph(canopyR, 8, 7)), mats.treeTop);
+  at(canopy1, x, trunkH + canopyR * 0.7, z);
+  const canopy2 = mkMesh(store.geo(sph(canopyR * 0.72, 7, 6)),
+    store.mat(new THREE.MeshLambertMaterial({ color: 0x2d6a2d })));
+  at(canopy2, x + 0.15 * scale, trunkH + canopyR * 1.1, z - 0.1 * scale);
+  scene.add(trunk, canopy1, canopy2);
+  return canopy1; // primary for sway
 }
 
-function sphere(store, radius, material, segments = 12) {
-  return new THREE.Mesh(store.geometry(new THREE.SphereGeometry(radius, segments, Math.max(8, Math.floor(segments * 0.75)))), material);
+function addTrees(scene, mats, store) {
+  // Trees along road (near side, roadside strip) — medium
+  const roadside = [
+    [-10, -4.5], [-7.5, -4.5], [-5, -4.5], [-2.5, -4.5],
+    [0,   -4.5], [2.5,  -4.5],
+  ];
+  // Large feature trees around/beside the lake
+  const lakeTrees = [
+    [4.0, -4.8, 1.4],   // lake left front
+    [4.0, -7.2, 1.3],   // lake left back
+    [12.2,-4.8, 1.5],   // lake right front (big feature)
+    [12.2,-7.5, 1.4],   // lake right back
+    [8.0, -9.2, 1.3],   // lake far back centre
+    [10.0,-9.0, 1.2],
+    [6.0, -9.0, 1.2],
+  ];
+  // Trees on far side of road (bottom of scene)
+  const farside = [
+    [-10, 6.2, 1.0], [-7, 6.2, 1.1], [-4, 6.0, 1.0],
+    [0,   6.2, 1.0], [3,  6.0, 1.0],
+  ];
+
+  const canopies = [];
+  for (const [x, z] of roadside) {
+    canopies.push(addTree(scene, mats, store, x, z, 0.95));
+  }
+  for (const [x, z, sc] of lakeTrees) {
+    canopies.push(addTree(scene, mats, store, x, z, sc));
+  }
+  for (const [x, z, sc] of farside) {
+    canopies.push(addTree(scene, mats, store, x, z, sc));
+  }
+  return canopies;
 }
 
-function torusMesh(store, radius, tube, material) {
-  return new THREE.Mesh(store.geometry(new THREE.TorusGeometry(radius, tube, 10, 32)), material);
+function addBollard(scene, mats, store, x, z) {
+  const body = mkMesh(store.geo(cyl(0.08, 0.1, 0.55, 7)), mats.bollard);
+  at(body, x, 0.275, z);
+  const cap  = mkMesh(store.geo(cyl(0.09, 0.09, 0.06, 7)), mats.bollardTop);
+  at(cap, x, 0.58, z);
+  scene.add(body, cap);
 }
 
-function plane(store, width, height, material) {
-  return new THREE.Mesh(store.geometry(new THREE.PlaneGeometry(width, height)), material);
+function addBollards(scene, mats, store) {
+  for (const x of [-7, -4.5, -2, 0, 2]) addBollard(scene, mats, store, x, -0.25);
+  for (const x of [-6, -3.5, -1, 1.5])  addBollard(scene, mats, store, x,  3.4);
 }
 
-function cylinderBetween(store, start, end, material, radius = 0.03) {
-  const a = new THREE.Vector3(...start);
-  const b = new THREE.Vector3(...end);
-  const direction = b.clone().sub(a);
-  const length = direction.length();
-  const cylinder = new THREE.Mesh(store.geometry(new THREE.CylinderGeometry(radius, radius, length, 12)), material);
-  cylinder.position.copy(a.clone().add(b).multiplyScalar(0.5));
-  cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-  return cylinder;
+/* ─────────────────────── BIKE HUB STATION ─────────────────────── */
+
+function addRack(scene, mats, store, cx, cz, statusMat) {
+  const base = mkMesh(store.geo(box(1.4, 0.1, 0.5)), mats.rackBase);
+  at(base, cx, 0.05, cz);
+  scene.add(base);
+
+  for (const dx of [-0.5, 0.5]) {
+    const post = mkMesh(store.geo(cyl(0.055, 0.055, 0.72, 6)), mats.rack);
+    at(post, cx + dx, 0.46, cz);
+    scene.add(post);
+  }
+
+  const bar = mkMesh(store.geo(box(1.1, 0.07, 0.07)), mats.rack);
+  at(bar, cx, 0.845, cz);
+  scene.add(bar);
+
+  const led = mkMesh(store.geo(sph(0.065, 5, 5)), statusMat);
+  at(led, cx, 0.92, cz);
+  scene.add(led);
+  return led;
+}
+
+function addHubCanopy(scene, mats, store) {
+  const roof = mkMesh(store.geo(box(6.5, 0.14, 2.8)), mats.rackBase);
+  at(roof, -1.5, 2.4, -2.1);
+  scene.add(roof);
+
+  for (const [dx, dz] of [[-2.8, -0.9], [2.8, -0.9], [-2.8, -3.3], [2.8, -3.3]]) {
+    const col = mkMesh(store.geo(cyl(0.08, 0.08, 2.3, 5)), mats.rack);
+    at(col, -1.5 + dx, 1.15, -2.1 + dz);
+    scene.add(col);
+  }
+
+  const sign = mkMesh(store.geo(box(5.2, 0.55, 0.08)), mats.signBg);
+  at(sign, -1.5, 2.15, -3.56);
+  scene.add(sign);
+
+  // Canvas sign text — no ctx.letterSpacing for cross-browser safety
+  const canvas = document.createElement('canvas');
+  canvas.width  = 512;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#1a3a5c';
+  ctx.fillRect(0, 0, 512, 64);
+  ctx.font         = 'bold 34px system-ui, sans-serif';
+  ctx.fillStyle    = '#f0f8ff';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BIKE HUB  \u00B7  ECOPARK', 256, 32);
+
+  const tex     = store.tex(new THREE.CanvasTexture(canvas));
+  const textMat = store.mat(new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  const signTxt = mkMesh(store.geo(box(5.2, 0.55, 0.09)), textMat);
+  at(signTxt, -1.5, 2.15, -3.57);
+  scene.add(signTxt);
+
+  const pad = mkMesh(store.geo(box(7.0, 0.17, 3.8)), mats.kerb);
+  at(pad, -1.5, 0.085, -2.1);
+  scene.add(pad);
+}
+
+function addHubStation(scene, mats, store) {
+  addHubCanopy(scene, mats, store);
+
+  const leds = [];
+  const rackCfgs = [
+    [-3.6, -1.8, 'statusOn'],
+    [-2.0, -1.8, 'statusOff'],
+    [-0.4, -1.8, 'statusOn'],
+    [ 1.2, -1.8, 'statusOff'],
+    [ 2.8, -1.8, 'statusOn'],
+    [ 4.4, -1.8, 'statusOff'],
+  ];
+  for (const [x, z, status] of rackCfgs) {
+    const led = addRack(scene, mats, store, x, z, mats[status]);
+    leds.push({ led, isOn: status === 'statusOn' });
+  }
+
+  // Small decorative bench near hub
+  for (const bx of [-5.5, -7.0]) {
+    const benchBase = mkMesh(store.geo(box(0.9, 0.12, 0.38)), mats.kerb);
+    at(benchBase, bx, 0.18, -0.8);
+    const benchSeat = mkMesh(store.geo(box(0.9, 0.07, 0.40)), mats.rackBase);
+    at(benchSeat, bx, 0.30, -0.8);
+    scene.add(benchBase, benchSeat);
+  }
+
+  return leds;
+}
+
+/* ─────────────────────────── BICYCLES ─────────────────────────── */
+
+function buildWheel(mats, store, r = 0.28) {
+  const g = new THREE.Group();
+  // Torus default lies flat (XZ plane). rotation.x = PI/2 stands it upright (XY plane).
+  // Bike travels along X axis, so an upright wheel faces the camera correctly.
+  const rim  = mkMesh(store.geo(torus(r, 0.028, 8, 16)), mats.bikeRim);
+  rim.rotation.x = Math.PI / 2;
+  const hub  = mkMesh(store.geo(cyl(0.05, 0.05, 0.07, 7)), mats.bikeGrey);
+  // hub axle runs along Z (depth), cylinder default is along Y → rotate X by PI/2
+  hub.rotation.x = Math.PI / 2;
+  const tyre = mkMesh(store.geo(torus(r, 0.042, 8, 16)), mats.bikeBlack);
+  tyre.rotation.x = Math.PI / 2;
+  g.add(rim, hub, tyre);
+  return g;
+}
+
+function buildHandlebar(mats, store) {
+  const g    = new THREE.Group();
+  // Horizontal stem bar running along Z axis (width of bike)
+  const stem = mkMesh(store.geo(box(0.06, 0.06, 0.36)), mats.bikeGrey);
+  g.add(stem);
+  // Grip ends
+  for (const s of [-1, 1]) {
+    const grip = mkMesh(store.geo(box(0.05, 0.05, 0.08)), mats.bikeBlack);
+    at(grip, 0, 0, s * 0.22);
+    g.add(grip);
+  }
+  return g;
+}
+
+function addCityBike(scene, mats, store, x, y, z, ry = 0) {
+  const root = new THREE.Group();
+  root.rotation.y = ry;
+
+  const wF = buildWheel(mats, store, 0.28); at(wF, 0.38, 0.28, 0);
+  const wR = buildWheel(mats, store, 0.28); at(wR, -0.38, 0.28, 0);
+  root.add(wF, wR);
+
+  const tt = mkMesh(store.geo(box(0.66, 0.04, 0.04)), mats.bikeCity);
+  at(tt, -0.02, 0.56, 0);
+  const st = mkMesh(store.geo(box(0.04, 0.5, 0.04)), mats.bikeCity);
+  at(st, -0.32, 0.44, 0);
+  root.add(tt, st);
+
+  const fork = mkMesh(store.geo(box(0.04, 0.38, 0.04)), mats.bikeGrey);
+  at(fork, 0.38, 0.48, 0);
+  const hb = buildHandlebar(mats, store);
+  at(hb, 0.38, 0.68, 0);
+  root.add(fork, hb);
+
+  const saddle = mkMesh(store.geo(box(0.22, 0.04, 0.1)), mats.bikeSaddle);
+  at(saddle, -0.3, 0.82, 0);
+  root.add(saddle);
+
+  // Basket
+  const bask = mkMesh(store.geo(box(0.22, 0.16, 0.18)), mats.bikeGrey);
+  at(bask, 0.48, 0.60, 0);
+  root.add(bask);
+
+  at(root, x, y, z);
+  scene.add(root);
+  return root;
+}
+
+function addTandemBike(scene, mats, store, x, y, z, ry = 0) {
+  const root = new THREE.Group();
+  root.rotation.y = ry;
+
+  const wF = buildWheel(mats, store, 0.30); at(wF,  0.65, 0.30, 0);
+  const wR = buildWheel(mats, store, 0.30); at(wR, -0.65, 0.30, 0);
+  root.add(wF, wR);
+
+  const tt = mkMesh(store.geo(box(1.15, 0.045, 0.045)), mats.bikeTandem);
+  at(tt, 0, 0.62, 0);
+  const sf = mkMesh(store.geo(box(0.045, 0.42, 0.045)), mats.bikeTandem);
+  at(sf, 0.32, 0.45, 0);
+  const sr = mkMesh(store.geo(box(0.045, 0.38, 0.045)), mats.bikeTandem);
+  at(sr, -0.42, 0.42, 0);
+  const bb = mkMesh(store.geo(box(1.1, 0.04, 0.04)), mats.bikeTandem);
+  at(bb, 0, 0.10, 0);
+  root.add(tt, sf, sr, bb);
+
+  const fork = mkMesh(store.geo(box(0.045, 0.38, 0.045)), mats.bikeGrey);
+  at(fork, 0.65, 0.50, 0);
+  const hb = buildHandlebar(mats, store);
+  at(hb, 0.65, 0.72, 0);
+  root.add(fork, hb);
+
+  for (const sx of [0.18, -0.52]) {
+    const sad = mkMesh(store.geo(box(0.24, 0.045, 0.12)), mats.bikeSaddle);
+    at(sad, sx, 0.88, 0);
+    root.add(sad);
+  }
+
+  at(root, x, y, z);
+  scene.add(root);
+  return root;
+}
+
+function addChildBike(scene, mats, store, x, y, z, ry = 0) {
+  const root = new THREE.Group();
+  root.rotation.y = ry;
+
+  const wF = buildWheel(mats, store, 0.27); at(wF,  0.37, 0.27, 0);
+  const wR = buildWheel(mats, store, 0.27); at(wR, -0.37, 0.27, 0);
+  root.add(wF, wR);
+
+  const tt = mkMesh(store.geo(box(0.64, 0.045, 0.045)), mats.bikeChild);
+  at(tt, 0, 0.56, 0);
+  const st = mkMesh(store.geo(box(0.045, 0.42, 0.045)), mats.bikeChild);
+  at(st, -0.22, 0.42, 0);
+  root.add(tt, st);
+
+  const fork = mkMesh(store.geo(box(0.04, 0.36, 0.04)), mats.bikeGrey);
+  at(fork, 0.37, 0.46, 0);
+  const hb = buildHandlebar(mats, store);
+  at(hb, 0.37, 0.66, 0);
+  root.add(fork, hb);
+
+  const sad = mkMesh(store.geo(box(0.20, 0.04, 0.1)), mats.bikeSaddle);
+  at(sad, -0.2, 0.78, 0);
+  root.add(sad);
+
+  // Child seat
+  const csb = mkMesh(store.geo(box(0.26, 0.14, 0.2)), mats.bikeChild);
+  at(csb, -0.46, 0.62, 0);
+  const csBack = mkMesh(store.geo(box(0.06, 0.22, 0.2)), mats.bikeChild);
+  at(csBack, -0.57, 0.72, 0);
+  const csPad = mkMesh(store.geo(box(0.22, 0.06, 0.17)), mats.bikeSaddle);
+  at(csPad, -0.45, 0.70, 0);
+  root.add(csb, csBack, csPad);
+
+  at(root, x, y, z);
+  scene.add(root);
+  return root;
+}
+
+function addBikes(scene, mats, store) {
+  // Docked in racks
+  addCityBike(scene,   mats, store, -3.6, 0.0, -1.8, 0);
+  addTandemBike(scene, mats, store, -0.4, 0.0, -1.8, 0);
+  addChildBike(scene,  mats, store,  2.8, 0.0, -1.8, 0);
+
+  // Parked loose
+  addTandemBike(scene, mats, store,  5.8, 0.0, -0.3, -Math.PI * 0.05);
+  addChildBike(scene,  mats, store,  4.5, 0.0,  0.5,  Math.PI * 0.10);
+}
+
+/* ─────────────────────────── MOVING BIKE ─────────────────────── */
+
+/**
+ * Build a simple silhouette city bike for the lane animation.
+ * Returns root group (not yet in scene).
+ */
+function buildMovingBike(mats, store) {
+  const root = new THREE.Group();
+  const wF = buildWheel(mats, store, 0.26); at(wF,  0.35, 0.26, 0);
+  const wR = buildWheel(mats, store, 0.26); at(wR, -0.35, 0.26, 0);
+  root.add(wF, wR);
+
+  const tt = mkMesh(store.geo(box(0.6, 0.04, 0.04)), mats.bikeCity);
+  at(tt, 0, 0.52, 0);
+  const st = mkMesh(store.geo(box(0.04, 0.44, 0.04)), mats.bikeCity);
+  at(st, -0.28, 0.42, 0);
+  const fork = mkMesh(store.geo(box(0.04, 0.35, 0.04)), mats.bikeGrey);
+  at(fork, 0.35, 0.44, 0);
+  root.add(tt, st, fork);
+
+  const hb = buildHandlebar(mats, store);
+  at(hb, 0.35, 0.64, 0);
+  root.add(hb);
+
+  const sad = mkMesh(store.geo(box(0.2, 0.04, 0.09)), mats.bikeSaddle);
+  at(sad, -0.28, 0.76, 0);
+  root.add(sad);
+
+  // Rider (simple silhouette)
+  const body = mkMesh(store.geo(box(0.14, 0.32, 0.12)), mats.personA);
+  at(body, -0.05, 1.05, 0);
+  const head = mkMesh(store.geo(sph(0.1, 6, 5)), mats.skin);
+  at(head, -0.01, 1.28, 0);
+  root.add(body, head);
+
+  return root;
+}
+
+/* ─────────────────────────── PATH UTILS ─────────────────────── */
+
+/**
+ * Compute arc-length-parameterised closed path.
+ * Returns function(t) → {x, z, angle} where t ∈ [0,1).
+ */
+function makeClosedPath(points) {
+  const n = points.length;
+  const segs = [];
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % n];
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const len = Math.sqrt(dx * dx + dz * dz);
+    total += len;
+    segs.push({ a, b, dx, dz, len, cum: total });
+  }
+  return function samplePath(t) {
+    const target = ((t % 1) + 1) % 1;          // clamp [0,1)
+    const dist = target * total;
+    let seg = segs[segs.length - 1];
+    for (let i = 0; i < segs.length; i++) {
+      if (segs[i].cum >= dist) { seg = segs[i]; break; }
+    }
+    const prev = seg.a;
+    const cumPrev = seg.cum - seg.len;
+    const localT = seg.len > 0 ? (dist - cumPrev) / seg.len : 0;
+    return {
+      x:     prev[0] + seg.dx * localT,
+      z:     prev[1] + seg.dz * localT,
+      angle: Math.atan2(seg.dx, seg.dz),
+    };
+  };
+}
+
+/* ─────────────────────────── PEDESTRIANS ─────────────────────── */
+
+/**
+ * Build a low-poly person.
+ * Pivot groups for limbs are placed AT the joint (shoulder / hip)
+ * so rotation.x swings the limb correctly downward from that joint.
+ */
+function buildPerson(mats, store, jackMat, scale = 1.0) {
+  const root = new THREE.Group();
+  root.scale.setScalar(scale);
+
+  // ── Torso (box, origin at centre)
+  const torso = mkMesh(store.geo(box(0.20, 0.28, 0.13)), jackMat);
+  at(torso, 0, 0.50, 0);          // torso centre at y=0.50
+  root.add(torso);
+
+  // ── Head (sphere, sitting on top of torso)
+  const head = mkMesh(store.geo(sph(0.115, 7, 6)), mats.skin);
+  at(head, 0, 0.785, 0);
+  root.add(head);
+
+  // ── Hips pivot at y=0.36 (bottom of torso)
+  // Left leg: pivot at hip, limb hangs DOWN from pivot
+  const leftLeg = new THREE.Group();
+  at(leftLeg, -0.055, 0.36, 0);
+  const llMesh = mkMesh(store.geo(box(0.085, 0.26, 0.085)), mats.pants);
+  at(llMesh, 0, -0.13, 0);        // hang down from hip pivot
+  leftLeg.add(llMesh);
+  root.add(leftLeg);
+
+  const rightLeg = new THREE.Group();
+  at(rightLeg, 0.055, 0.36, 0);
+  const rlMesh = mkMesh(store.geo(box(0.085, 0.26, 0.085)), mats.pants);
+  at(rlMesh, 0, -0.13, 0);
+  rightLeg.add(rlMesh);
+  root.add(rightLeg);
+
+  // ── Shoulder pivots at y=0.62 (top of torso)
+  const leftArm = new THREE.Group();
+  at(leftArm, -0.145, 0.62, 0);
+  const laMesh = mkMesh(store.geo(box(0.075, 0.24, 0.075)), jackMat);
+  at(laMesh, 0, -0.12, 0);        // hang down from shoulder pivot
+  leftArm.add(laMesh);
+  root.add(leftArm);
+
+  const rightArm = new THREE.Group();
+  at(rightArm, 0.145, 0.62, 0);
+  const raMesh = mkMesh(store.geo(box(0.075, 0.24, 0.075)), jackMat);
+  at(raMesh, 0, -0.12, 0);
+  rightArm.add(raMesh);
+  root.add(rightArm);
+
+  // Feet (small boxes, below hips)
+  for (const [sx] of [[-0.055], [0.055]]) {
+    const foot = mkMesh(store.geo(box(0.075, 0.055, 0.13)), mats.bikeBlack);
+    at(foot, sx, 0.085, 0.025);
+    root.add(foot);
+  }
+
+  return { root, leftLeg, rightLeg, leftArm, rightArm };
+}
+
+/**
+ * Add all pedestrian figures to scene.
+ * Returns array of update() functions called each frame.
+ */
+function addPedestrians(scene, mats, store) {
+  const updaters = [];
+
+  /* ── Person A: walks a loop across the plaza ── */
+  const pathA = makeClosedPath([
+    [-7.5,  0.1],
+    [-4.0,  0.1],
+    [-1.5, -0.5],
+    [ 1.0, -0.4],
+    [-2.0, -1.0],
+    [-5.0, -0.8],
+    [-7.5,  0.1],
+  ]);
+
+  const pA = buildPerson(mats, store, mats.personA, 0.95);
+  scene.add(pA.root);
+
+  const LOOP_A = 14.0; // seconds for one circuit
+  updaters.push(function updatePersonA(elapsed) {
+    const t = (elapsed % LOOP_A) / LOOP_A;
+    const pos = pathA(t);
+    at(pA.root, pos.x, 0, pos.z);
+    pA.root.rotation.y = pos.angle + Math.PI * 0.5;
+
+    const stride = Math.sin(t * Math.PI * 2 * 6) * 0.4; // leg swing
+    pA.leftLeg.rotation.x  =  stride;
+    pA.rightLeg.rotation.x = -stride;
+    pA.leftArm.rotation.x  = -stride * 0.5;
+    pA.rightArm.rotation.x =  stride * 0.5;
+  });
+
+  /* ── Person B: stands near rack, bobs and inspects ── */
+  const pB = buildPerson(mats, store, mats.personB, 0.90);
+  at(pB.root, 3.5, 0, -1.6);
+  pB.root.rotation.y = -Math.PI * 0.35;
+  scene.add(pB.root);
+
+  updaters.push(function updatePersonB(elapsed) {
+    // Subtle body bob and arm raise (checking bike)
+    pB.root.position.y = Math.sin(elapsed * 1.2) * 0.018;
+    const inspect = 0.2 + 0.25 * Math.sin(elapsed * 0.7);
+    pB.rightArm.rotation.x = -inspect;
+    pB.leftArm.rotation.x  = -inspect * 0.3;
+  });
+
+  /* ── Child C: small figure near pond, waves arm ── */
+  const pC = buildPerson(mats, store, mats.personC, 0.65);
+  at(pC.root, 6.2, 0, -3.8);
+  scene.add(pC.root);
+
+  updaters.push(function updatePersonC(elapsed) {
+    // Wave + little jump-bob
+    pC.root.position.y = Math.max(0, Math.sin(elapsed * 3.1) * 0.07);
+    pC.rightArm.rotation.x = -0.5 - 0.7 * Math.abs(Math.sin(elapsed * 2.8));
+    pC.leftArm.rotation.x  = 0.2 * Math.sin(elapsed * 1.4);
+    pC.root.rotation.y = Math.PI * 0.15 + 0.18 * Math.sin(elapsed * 0.5);
+  });
+
+  return updaters;
+}
+
+/* ─────────────────────────── LIGHTING ─────────────────────────── */
+function addLighting(scene) {
+  scene.add(new THREE.AmbientLight(C.ambientLight, 1.2));
+
+  const sun = new THREE.DirectionalLight(C.sunLight, 2.0);
+  sun.position.set(4, 16, 14);   // from same side as camera → consistent shadows
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { near: 0.5, far: 80, left: -20, right: 20, top: 20, bottom: -20 });
+  scene.add(sun);
+
+  const fill = new THREE.DirectionalLight(0xb0d8ff, 0.55);
+  fill.position.set(-6, 8, -4);
+  scene.add(fill);
+}
+
+/* ─────────────────────────── CAMERA ─────────────────────────── */
+function makeCamera(w, h) {
+  const aspect  = w / h;
+  const frustum = 10.0;
+  const cam = new THREE.OrthographicCamera(
+    -frustum * aspect, frustum * aspect,
+    frustum, -frustum,
+    0.1, 200
+  );
+  // True side-on isometric: camera directly to the side + elevated
+  // Road (X-axis) appears perfectly horizontal in viewport.
+  // Azimuth = 0° (pure +Z side), elevation ≈ 45°
+  cam.position.set(0, 18, 18);
+  cam.lookAt(2, 0, -2.0);
+  return cam;
+}
+
+/* ─────────────────────────── RESIZE ─────────────────────────── */
+function makeResizeHandler(renderer, camera, container) {
+  return function onResize() {
+    const w = container.clientWidth  || 600;
+    const h = container.clientHeight || 320;
+    const pr = Math.min(window.devicePixelRatio || 1, 2);
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(pr);
+
+    const aspect  = w / h;
+    const frustum = 10.0;
+    camera.left   = -frustum * aspect;
+    camera.right  =  frustum * aspect;
+    camera.top    =  frustum;
+    camera.bottom = -frustum;
+    camera.updateProjectionMatrix();
+  };
+}
+
+/* ─────────────────────────── ANIMATION HELPERS ─────────────────── */
+
+function animateBikeAlongLane(bike, elapsed) {
+  // Bike lane centre line is at z ≈ 0.7, road runs along X.
+  // Loop: x from -11 to +11, then back (closed loop via path).
+  const LOOP = 16.0; // seconds
+  const t = (elapsed % LOOP) / LOOP;
+
+  // Smooth closed loop: go left-to-right then right-to-left via sin curve
+  // Use parametric: x = cos(2πt) * 10, which gives smooth ping-pong
+  const x = Math.cos(t * Math.PI * 2) * 10.2;
+  const dx = -Math.sin(t * Math.PI * 2); // derivative for heading
+
+  bike.position.x = x;
+  bike.position.z = 0.7;
+  bike.position.y = 0;
+
+  // Face direction of travel
+  bike.rotation.y = Math.atan2(dx, 0) + (dx < 0 ? Math.PI : 0);
+}
+
+function animateStatusLights(leds, elapsed) {
+  for (const { led, isOn } of leds) {
+    const s = isOn
+      ? 1.0 + 0.18 * Math.abs(Math.sin(elapsed * 2.1))
+      : 0.85 + 0.06 * Math.abs(Math.sin(elapsed * 0.9 + 1.2));
+    led.scale.setScalar(s);
+  }
+}
+
+function animatePond(pond, elapsed) {
+  // Wider shimmer range on large lake surface
+  pond.material.opacity = 0.82 + 0.10 * (0.5 + 0.5 * Math.sin(elapsed * 1.1));
+}
+
+function animateTrees(canopies, elapsed) {
+  // Very subtle sway, each tree slightly offset
+  for (let i = 0; i < canopies.length; i++) {
+    const phase = i * 0.61;
+    canopies[i].rotation.z = 0.015 * Math.sin(elapsed * 0.8 + phase);
+    canopies[i].rotation.x = 0.010 * Math.sin(elapsed * 0.6 + phase + 1.0);
+  }
+}
+
+/* ─────────────────────────── MOUNT (public API) ─────────────────── */
+export function mountScene(target) {
+  // Clean up any previously mounted scene
+  if (cleanupScene) cleanupScene();
+
+  if (!target) return;
+
+  /* ── Renderer ── */
+  const w  = target.clientWidth  || 600;
+  const h  = target.clientHeight || 320;
+  const pr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true,
+    preserveDrawingBuffer: true,
+  });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(pr);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x000000, 0);
+
+  const canvas = renderer.domElement;
+  canvas.classList.add('park-scene-canvas');
+  canvas.style.cssText = 'display:block;width:100%;height:100%;';
+  target.replaceChildren(canvas);
+
+  /* ── Scene ── */
+  const scene = new THREE.Scene();
+
+  /* ── Dispose store & materials ── */
+  const store = new DisposeStore();
+  const mats  = makeMats(store);
+
+  /* ── World ── */
+  addLighting(scene);
+  addGround(scene, mats, store);
+  addRoad(scene, mats, store);
+  addGrass(scene, mats, store);
+  const pond     = addPond(scene, mats, store);
+  const canopies = addTrees(scene, mats, store);
+  addBollards(scene, mats, store);
+  const leds     = addHubStation(scene, mats, store);
+  addBikes(scene, mats, store);
+
+  // Animated bike on lane
+  const movingBike = buildMovingBike(mats, store);
+  scene.add(movingBike);
+
+  // Pedestrians
+  const pedUpdaters = addPedestrians(scene, mats, store);
+
+  /* ── Camera ── */
+  const camera = makeCamera(w, h);
+
+  /* ── Resize ── */
+  const onResize = makeResizeHandler(renderer, camera, target);
+  window.addEventListener('resize', onResize);
+
+  /* ── Reduced motion check ── */
+  const prefersReduced = typeof window !== 'undefined'
+    && window.matchMedia
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── Animate ── */
+  let raf     = null;
+  let elapsed = 0;
+  let lastTs  = null;
+
+  function animate(ts) {
+    raf = requestAnimationFrame(animate);
+    if (lastTs === null) lastTs = ts;
+    const dt = Math.min((ts - lastTs) / 1000, 0.05); // cap at 50ms
+    lastTs = ts;
+    elapsed += prefersReduced ? 0 : dt;
+
+    animateBikeAlongLane(movingBike, elapsed);
+    for (const upd of pedUpdaters) upd(elapsed);
+    animateStatusLights(leds, elapsed);
+    animatePond(pond, elapsed);
+    animateTrees(canopies, elapsed);
+
+    renderer.render(scene, camera);
+  }
+
+  // Render at least one frame even if reduced motion
+  if (prefersReduced) {
+    // Single static frame
+    animateBikeAlongLane(movingBike, 0);
+    for (const upd of pedUpdaters) upd(0);
+    renderer.render(scene, camera);
+  } else {
+    raf = requestAnimationFrame(animate);
+  }
+
+  /* ── Cleanup ── */
+  function cleanup() {
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    window.removeEventListener('resize', onResize);
+    store.flush();
+    renderer.dispose();
+    target.replaceChildren();
+    cleanupScene = null;
+  }
+
+  cleanupScene = cleanup;
+  return cleanup;
 }

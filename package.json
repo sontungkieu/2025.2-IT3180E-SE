@@ -2,7 +2,7 @@
   "name": "ecopark-bicycle-parking",
   "version": "1.0.0",
   "private": true,
-  "description": "Local fullstack web app for Ecopark Bicycle Parking requirements analysis.",
+  "description": "GCP-ready fullstack platform for Ecopark Bicycle Parking requirements analysis.",
   "scripts": {
     "dev": "node server/index.js",
     "reset-db": "node server/reset-db.js",
