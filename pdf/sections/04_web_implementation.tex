@@ -92,6 +92,44 @@ workspace vận hành và màn GPS hỗ trợ demo use case.
 \caption{Màn đăng nhập/đăng ký và 3D Bike Hub preview}
 \end{figure}
 
+\subsection{UC001 screen evidence}
+Chuỗi ảnh dưới đây được chụp trực tiếp bằng script
+\texttt{npm run screenshots:uc001}. Chuỗi này minh chứng basic flow UC001 và
+alternative flow 1: hệ thống chặn form đăng ký khi thiếu thông tin bắt buộc,
+hiển thị trường lỗi và giữ khách ở bước nhập liệu.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.48\textwidth,height=0.52\textheight,keepaspectratio]{uc001_flow/uc001_01_register_form.png}
+\caption{UC001 bước 3: khách mở form tạo tài khoản với họ tên, email, số điện thoại, mật khẩu, CCCD/CMND, địa chỉ và loại khách}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth,height=0.44\textheight,keepaspectratio]{uc001_flow/uc001_02_missing_required_fields.png}
+\caption{UC001 alternative flow 1: thiếu email bắt buộc, UI giữ form tại bước nhập và hiển thị lỗi rõ ràng}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{minipage}{0.31\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{uc001_flow/uc001_03_account_created_unverified.png}\\
+{\scriptsize Tài khoản tạo xong, email chưa xác minh}
+\end{minipage}\hfill
+\begin{minipage}{0.31\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{uc001_flow/uc001_04_email_code_ready.png}\\
+{\scriptsize Mã xác minh demo-local được tạo trong platform}
+\end{minipage}\hfill
+\begin{minipage}{0.31\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.42\textheight,keepaspectratio]{uc001_flow/uc001_05_email_verified.png}\\
+{\scriptsize Email chuyển sang trạng thái đã xác minh}
+\end{minipage}
+\caption{UC001 bước 5--10: trạng thái tài khoản, mã xác minh email và hồ sơ đủ điều kiện thuê}
+\end{figure}
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth,height=0.42\textheight,keepaspectratio]{customer_rent_desktop.png}
@@ -296,9 +334,13 @@ Repo cung cấp các lệnh vận hành chính:
   \item \texttt{npm run reset-db}: tạo lại SQLite database demo/local.
   \item \texttt{npm run dev}: chạy web app tại \texttt{http://127.0.0.1:4173}.
   \item \texttt{/gd}: mở demo director để kéo thả vị trí xe theo tuyến đường demo và tua đồng hồ hệ thống.
+  \item \texttt{npm run check}: kiểm tra cú pháp JavaScript cho app, server, test và script automation.
   \item \texttt{npm test}: chạy test nghiệp vụ back-end.
+  \item \texttt{npm run test:coverage}: chạy test back-end kèm Node.js coverage report.
   \item \texttt{npm run smoke:ui}: kiểm tra render giao diện desktop/mobile bằng Playwright.
   \item \texttt{npm run smoke:uc}: chạy pipeline UI cho các luồng UC chính và một số alternative flow.
+  \item \texttt{npm run screenshots:uc001}: sinh bộ ảnh UC001 và alternative flow 1 dùng trong report.
+  \item \texttt{npm run docker:build}: kiểm tra container deployable cho target GCP.
 \end{itemize}
 
 \subsection{Test coverage}
@@ -307,9 +349,12 @@ Repo cung cấp các lệnh vận hành chính:
 \textbf{Test layer} & \textbf{Coverage} & \textbf{Evidence/command} \\
 \midrule
 Backend API tests & Đăng ký, validation input, password policy, nâng cấp hash SHA-256 cũ sang PBKDF2, email verification, reset password, duplicate email/phone/CCCD, blocked identity, resident pending, held-bike availability, cancel request, exchange bike, staff station scope, handover, capacity guard, return pricing, reports, audit logs, concurrent sessions. & \texttt{npm test} \\
+Backend coverage & Coverage hiện tại theo Node.js built-in coverage: line 78.93\%, branch 69.31\%, functions 80.58\%. & \texttt{npm run test:coverage} \\
 UI smoke tests & Auth/customer/admin desktop-tablet-mobile render, GSAP load, Three.js canvas pixel, Leaflet marker, custom report dropdown, scale tiền của chart báo cáo, staff wide table/chart không scroll ngang, bảng vận hành hẹp dạng row-card, console error và horizontal overflow. & \texttt{npm run smoke:ui} \\
 UC smoke tests & GPS context riêng, 2 customer + 2 admin sessions, request/cancel/request again, staff handover, return ticket, chart dashboard, audit log và CSV report export. & \texttt{npm run smoke:uc} \\
-Manual visual review & Screenshot auth, customer rental flow, operations workspace, mobile dock và GPS route. & Ảnh trong \texttt{temp/} và report UI section. \\
+Screenshot evidence & Bộ ảnh UC001 basic flow và alternative flow 1 được sinh từ chính app bằng Playwright. & \texttt{npm run screenshots:uc001} \\
+CI/CD automation & GitHub Actions chạy static check, coverage, UI smoke, UC smoke và build Docker image deployable trên push/PR. & \texttt{.github/workflows/ci.yml} \\
+Manual visual review & Screenshot auth, customer rental flow, operations workspace, mobile dock và GPS route. & Ảnh trong report UI section. \\
 \bottomrule
 \end{longtable}
 

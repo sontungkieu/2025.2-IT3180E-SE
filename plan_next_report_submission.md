@@ -42,11 +42,14 @@ presentation for Ecopark Bicycle Parking.
 - Reframe `pdf/main.tex` as a project report instead of a use-case-only document.
 - Add sections required by `report_requirements.png`.
 - Include screenshots from the current UI for the interface design section.
+- Include a concrete UC001 action sequence: registration form, missing required
+  field alternative flow, account status, demo email code and verified email.
 - Include `/gd` screenshot as the combined GPS/time-control evidence for
   alternative-flow demonstration.
 - Keep existing UC001--UC005 detail tables as report appendix-grade depth.
 - Include the implemented chart dashboard and audit log in UI/API/testing sections.
 - Build `pdf/main.pdf` and clean LaTeX intermediate files.
+- Keep README badges aligned with latest CI/test/coverage status.
 
 ## Slide work items
 
