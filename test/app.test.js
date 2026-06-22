@@ -61,6 +61,32 @@ function registrationPayload(overrides = {}) {
   };
 }
 
+const STATION_LOCATIONS = {
+  1: { lat: 20.953823, lng: 105.932914 },
+  2: { lat: 20.950889, lng: 105.936712 },
+  3: { lat: 20.946341, lng: 105.934224 }
+};
+
+function stationLocation(stationId) {
+  return { ...STATION_LOCATIONS[Number(stationId)] };
+}
+
+function rentalRequestBody({ stationId, bikeId, requestedDurationMinutes = 60, location = stationLocation(stationId) }) {
+  return {
+    stationId,
+    bikeId,
+    requestedDurationMinutes,
+    userLocation: location
+  };
+}
+
+function returnConfirmationBody(returnStationId, location = stationLocation(returnStationId)) {
+  return {
+    returnStationId,
+    userLocation: location
+  };
+}
+
 test('registration validates duplicate email', async () => {
   const fixture = await startTestServer();
   const api = client(fixture.baseUrl);
@@ -193,7 +219,7 @@ test('new customers verify email before creating rental requests', async () => {
 
     const blocked = await api.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 2, bikeId: 3 })
     });
     assert.equal(blocked.response.status, 403);
     assert.match(blocked.payload.error, /Email/);
@@ -207,7 +233,7 @@ test('new customers verify email before creating rental requests', async () => {
 
     const request = await api.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 2, bikeId: 3 })
     });
     assert.equal(request.response.status, 201);
   } finally {
@@ -268,10 +294,64 @@ test('blocked identities cannot submit rental requests', async () => {
     });
     const request = await resident.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 3, bikeId: 7 })
     });
     assert.equal(request.response.status, 403);
     assert.match(request.payload.error, /identity|CCCD/i);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('pickup and handover require customer location inside station radius', async () => {
+  const fixture = await startTestServer();
+  const customer = client(fixture.baseUrl);
+  const admin = client(fixture.baseUrl);
+  try {
+    await customer.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'resident@ecopark.test', password: 'resident123' }
+    });
+    const outside = await customer.request('/api/rental-requests', {
+      method: 'POST',
+      body: rentalRequestBody({
+        stationId: 3,
+        bikeId: 7,
+        location: { lat: 20.9918, lng: 105.8784 }
+      })
+    });
+    assert.equal(outside.response.status, 403);
+    assert.match(outside.payload.error, /within/i);
+
+    const request = await customer.request('/api/rental-requests', {
+      method: 'POST',
+      body: rentalRequestBody({ stationId: 3, bikeId: 7 })
+    });
+    assert.equal(request.response.status, 201);
+    fixture.server.db.prepare(`
+      UPDATE rental_requests
+      SET pickup_latitude = 20.9918,
+          pickup_longitude = 105.8784,
+          pickup_distance_meters = 8000
+      WHERE request_id = ?
+    `).run(request.payload.request.request_id);
+
+    await admin.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@ecopark.test', password: 'admin123' }
+    });
+    const handover = await admin.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203000222',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203000222'
+      }
+    });
+    assert.equal(handover.response.status, 403);
+    assert.match(handover.payload.error, /Handover location/i);
   } finally {
     await fixture.close();
   }
@@ -301,7 +381,7 @@ test('pending resident card rents as visitor without resident discount', async (
     });
     const request = await customer.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 2, bikeId: 3 })
     });
     assert.equal(request.response.status, 201);
 
@@ -319,6 +399,11 @@ test('pending resident card rents as visitor without resident discount', async (
         depositDocumentHeld: '001203999831'
       }
     });
+    const confirmedReturn = await customer.request(`/api/customer/rentals/${handover.payload.rental.rental_id}/confirm-return`, {
+      method: 'POST',
+      body: returnConfirmationBody(2)
+    });
+    assert.equal(confirmedReturn.response.status, 200);
     const returned = await admin.request('/api/staff/return', {
       method: 'POST',
       body: {
@@ -329,6 +414,77 @@ test('pending resident card rents as visitor without resident discount', async (
       }
     });
     assert.equal(returned.payload.ticket.resident_discount_amount, 0);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('visitor profile never receives resident discount from a stale eligibility flag', async () => {
+  const fixture = await startTestServer();
+  const customer = client(fixture.baseUrl);
+  const admin = client(fixture.baseUrl);
+  try {
+    const registered = await customer.request('/api/auth/register', {
+      method: 'POST',
+      body: registrationPayload({
+        email: 'visitor-stale-discount@example.test',
+        phone: '0911111132',
+        identityNumber: '001203999832',
+        customerType: 'visitor'
+      })
+    });
+    assert.equal(registered.response.status, 201);
+    fixture.server.db.prepare(`
+      UPDATE customer_profiles
+      SET discount_eligible = 1
+      WHERE customer_id = ?
+    `).run(registered.payload.user.user_id);
+
+    await customer.request('/api/auth/verify-email', {
+      method: 'POST',
+      body: { code: registered.payload.demoCode }
+    });
+    const session = await customer.request('/api/session');
+    assert.equal(session.payload.user.profile.customer_type, 'visitor');
+    assert.equal(session.payload.user.profile.discount_eligible, 0);
+
+    const request = await customer.request('/api/rental-requests', {
+      method: 'POST',
+      body: rentalRequestBody({ stationId: 2, bikeId: 3 })
+    });
+    assert.equal(request.response.status, 201);
+
+    await admin.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'admin@ecopark.test', password: 'admin123' }
+    });
+    const handover = await admin.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203999832',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203999832'
+      }
+    });
+    assert.equal(handover.response.status, 201);
+    await customer.request(`/api/customer/rentals/${handover.payload.rental.rental_id}/confirm-return`, {
+      method: 'POST',
+      body: returnConfirmationBody(2)
+    });
+    const returned = await admin.request('/api/staff/return', {
+      method: 'POST',
+      body: {
+        rentalId: handover.payload.rental.rental_id,
+        returnStationId: 2,
+        returnedAt: new Date(new Date(handover.payload.rental.started_at).getTime() + 60 * 60000).toISOString(),
+        bicycleCondition: 'available'
+      }
+    });
+    assert.equal(returned.payload.ticket.base_fee, 50000);
+    assert.equal(returned.payload.ticket.resident_discount_amount, 0);
+    assert.equal(returned.payload.ticket.total_amount, 50000);
   } finally {
     await fixture.close();
   }
@@ -357,7 +513,7 @@ test('customer can cancel pending request and release held bike', async () => {
     });
     const request = await api.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 3, bikeId: 7 })
     });
     assert.equal(request.response.status, 201);
 
@@ -464,7 +620,7 @@ test('staff only sees and processes requests at assigned station', async () => {
     });
     const request = await resident.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 3, bikeId: 7 })
     });
     assert.equal(request.response.status, 201);
 
@@ -515,6 +671,65 @@ test('station capacity update rejects values below current bike count', async ()
   }
 });
 
+test('return ticket requires customer confirmation inside return station radius', async () => {
+  const fixture = await startTestServer();
+  const customer = client(fixture.baseUrl);
+  const staff = client(fixture.baseUrl);
+  try {
+    await customer.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'resident@ecopark.test', password: 'resident123' }
+    });
+    const request = await customer.request('/api/rental-requests', {
+      method: 'POST',
+      body: rentalRequestBody({ stationId: 2, bikeId: 3 })
+    });
+    assert.equal(request.response.status, 201);
+
+    await staff.request('/api/auth/login', {
+      method: 'POST',
+      body: { email: 'staff@ecopark.test', password: 'staff123' }
+    });
+    const handover = await staff.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: request.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203000222',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203000222'
+      }
+    });
+    assert.equal(handover.response.status, 201);
+
+    const unconfirmedReturn = await staff.request('/api/staff/return', {
+      method: 'POST',
+      body: {
+        rentalId: handover.payload.rental.rental_id,
+        returnStationId: 2,
+        bicycleCondition: 'available'
+      }
+    });
+    assert.equal(unconfirmedReturn.response.status, 409);
+    assert.match(unconfirmedReturn.payload.error, /confirm return/i);
+
+    const farConfirmation = await customer.request(`/api/customer/rentals/${handover.payload.rental.rental_id}/confirm-return`, {
+      method: 'POST',
+      body: returnConfirmationBody(2, { lat: 20.9918, lng: 105.8784 })
+    });
+    assert.equal(farConfirmation.response.status, 403);
+
+    const confirmed = await customer.request(`/api/customer/rentals/${handover.payload.rental.rental_id}/confirm-return`, {
+      method: 'POST',
+      body: returnConfirmationBody(2)
+    });
+    assert.equal(confirmed.response.status, 200);
+    assert.equal(confirmed.payload.rental.return_station_id, 2);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('return flow calculates resident discount, late fee, and moves bike', async () => {
   const fixture = await startTestServer();
   const customer = client(fixture.baseUrl);
@@ -526,7 +741,7 @@ test('return flow calculates resident discount, late fee, and moves bike', async
     });
     const request = await customer.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 3, bikeId: 7, requestedDurationMinutes: 120 }
+      body: rentalRequestBody({ stationId: 3, bikeId: 7, requestedDurationMinutes: 120 })
     });
 
     await admin.request('/api/auth/login', {
@@ -545,6 +760,11 @@ test('return flow calculates resident discount, late fee, and moves bike', async
     });
     const rental = handover.payload.rental;
     const returnedAt = new Date(new Date(rental.started_at).getTime() + 150 * 60 * 1000).toISOString();
+    const confirmedReturn = await customer.request(`/api/customer/rentals/${rental.rental_id}/confirm-return`, {
+      method: 'POST',
+      body: returnConfirmationBody(1)
+    });
+    assert.equal(confirmedReturn.response.status, 200);
     const returned = await admin.request('/api/staff/return', {
       method: 'POST',
       body: {
@@ -589,7 +809,7 @@ test('demo clock drives active rental countdown and default return penalties', a
     });
     const request = await customer.request('/api/rental-requests', {
       method: 'POST',
-      body: { stationId: 2, bikeId: 3, requestedDurationMinutes: 60 }
+      body: rentalRequestBody({ stationId: 2, bikeId: 3 })
     });
     assert.equal(request.response.status, 201);
 
@@ -625,6 +845,12 @@ test('demo clock drives active rental countdown and default return penalties', a
     const active = history.payload.activeRentals.find((item) => item.rental_id === handover.payload.rental.rental_id);
     assert.ok(active.late_minutes >= 35);
     assert.equal(active.estimated_late_fee, 60000);
+
+    const confirmedReturn = await customer.request(`/api/customer/rentals/${handover.payload.rental.rental_id}/confirm-return`, {
+      method: 'POST',
+      body: returnConfirmationBody(2)
+    });
+    assert.equal(confirmedReturn.response.status, 200);
 
     const returned = await staff.request('/api/staff/return', {
       method: 'POST',
@@ -701,6 +927,10 @@ test('supports concurrent customer and admin sessions independently', async () =
       'admin@ecopark.test',
       'admin2@ecopark.test'
     ]);
+    assert.equal(sessions[0].payload.user.profile.customer_type, 'visitor');
+    assert.equal(sessions[0].payload.user.profile.discount_eligible, 0);
+    assert.equal(sessions[1].payload.user.profile.customer_type, 'resident');
+    assert.equal(sessions[1].payload.user.profile.discount_eligible, 1);
 
     const [customerHistory, residentHistory, adminReport, backupReport] = await Promise.all([
       customer.request('/api/customer/history'),
@@ -737,6 +967,19 @@ test('existing demo database is backfilled with backup admin account', async () 
     server = createServer({ dbPath, seed: true });
     const backupAdmin = server.db.prepare("SELECT user_id FROM users WHERE email = 'admin2@ecopark.test'").get();
     assert.ok(backupAdmin);
+    const customerDemo = server.db.prepare("SELECT user_id FROM users WHERE email = 'customer@ecopark.test'").get();
+    const fakeCardId = server.db.prepare(`
+      INSERT INTO resident_cards
+        (customer_id, card_number, registered_address, verification_status, verified_at, review_note)
+      VALUES (?, 'ECO-RES-STUCK', 'Park River, Ecopark', 'verified', ?, 'Simulate stale local demo state')
+    `).run(customerDemo.user_id, new Date().toISOString()).lastInsertRowid;
+    server.db.prepare(`
+      UPDATE customer_profiles
+      SET customer_type = 'resident',
+          resident_card_id = ?,
+          discount_eligible = 1
+      WHERE customer_id = ?
+    `).run(fakeCardId, customerDemo.user_id);
     server.db.prepare('DELETE FROM staff WHERE staff_id = ?').run(backupAdmin.user_id);
     server.db.prepare('DELETE FROM users WHERE user_id = ?').run(backupAdmin.user_id);
     server.closeDatabase();
@@ -752,6 +995,23 @@ test('existing demo database is backfilled with backup admin account', async () 
     assert.equal(restored.email, 'admin2@ecopark.test');
     assert.equal(restored.role, 'admin');
     assert.equal(restored.staff_role, 'admin');
+    const personas = server.db.prepare(`
+      SELECT u.email, cp.customer_type, cp.discount_eligible, rc.verification_status AS card_status
+      FROM users u
+      JOIN customer_profiles cp ON cp.customer_id = u.user_id
+      LEFT JOIN resident_cards rc ON rc.resident_card_id = cp.resident_card_id
+      WHERE u.email IN ('customer@ecopark.test', 'resident@ecopark.test')
+      ORDER BY u.email
+    `).all();
+    assert.deepEqual(personas.map((item) => ({
+      email: item.email,
+      type: item.customer_type,
+      discount: item.discount_eligible,
+      card: item.card_status || null
+    })), [
+      { email: 'customer@ecopark.test', type: 'visitor', discount: 0, card: null },
+      { email: 'resident@ecopark.test', type: 'resident', discount: 1, card: 'verified' }
+    ]);
   } finally {
     if (server) server.closeDatabase();
     rmSync(dir, { recursive: true, force: true });

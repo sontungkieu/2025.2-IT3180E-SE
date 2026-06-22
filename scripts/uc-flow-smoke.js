@@ -52,6 +52,15 @@ async function main() {
     await requestRow.locator('[data-handover]').click();
     await page.waitForSelector('.active-rentals-table');
 
+    await logout(page);
+    await loginDemo(page, 'resident@ecopark.test');
+    await page.waitForSelector('[data-confirm-return]');
+    await page.locator('[data-confirm-return]').first().click();
+    await page.waitForSelector('text=Đã xác nhận');
+
+    await logout(page);
+    await loginDemo(page, 'staff@ecopark.test');
+
     const rentalRow = page.locator('.active-rentals-table tbody tr').filter({ hasText: 'Tran Minh An' }).first();
     await rentalRow.waitFor();
     await choosePrettyInputSelect(rentalRow, 'return-station-', '2');
@@ -139,7 +148,8 @@ async function verifyConcurrentDemoSessions(browser, baseUrl) {
 
     await gpsPage.click('[data-gps-mode="return"]');
     await gpsPage.waitForSelector('text=UC004');
-    assert.equal(await gpsPage.locator('.bike-gps-pin').count(), 1, 'GPS operator marker disappeared after concurrent session logout');
+    await gpsPage.waitForSelector('text=Chưa có lượt đang thuê');
+    assert.equal(await gpsPage.locator('.bike-gps-pin').count(), 0, 'GPS operator should not show a draggable marker without an active rental');
   } finally {
     await Promise.all([...contexts, gpsContext].map((context) => context.close()));
   }

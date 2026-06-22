@@ -1,5 +1,98 @@
 # Milestones
 
+## 2026-06-23 - Testing evidence slide spacing polish
+
+- Increased spacing inside the testing evidence cards so badge, label and detail
+  text no longer feel cramped.
+- Updated the backend test evidence from 20/20 to the current 21/21 test suite.
+- Adjusted the app-style slide header logo inset so top and right spacing read
+  more evenly.
+
+## 2026-06-23 - Customer workspace wording cleanup
+
+- Replaced the customer hero metric label "Lượt đang theo dõi" with "Đang xử lý"
+  because it counts open customer requests/rentals, not an operations monitoring
+  workflow.
+- Refreshed the customer desktop screenshot evidence and aligned slide/script
+  wording from "theo dõi lượt thuê" to status-oriented customer language.
+
+## 2026-06-23 - Resident discount guard hardening
+
+- Hardened resident discount eligibility so ticket pricing and account profile
+  display require a resident profile, a valid discount flag and a verified
+  resident card instead of trusting stale profile flags.
+- Added a migration backfill that clears resident discounts for visitor or
+  unverified resident-card profiles in existing local SQLite data.
+- Added a backend regression test proving visitor accounts do not receive the
+  resident discount even when old data has an incorrect eligibility flag.
+
+## 2026-06-23 - Slide app logo alignment
+
+- Updated the app-style slide header logo to match the web `.brand-mark`:
+  square green/teal gradient mark with the Lucide bicycle glyph in white.
+
+## 2026-06-23 - Presentation CI/CD and layout cleanup
+
+- Replaced the slide 6 data-design connector layout with a hub-and-spoke schema
+  map using only straight arrows around the rental transaction core.
+- Reworked the `/gd` slide into a screenshot plus four capability cards for
+  session selection, road-following GPS movement, clock control and geofence
+  validation.
+- Replaced the PDF-build evidence card with GitHub Actions CI/CD evidence:
+  static syntax check, coverage, UI smoke, UC smoke and Docker image build.
+- Updated the final demo slide wording so it leads into the live app without
+  presentation filler.
+
+## 2026-06-23 - Dark-mode dropdown layering polish
+
+- Kept the desktop topbar visible above content while rental duration dropdowns
+  remain open inside bike cards, avoiding the previous z-index conflict.
+- Added dark-mode bike illustration surfaces for city, tandem and child-seat
+  bike cards so vehicle-type icons stay readable without light-mode panels.
+- Verified the fix with a Playwright dark-mode screenshot using an open rental
+  duration dropdown.
+
+## 2026-06-23 - Presentation deck visual polish
+
+- Replaced the text-only EBP slide header mark with the platform bicycle logo
+  treatment used across the app-style deck.
+- Reworked the data-design slide connectors into short orthogonal routes so fee
+  policy and operations reporting no longer use awkward diagonal arrows.
+- Added a dark-mode customer screenshot slide and aligned the slide script with
+  the new 15-slide flow.
+- Re-cropped mobile and operations screenshots with separated captions, added a
+  dashboard screenshot to the reporting slide and removed the old standalone
+  conclusion/Q&A ending.
+- Rebuilt the testing/evidence slide as verification cards and made the final
+  slide transition directly into the live demo.
+
+## 2026-06-23 - UC-aligned auth and dark-mode UI polish
+
+- Clarified the UC001 rule in UI/docs: CCCD/CMND must be valid and not blocked
+  before rental, staff checks the document at handover, and resident-card
+  pending/rejected only removes the resident discount.
+- Added password reveal controls to auth/create-account/reset-password forms so
+  users can verify the password they entered before submitting.
+- Disabled `/gd` snap actions when the selected mode has no customer session and
+  renamed the map panel to GPS user position rather than bike position.
+- Removed sticky topbar behavior on desktop to avoid content scrolling under a
+  floating translucent header.
+- Extended dark-mode styling to Leaflet map tiles/controls, GPS chips, account
+  detail rows and resident-card/account status cards.
+
+## 2026-06-23 - Geofence rental and return confirmation
+
+- Added station service radius support and backend geofence checks for rental
+  request creation, staff handover and customer return confirmation.
+- Added customer return confirmation before staff ticket issuance, with active
+  rental UI showing whether the customer has confirmed the return station.
+- Reworked `/gd` to control GPS user sessions from pending requests and active
+  rentals instead of draggable idle bikes, while preserving map center/zoom after
+  marker edits.
+- Updated backend and UC smoke tests for pickup/handover/return geofence, customer
+  confirmation and the revised `/gd` empty-state behavior.
+- Updated README and report sections for the new geofence/confirmation scope.
+
 ## 2026-06-23 - Staff UI dropdown and dark mode polish
 
 - Replaced remaining staff/admin native selects in handover, return, fleet and

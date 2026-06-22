@@ -134,6 +134,7 @@ function migrate(db) {
       latitude REAL NOT NULL,
       longitude REAL NOT NULL,
       capacity INTEGER NOT NULL,
+      station_radius_meters INTEGER NOT NULL DEFAULT 180,
       station_status TEXT NOT NULL CHECK (station_status IN ('active', 'paused', 'maintenance'))
     );
 
@@ -174,6 +175,9 @@ function migrate(db) {
       request_status TEXT NOT NULL CHECK (request_status IN ('pending_pickup', 'cancelled', 'expired', 'converted')),
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
+      pickup_latitude REAL,
+      pickup_longitude REAL,
+      pickup_distance_meters REAL,
       FOREIGN KEY (customer_id) REFERENCES customer_profiles(customer_id),
       FOREIGN KEY (bike_id) REFERENCES bikes(bike_id),
       FOREIGN KEY (pickup_station_id) REFERENCES stations(station_id)
@@ -191,6 +195,11 @@ function migrate(db) {
       planned_duration_minutes INTEGER NOT NULL,
       started_at TEXT NOT NULL,
       returned_at TEXT,
+      return_confirmed_at TEXT,
+      return_confirmed_by INTEGER,
+      return_confirmed_latitude REAL,
+      return_confirmed_longitude REAL,
+      return_distance_meters REAL,
       rental_status TEXT NOT NULL CHECK (rental_status IN ('in_progress', 'completed', 'review')),
       FOREIGN KEY (request_id) REFERENCES rental_requests(request_id),
       FOREIGN KEY (customer_id) REFERENCES customer_profiles(customer_id),
@@ -257,6 +266,15 @@ function migrate(db) {
   addColumnIfMissing(db, 'users', 'email_verification_expires_at', 'TEXT');
   addColumnIfMissing(db, 'users', 'password_reset_code_hash', 'TEXT');
   addColumnIfMissing(db, 'users', 'password_reset_expires_at', 'TEXT');
+  addColumnIfMissing(db, 'stations', 'station_radius_meters', 'INTEGER NOT NULL DEFAULT 180');
+  addColumnIfMissing(db, 'rental_requests', 'pickup_latitude', 'REAL');
+  addColumnIfMissing(db, 'rental_requests', 'pickup_longitude', 'REAL');
+  addColumnIfMissing(db, 'rental_requests', 'pickup_distance_meters', 'REAL');
+  addColumnIfMissing(db, 'rentals', 'return_confirmed_at', 'TEXT');
+  addColumnIfMissing(db, 'rentals', 'return_confirmed_by', 'INTEGER');
+  addColumnIfMissing(db, 'rentals', 'return_confirmed_latitude', 'REAL');
+  addColumnIfMissing(db, 'rentals', 'return_confirmed_longitude', 'REAL');
+  addColumnIfMissing(db, 'rentals', 'return_distance_meters', 'REAL');
   addColumnIfMissing(db, 'customer_profiles', 'identity_review_note', 'TEXT');
   addColumnIfMissing(db, 'customer_profiles', 'identity_reviewed_at', 'TEXT');
   addColumnIfMissing(db, 'resident_cards', 'review_note', 'TEXT');
@@ -265,6 +283,31 @@ function migrate(db) {
     UPDATE users
     SET email_verified_at = COALESCE(email_verified_at, created_at)
     WHERE email_verified_at IS NULL
+  `).run();
+  db.prepare(`
+    UPDATE rental_requests
+    SET pickup_latitude = COALESCE(pickup_latitude, (SELECT latitude FROM stations WHERE stations.station_id = rental_requests.pickup_station_id)),
+        pickup_longitude = COALESCE(pickup_longitude, (SELECT longitude FROM stations WHERE stations.station_id = rental_requests.pickup_station_id)),
+        pickup_distance_meters = COALESCE(pickup_distance_meters, 0)
+    WHERE pickup_latitude IS NULL OR pickup_longitude IS NULL OR pickup_distance_meters IS NULL
+  `).run();
+  normalizeResidentDiscountEligibility(db);
+}
+
+function normalizeResidentDiscountEligibility(db) {
+  db.prepare(`
+    UPDATE customer_profiles
+    SET discount_eligible = CASE
+      WHEN customer_type = 'resident'
+        AND resident_card_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM resident_cards rc
+          WHERE rc.resident_card_id = customer_profiles.resident_card_id
+            AND rc.customer_id = customer_profiles.customer_id
+            AND rc.verification_status = 'verified'
+        )
+      THEN 1 ELSE 0 END
   `).run();
 }
 
@@ -352,14 +395,16 @@ function seedDatabase(db) {
   const requestExpires = new Date(Date.now() + 42 * 60 * 1000).toISOString();
   db.prepare(`
     INSERT INTO rental_requests
-      (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at)
-    VALUES (?, 4, 2, 120, 'pending_pickup', ?, ?)
+      (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at,
+       pickup_latitude, pickup_longitude, pickup_distance_meters)
+    VALUES (?, 4, 2, 120, 'pending_pickup', ?, ?, 20.950889, 105.936712, 0)
   `).run(customer, requestCreated, requestExpires);
 
   const completedRequest = db.prepare(`
     INSERT INTO rental_requests
-      (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at)
-    VALUES (?, 1, 1, 120, 'converted', ?, ?)
+      (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at,
+       pickup_latitude, pickup_longitude, pickup_distance_meters)
+    VALUES (?, 1, 1, 120, 'converted', ?, ?, 20.953823, 105.932914, 0)
   `).run(resident, new Date(Date.now() - 3 * 86400000).toISOString(), new Date(Date.now() - 3 * 86400000 + 3600000).toISOString()).lastInsertRowid;
   const rentalId = db.prepare(`
     INSERT INTO rentals
@@ -411,6 +456,59 @@ function ensureDemoAccounts(db) {
     INSERT OR IGNORE INTO staff (staff_id, staff_code, staff_role, station_id, active)
     VALUES (?, 'ADM-002', 'admin', NULL, 1)
   `).run(adminBackupId);
+  ensureDemoCustomerPersonas(db, createdAt);
+  normalizeResidentDiscountEligibility(db);
+}
+
+function ensureDemoCustomerPersonas(db, createdAt) {
+  const admin = db.prepare("SELECT user_id FROM users WHERE lower(email) = 'admin@ecopark.test'").get();
+  const customer = db.prepare("SELECT user_id FROM users WHERE lower(email) = 'customer@ecopark.test'").get();
+  const resident = db.prepare("SELECT user_id FROM users WHERE lower(email) = 'resident@ecopark.test'").get();
+
+  if (customer) {
+    db.prepare(`
+      UPDATE customer_profiles
+      SET customer_type = 'visitor',
+          resident_card_id = NULL,
+          discount_eligible = 0
+      WHERE customer_id = ?
+    `).run(customer.user_id);
+  }
+
+  if (resident) {
+    const cardNumber = 'ECO-RES-2026-001';
+    let card = db.prepare(`
+      SELECT resident_card_id
+      FROM resident_cards
+      WHERE customer_id = ? AND card_number = ?
+    `).get(resident.user_id, cardNumber);
+    if (!card) {
+      const cardId = db.prepare(`
+        INSERT INTO resident_cards
+          (customer_id, card_number, registered_address, verification_status, verified_by, verified_at, review_note)
+        VALUES (?, ?, 'Aqua Bay, Ecopark', 'verified', ?, ?, 'Seeded verified resident demo account')
+      `).run(resident.user_id, cardNumber, admin?.user_id || null, createdAt).lastInsertRowid;
+      card = { resident_card_id: cardId };
+    } else {
+      db.prepare(`
+        UPDATE resident_cards
+        SET registered_address = 'Aqua Bay, Ecopark',
+            verification_status = 'verified',
+            verified_by = COALESCE(verified_by, ?),
+            verified_at = COALESCE(verified_at, ?),
+            review_note = COALESCE(review_note, 'Seeded verified resident demo account')
+        WHERE resident_card_id = ?
+      `).run(admin?.user_id || null, createdAt, card.resident_card_id);
+    }
+    db.prepare(`
+      UPDATE customer_profiles
+      SET customer_type = 'resident',
+          resident_card_id = ?,
+          discount_eligible = 1,
+          address = 'Aqua Bay, Ecopark'
+      WHERE customer_id = ?
+    `).run(card.resident_card_id, resident.user_id);
+  }
 }
 
 module.exports = {

@@ -286,6 +286,53 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(33, 184, 117, 0.16);
 }
 
+.password-label {
+  gap: 6px;
+}
+
+.password-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: stretch;
+  border: 1px solid #c6dbcf;
+  border-radius: 8px;
+  background: #fff;
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+.password-field:focus-within {
+  border-color: var(--leaf-600);
+  box-shadow: 0 0 0 3px rgba(33, 184, 117, 0.16);
+}
+
+.password-field input {
+  border: 0;
+  background: transparent;
+  box-shadow: none !important;
+}
+
+.password-toggle {
+  width: 42px;
+  min-height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0 7px 7px 0;
+  background: transparent;
+  color: var(--ink-700);
+  padding: 0;
+}
+
+.password-toggle:hover {
+  background: var(--surface-soft);
+}
+
+.password-toggle img {
+  width: 18px;
+  height: 18px;
+}
+
 input.field-invalid,
 select.field-invalid,
 textarea.field-invalid {
@@ -315,6 +362,14 @@ select:focus-visible {
   text-decoration: none;
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
   will-change: transform;
+}
+
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.48;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .primary {
@@ -443,9 +498,9 @@ hr {
 }
 
 .topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  position: relative;
+  top: auto;
+  z-index: 120;
   min-height: 70px;
   display: flex;
   align-items: center;
@@ -458,7 +513,7 @@ hr {
 }
 
 body:has(.pretty-select.open) .topbar {
-  z-index: 8;
+  z-index: 120;
 }
 
 .user-actions {
@@ -2037,8 +2092,16 @@ body:has(.pretty-select.open) .topbar {
 }
 
 .rental-active {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   border-color: rgba(30, 156, 201, 0.28) !important;
   box-shadow: inset 3px 0 0 var(--sky-500);
+}
+
+.rental-active .small {
+  align-self: center;
+  white-space: nowrap;
 }
 
 .muted-activity {
@@ -2054,6 +2117,7 @@ body:has(.pretty-select.open) .topbar {
 .table-wrap {
   width: 100%;
   overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
@@ -2588,6 +2652,15 @@ tbody tr:last-child td {
 }
 
 @media (max-width: 720px) {
+  .rental-active {
+    grid-template-columns: 1fr;
+  }
+
+  .rental-active .small {
+    width: 100%;
+    justify-content: center;
+  }
+
   .auth-layout {
     padding: 18px;
     gap: 18px;
@@ -4153,11 +4226,12 @@ td {
   }
 
   .topbar {
-    top: 0;
+    top: auto;
   }
 }
 
 .topbar {
+  z-index: 120;
   background: var(--topbar-bg);
   border-color: var(--line-strong);
   box-shadow: 0 14px 34px rgba(20, 60, 43, 0.12);
@@ -4259,6 +4333,10 @@ td {
   transform: translateY(0) scale(1) !important;
 }
 
+body:has(.pretty-select.open) .topbar {
+  z-index: 120;
+}
+
 .chart-track {
   background: var(--chart-track-bg);
 }
@@ -4334,11 +4412,25 @@ td {
 :root[data-theme="dark"] input,
 :root[data-theme="dark"] select,
 :root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .password-field,
 :root[data-theme="dark"] .pretty-select-trigger {
   border-color: var(--line-strong);
   background: var(--field-bg);
   color: var(--ink-900);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+:root[data-theme="dark"] .password-field input {
+  color: var(--ink-900);
+}
+
+:root[data-theme="dark"] .password-toggle {
+  border-left-color: var(--line);
+  color: var(--ink-700);
+}
+
+:root[data-theme="dark"] .password-toggle:hover {
+  background: #142c22;
 }
 
 :root[data-theme="dark"] .pretty-select-trigger:hover,
@@ -4378,6 +4470,7 @@ td {
 :root[data-theme="dark"] .select-leading img,
 :root[data-theme="dark"] .select-chevron,
 :root[data-theme="dark"] .select-check,
+:root[data-theme="dark"] .password-toggle img,
 :root[data-theme="dark"] .ghost img,
 :root[data-theme="dark"] .secondary img,
 :root[data-theme="dark"] .icon-button img,
@@ -4414,6 +4507,37 @@ td {
   box-shadow: none;
 }
 
+:root[data-theme="dark"] .detail-list div,
+:root[data-theme="dark"] .gps-chip {
+  background: rgba(18, 39, 30, 0.9);
+  border-color: var(--line);
+  color: var(--ink-900);
+}
+
+:root[data-theme="dark"] .account-status-card.ok {
+  border-color: rgba(70, 211, 148, 0.42);
+  background:
+    linear-gradient(135deg, rgba(37, 184, 118, 0.16), rgba(18, 39, 30, 0.96)),
+    var(--surface);
+}
+
+:root[data-theme="dark"] .account-status-card.warn,
+:root[data-theme="dark"] .gps-status-card.warn {
+  border-color: rgba(216, 151, 37, 0.44);
+  background:
+    linear-gradient(135deg, rgba(216, 151, 37, 0.16), rgba(18, 39, 30, 0.96)),
+    var(--surface);
+}
+
+:root[data-theme="dark"] .gps-chip.active,
+:root[data-theme="dark"] .gps-status-card.ok {
+  border-color: rgba(70, 211, 148, 0.46);
+  background:
+    linear-gradient(90deg, rgba(37, 184, 118, 0.2), rgba(43, 180, 220, 0.08)),
+    var(--surface-soft);
+  color: var(--ink-900);
+}
+
 :root[data-theme="dark"] th {
   background: var(--table-head-bg);
   color: var(--ink-700);
@@ -4439,10 +4563,48 @@ td {
     var(--surface);
 }
 
+:root[data-theme="dark"] .bike-visual {
+  border: 1px solid rgba(70, 211, 148, 0.22);
+  background:
+    radial-gradient(circle at 34% 28%, rgba(70, 211, 148, 0.22), transparent 42%),
+    linear-gradient(145deg, rgba(18, 48, 36, 0.96), rgba(10, 25, 19, 0.98)),
+    var(--surface-soft);
+  color: #5be1a1;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(7, 17, 13, 0.34);
+}
+
+:root[data-theme="dark"] .bike-visual.tandem {
+  border-color: rgba(123, 216, 241, 0.24);
+  background:
+    radial-gradient(circle at 34% 28%, rgba(43, 180, 220, 0.22), transparent 42%),
+    linear-gradient(145deg, rgba(16, 43, 53, 0.98), rgba(8, 24, 31, 0.98)),
+    var(--sky-100);
+  color: #7bd8f1;
+}
+
+:root[data-theme="dark"] .bike-visual.child {
+  border-color: rgba(241, 182, 79, 0.26);
+  background:
+    radial-gradient(circle at 34% 28%, rgba(241, 182, 79, 0.24), transparent 42%),
+    linear-gradient(145deg, rgba(59, 42, 18, 0.98), rgba(27, 22, 13, 0.98)),
+    var(--amber-100);
+  color: #ffc767;
+}
+
+:root[data-theme="dark"] .bike-visual svg {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.26));
+}
+
 :root[data-theme="dark"] .bike-card.muted,
 :root[data-theme="dark"] .muted-activity {
   background: #112219 !important;
   color: var(--ink-500);
+}
+
+:root[data-theme="dark"] .bike-card.muted .bike-visual {
+  opacity: 0.9;
 }
 
 :root[data-theme="dark"] .chart-track {
@@ -4454,6 +4616,39 @@ td {
   border-color: var(--line-strong);
   background: #173528;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+:root[data-theme="dark"] .station-map .leaflet-tile,
+:root[data-theme="dark"] .gps-demo-map .leaflet-tile {
+  filter: invert(0.88) hue-rotate(178deg) saturate(0.72) brightness(0.68) contrast(1.08);
+}
+
+:root[data-theme="dark"] .leaflet-control-zoom {
+  border-color: var(--line-strong) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.26) !important;
+}
+
+:root[data-theme="dark"] .leaflet-control-zoom a,
+:root[data-theme="dark"] .leaflet-control-attribution,
+:root[data-theme="dark"] .leaflet-popup-content-wrapper,
+:root[data-theme="dark"] .leaflet-popup-tip {
+  background: rgba(13, 28, 22, 0.94) !important;
+  color: var(--ink-900) !important;
+}
+
+:root[data-theme="dark"] .real-map-pin strong,
+:root[data-theme="dark"] .user-map-pin strong,
+:root[data-theme="dark"] .bike-gps-pin strong {
+  border-color: var(--line);
+  background: rgba(13, 28, 22, 0.92);
+  color: var(--ink-900);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme="dark"] .real-map-pin span,
+:root[data-theme="dark"] .user-map-pin span,
+:root[data-theme="dark"] .bike-gps-pin span {
+  border-color: rgba(238, 248, 242, 0.86);
 }
 
 @media (max-width: 760px) {

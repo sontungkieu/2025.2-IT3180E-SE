@@ -1,7 +1,7 @@
 import { mountScene } from '/scene.js';
 
 const LOCATION_PRESETS = [
-  { id: 'gps-demo', label: 'GPS hiện tại - Ecopark Center', mode: 'gps', lat: 20.9491, lng: 105.9346 },
+  { id: 'gps-demo', label: 'GPS hiện tại - Spring Park Gate', mode: 'gps', lat: 20.950889, lng: 105.936712 },
   { id: 'manual-green-bay', label: 'Nhập tay - Green Bay', mode: 'manual', lat: 20.9536, lng: 105.9329 },
   { id: 'manual-aqua-bay', label: 'Nhập tay - Aqua Bay', mode: 'manual', lat: 20.9468, lng: 105.9327 },
   { id: 'manual-outside', label: 'Nhập tay - ngoài phạm vi', mode: 'manual', lat: 20.9918, lng: 105.8784 }
@@ -116,12 +116,13 @@ const state = {
   lastPasswordResetCode: '',
   lastPasswordResetEmail: '',
   lastKnownLocation: readLastKnownLocation(),
-  gpsBikes: [],
-  gpsSelectedBikeId: null,
+  gpsSessions: [],
+  gpsSelectedSessionKey: null,
   gpsTargetStationId: null,
   gpsBikePosition: null,
   gpsMode: 'pickup',
   gpsRoutePath: [],
+  gpsMapView: null,
   gpsDemoLoading: false
 };
 
@@ -210,6 +211,22 @@ function themeToggleButton() {
   `;
 }
 
+function passwordField({ label = 'Mật khẩu', name = 'password', value = '', autocomplete = 'new-password', attributes = '' } = {}) {
+  const valueAttr = value ? ` value="${escapeAttr(value)}"` : '';
+  const extraAttrs = attributes ? ` ${attributes}` : '';
+  return `
+    <label class="password-label">
+      <span>${escapeHtml(label)}</span>
+      <span class="password-field">
+        <input name="${escapeAttr(name)}" type="password"${valueAttr} autocomplete="${escapeAttr(autocomplete)}"${extraAttrs}>
+        <button class="password-toggle" type="button" data-password-toggle title="Hiện mật khẩu" aria-label="Hiện mật khẩu">
+          <img src="/vendor/icons/eye.svg" alt="">
+        </button>
+      </span>
+    </label>
+  `;
+}
+
 function bindThemeEvents() {
   document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -269,21 +286,12 @@ async function refreshGpsDemoData() {
   }
   state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
   state.stations = (await api('/api/stations?lat=20.9491&lng=105.9346')).stations;
-  const bikesByStation = await Promise.all(state.stations.map(async (station) => {
-    const payload = await api(`/api/stations/${station.station_id}/bikes`);
-    return payload.bikes.map((bike) => ({
-      ...bike,
-      station_name: station.station_name,
-      station_latitude: station.latitude,
-      station_longitude: station.longitude
-    }));
-  }));
-  state.gpsBikes = bikesByStation.flat();
-  if (!state.gpsSelectedBikeId && state.gpsBikes.length) {
-    state.gpsSelectedBikeId = state.gpsBikes.find((bike) => bike.is_available)?.bike_id || state.gpsBikes[0].bike_id;
+  state.gpsSessions = (await api('/api/gps-demo/sessions')).sessions;
+  if (!selectedGpsSession() && gpsSessionsForMode().length) {
+    state.gpsSelectedSessionKey = gpsSessionsForMode()[0].session_key;
   }
   if (!state.gpsTargetStationId && state.stations.length) {
-    state.gpsTargetStationId = selectedGpsBike()?.station_id || state.stations[0].station_id;
+    state.gpsTargetStationId = selectedGpsSession()?.target_station_id || state.stations[0].station_id;
   }
   if (!state.gpsBikePosition) {
     state.gpsBikePosition = offsetFromStation(selectedGpsTargetStation(), 55);
@@ -291,7 +299,7 @@ async function refreshGpsDemoData() {
 }
 
 async function refreshGpsDemoDataWithLoading({ renderInitial = false } = {}) {
-  const shouldShowLoading = renderInitial || !state.stations.length || !state.gpsBikes.length;
+  const shouldShowLoading = renderInitial || !state.stations.length;
   state.gpsDemoLoading = true;
   if (shouldShowLoading) render();
   try {
@@ -374,7 +382,7 @@ function authView() {
           </div>
         </div>
         <h1>Thuê xe đạp Ecopark, nhận xe gần bạn và trả ở bãi thuận tiện.</h1>
-        <p>Tìm bãi còn xe, gửi yêu cầu nhận xe, theo dõi lượt thuê và thanh toán vé trả xe trong cùng một ứng dụng.</p>
+        <p>Tìm bãi còn xe, gửi yêu cầu nhận xe, xem lượt thuê và thanh toán vé trả xe trong cùng một ứng dụng.</p>
         <div class="auth-highlights" aria-label="Tóm tắt nghiệp vụ">
           ${highlight('map-pin', 'Tìm bãi gần nhất')}
           ${highlight('bike', 'Chọn xe còn trống')}
@@ -392,7 +400,7 @@ function authView() {
         </div>
         <form id="login-form" class="form-grid">
           <label>Email<input name="email" type="email" value="customer@ecopark.test" autocomplete="username" required></label>
-          <label>Mật khẩu<input name="password" type="password" value="customer123" autocomplete="current-password" required></label>
+          ${passwordField({ value: 'customer123', autocomplete: 'current-password', attributes: 'required' })}
           <button class="primary" type="submit"><img src="/vendor/icons/log-in.svg" alt="">Đăng nhập</button>
         </form>
         <div class="demo-grid">
@@ -408,7 +416,7 @@ function authView() {
           <label>Họ tên<input name="fullName" autocomplete="name" minlength="2" maxlength="80" placeholder="Nguyen Ha Linh" title="Nhập họ tên thật, không dùng số hoặc ký tự đặc biệt" required></label>
           <label>Email<input name="email" type="email" autocomplete="email" required></label>
           <label>Số điện thoại<input name="phone" type="tel" inputmode="tel" autocomplete="tel" pattern="0[0-9]{9}|\\+84[0-9]{9}" placeholder="0912345678" title="Nhập số điện thoại Việt Nam 10 chữ số, ví dụ 0912345678" required></label>
-          <label>Mật khẩu<input name="password" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\\d).{8,}" autocomplete="new-password" title="Tối thiểu 8 ký tự, gồm chữ và số" required></label>
+          ${passwordField({ attributes: 'minlength="8" pattern="(?=.*[A-Za-z])(?=.*\\d).{8,}" title="Tối thiểu 8 ký tự, gồm chữ và số" required' })}
           <label>CCCD/CMND<input name="identityNumber" inputmode="numeric" autocomplete="off" pattern="[0-9]{9}|[0-9]{12}" placeholder="001203000111" title="Nhập 9 hoặc 12 chữ số CCCD/CMND" required></label>
           <label>Địa chỉ<input name="address" autocomplete="street-address" minlength="5" placeholder="Park River, Ecopark" required></label>
           ${customerTypeDropdown('visitor')}
@@ -425,7 +433,7 @@ function authView() {
           <form id="reset-confirm-form" class="form-grid compact">
             <label>Email<input name="email" type="email" value="${escapeAttr(state.lastPasswordResetEmail)}" required></label>
             <label>Mã xác nhận<input name="code" inputmode="numeric" value="${escapeAttr(state.lastPasswordResetCode)}" required></label>
-            <label>Mật khẩu mới<input name="password" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\\d).{8,}" title="Tối thiểu 8 ký tự, gồm chữ và số" required></label>
+            ${passwordField({ label: 'Mật khẩu mới', attributes: 'minlength="8" pattern="(?=.*[A-Za-z])(?=.*\\d).{8,}" title="Tối thiểu 8 ký tự, gồm chữ và số" required' })}
             <button class="secondary" type="submit"><img src="/vendor/icons/key-round.svg" alt="">Đặt lại mật khẩu</button>
           </form>
         </div>
@@ -482,7 +490,7 @@ function shellView() {
             <div class="metric-strip">
               ${metric(isCustomer ? 'Bãi gần bạn' : 'Bãi hoạt động', isCustomer ? state.stations.length : state.stations.filter((s) => s.station_status === 'active').length, 'map-pin')}
               ${metric(isCustomer ? 'Xe có thể thuê' : 'Xe sẵn sàng', state.stations.reduce((sum, s) => sum + Number(s.available_bikes || 0), 0), 'bike')}
-              ${metric(isCustomer ? 'Lượt đang theo dõi' : 'Yêu cầu chờ', isCustomer ? state.history.pendingRequests.length + state.history.activeRentals.length : state.pendingRequests.length, isCustomer ? 'receipt-text' : 'clipboard-check')}
+              ${metric(isCustomer ? 'Đang xử lý' : 'Yêu cầu chờ', isCustomer ? state.history.pendingRequests.length + state.history.activeRentals.length : state.pendingRequests.length, isCustomer ? 'receipt-text' : 'clipboard-check')}
             </div>
           </div>
           <div id="scene" class="scene hero-scene" aria-hidden="true"></div>
@@ -550,7 +558,7 @@ function customerView() {
         </div>
         <div class="account-status-grid">
           ${accountStatusCard('mail-check', 'Email', state.user.email_verified_at ? 'Đã xác minh' : 'Chưa xác minh', state.user.email_verified_at ? 'ok' : 'warn')}
-          ${accountStatusCard('id-card', 'Định danh', identityStatusLabel(state.user.profile.identity_status), state.user.profile.identity_status === 'verified' ? 'ok' : 'warn')}
+          ${accountStatusCard('id-card', 'CCCD/CMND', identityStatusLabel(state.user.profile.identity_status), state.user.profile.identity_status === 'verified' ? 'ok' : 'warn')}
           ${accountStatusCard('badge-check', 'Cư dân', residentStatusLabel(state.user.profile.resident_verification_status), state.user.profile.discount_eligible ? 'ok' : '')}
         </div>
         ${state.user.email_verified_at ? '' : `
@@ -634,13 +642,16 @@ function operationsView() {
 }
 
 function gpsDemoView() {
-  if (state.gpsDemoLoading && (!state.stations.length || !state.gpsBikes.length)) {
+  if (state.gpsDemoLoading && !state.stations.length) {
     return gpsDemoLoadingView();
   }
-  const bike = selectedGpsBike();
+  const session = selectedGpsSession();
   const target = selectedGpsTargetStation();
   const distance = gpsDistanceToTarget();
-  const near = distance <= 120;
+  const radius = gpsTargetRadiusMeters();
+  const near = Boolean(session) && distance <= radius;
+  const sessions = gpsSessionsForMode();
+  const sessionDisabled = session ? '' : ' disabled aria-disabled="true"';
   return `
     <div class="gps-demo-shell">
       <header class="topbar gps-demo-topbar">
@@ -648,7 +659,7 @@ function gpsDemoView() {
           <span class="brand-mark"><img src="/vendor/icons/navigation.svg" alt=""></span>
           <div>
             <strong>Bảng điều khiển demo</strong>
-            <span>/gd · GPS xe và đồng hồ hệ thống</span>
+            <span>/gd · GPS người dùng và đồng hồ hệ thống</span>
           </div>
         </div>
         <div class="user-actions">
@@ -672,9 +683,9 @@ function gpsDemoView() {
             </div>
           </div>
           <div class="control-group">
-            <span class="control-label">Xe cần chỉnh</span>
+            <span class="control-label">${state.gpsMode === 'pickup' ? 'Người chờ nhận xe' : 'Người đang thuê'}</span>
             <div class="gps-chip-grid gps-bike-grid">
-              ${state.gpsBikes.map((item) => gpsBikeChip(item)).join('')}
+              ${sessions.map((item) => gpsSessionChip(item)).join('') || emptyState(state.gpsMode === 'pickup' ? 'Chưa có yêu cầu nhận xe' : 'Chưa có lượt đang thuê')}
             </div>
           </div>
           <div class="control-group">
@@ -684,16 +695,16 @@ function gpsDemoView() {
             </div>
           </div>
           <div class="gps-demo-actions">
-            <button class="primary" type="button" data-gps-snap="near"><img src="/vendor/icons/crosshair.svg" alt="">Kéo gần bãi</button>
-            <button class="secondary" type="button" data-gps-snap="far"><img src="/vendor/icons/map-pinned.svg" alt="">Đẩy ra xa</button>
+            <button class="primary" type="button" data-gps-snap="near"${sessionDisabled}><img src="/vendor/icons/crosshair.svg" alt="">Kéo gần bãi</button>
+            <button class="secondary" type="button" data-gps-snap="far"${sessionDisabled}><img src="/vendor/icons/map-pinned.svg" alt="">Đẩy ra xa</button>
           </div>
         </section>
         <section class="panel gps-map-panel">
           <div class="section-heading">
-            <h2>Vị trí xe trên bản đồ</h2>
-            <span>${bike ? escapeHtml(bike.bike_code) : 'N/A'}</span>
+            <h2>Vị trí người dùng trên bản đồ</h2>
+            <span>${session ? `${escapeHtml(session.customer_name)} · ${escapeHtml(session.bike_code)}` : 'N/A'}</span>
           </div>
-          <div id="gps-demo-map" class="gps-demo-map" aria-label="Bản đồ kéo thả GPS xe đạp"></div>
+          <div id="gps-demo-map" class="gps-demo-map" aria-label="Bản đồ kéo thả GPS người dùng"></div>
         </section>
         <section class="panel gps-status-panel">
           <div class="section-heading">
@@ -704,19 +715,20 @@ function gpsDemoView() {
             <img src="/vendor/icons/${near ? 'badge-check' : 'badge-alert'}.svg" alt="">
             <div>
               <strong>${near ? 'Đủ gần bãi đích' : 'Chưa đủ gần bãi đích'}</strong>
-              <span>${Math.round(distance)} m · ngưỡng 120 m</span>
+              <span>${Number.isFinite(distance) ? Math.round(distance) : '-'} m · bán kính ${radius} m</span>
             </div>
           </div>
           <div class="return-pipeline gps-checklist">
             ${returnStep('map-pin', state.gpsMode === 'pickup' ? 'Chọn bãi nhận' : 'Chọn bãi trả', target ? escapeHtml(target.station_name) : 'Chưa có bãi', Boolean(target))}
-            ${returnStep('navigation', 'GPS xe', `${Math.round(distance)} m tới bãi`, near)}
-            ${returnStep('bike', state.gpsMode === 'pickup' ? 'Mượn xe' : 'Nhận xe trả', bike ? `${escapeHtml(bike.bike_code)} · ${statusLabel(bike.bike_status)}` : 'Chưa chọn xe', Boolean(bike))}
+            ${returnStep('navigation', 'GPS người dùng', `${Number.isFinite(distance) ? Math.round(distance) : '-'} m tới bãi`, near)}
+            ${returnStep('bike', state.gpsMode === 'pickup' ? 'Mượn xe' : 'Nhận xe trả', session ? `${escapeHtml(session.bike_code)} · ${escapeHtml(session.customer_name)}` : 'Chưa có phiên', Boolean(session))}
             ${returnStep('receipt-text', state.gpsMode === 'pickup' ? 'Gửi yêu cầu' : 'Cập nhật vé/trạng thái', near ? 'Có thể diễn flow' : 'Kéo xe gần hơn', near)}
           </div>
           <dl class="detail-list inline-details">
             <div><dt>Lat</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lat.toFixed(6) : '-'}</dd></div>
             <div><dt>Lng</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lng.toFixed(6) : '-'}</dd></div>
-            <div><dt>Loại xe</dt><dd>${bike ? escapeHtml(bike.type_name) : '-'}</dd></div>
+            <div><dt>Loại xe</dt><dd>${session ? escapeHtml(session.type_name) : '-'}</dd></div>
+            <div><dt>Xác nhận trả</dt><dd>${session?.return_confirmed_at ? formatTime(session.return_confirmed_at) : '-'}</dd></div>
           </dl>
         </section>
       </main>
@@ -732,7 +744,7 @@ function gpsDemoLoadingView() {
           <span class="brand-mark"><img src="/vendor/icons/navigation.svg" alt=""></span>
           <div>
             <strong>Bảng điều khiển demo</strong>
-            <span>/gd · GPS xe và đồng hồ hệ thống</span>
+            <span>/gd · GPS người dùng và đồng hồ hệ thống</span>
           </div>
         </div>
         <div class="user-actions">
@@ -793,14 +805,16 @@ function demoClockPanel() {
   `;
 }
 
-function gpsBikeChip(bike) {
-  const active = Number(state.gpsSelectedBikeId) === bike.bike_id ? 'active' : '';
-  const renter = bike.active_rental_customer_name ? ` · ${escapeHtml(bike.active_rental_customer_name)}` : '';
-  const heldBy = bike.held_customer_name ? ` · giữ bởi ${escapeHtml(bike.held_customer_name)}` : '';
+function gpsSessionChip(session) {
+  const active = state.gpsSelectedSessionKey === session.session_key ? 'active' : '';
+  const station = session.flow === 'pickup' ? session.pickup_station : (session.return_station || session.target_station);
+  const status = session.flow === 'pickup'
+    ? 'Chờ nhận xe'
+    : session.return_confirmed_at ? 'Đã xác nhận trả' : 'Đang thuê';
   return `
-    <button class="gps-chip ${active}" type="button" data-gps-bike="${bike.bike_id}">
-      <strong>${escapeHtml(bike.bike_code)}</strong>
-      <span>${escapeHtml(bikeTypeShortLabel(bike.type_name))} · ${escapeHtml(bike.station_name)}${renter}${heldBy}</span>
+    <button class="gps-chip ${active}" type="button" data-gps-session="${escapeAttr(session.session_key)}">
+      <strong>${escapeHtml(session.customer_name)}</strong>
+      <span>${escapeHtml(session.bike_code)} · ${escapeHtml(bikeTypeShortLabel(session.type_name))} · ${escapeHtml(station)} · ${status}</span>
     </button>
   `;
 }
@@ -810,17 +824,26 @@ function gpsStationChip(station) {
   return `
     <button class="gps-chip ${active}" type="button" data-gps-station="${station.station_id}">
       <strong>${escapeHtml(station.station_name)}</strong>
-      <span>${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh</span>
+      <span>${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh · bán kính ${station.station_radius_meters || 180} m</span>
     </button>
   `;
 }
 
-function selectedGpsBike() {
-  return state.gpsBikes.find((bike) => bike.bike_id === Number(state.gpsSelectedBikeId)) || state.gpsBikes[0] || null;
+function gpsSessionsForMode() {
+  return state.gpsSessions.filter((session) => session.flow === state.gpsMode);
+}
+
+function selectedGpsSession() {
+  const sessions = gpsSessionsForMode();
+  return sessions.find((session) => session.session_key === state.gpsSelectedSessionKey) || sessions[0] || null;
 }
 
 function selectedGpsTargetStation() {
-  return state.stations.find((station) => station.station_id === Number(state.gpsTargetStationId)) || state.stations[0] || null;
+  const session = selectedGpsSession();
+  return state.stations.find((station) => station.station_id === Number(state.gpsTargetStationId))
+    || state.stations.find((station) => station.station_id === Number(session?.target_station_id))
+    || state.stations[0]
+    || null;
 }
 
 function gpsDistanceToTarget() {
@@ -828,6 +851,11 @@ function gpsDistanceToTarget() {
   const position = state.gpsBikePosition;
   if (!target || !position) return Infinity;
   return distanceMeters(position.lat, position.lng, target.latitude, target.longitude);
+}
+
+function gpsTargetRadiusMeters() {
+  const target = selectedGpsTargetStation();
+  return Number(target?.station_radius_meters || 180);
 }
 
 function setGpsBikeNearTarget(isNear) {
@@ -1104,11 +1132,12 @@ function customerTypeDropdownOption(option, selectedValue) {
 
 function returnPipelineView() {
   const hasActive = state.activeRentals.length > 0;
+  const confirmed = state.activeRentals.filter((item) => item.return_confirmed_at).length;
   const ticket = state.lastTicket;
   return `
     <div class="return-pipeline">
       ${returnStep('bike', 'Nhận xe', hasActive ? `${state.activeRentals.length} lượt sẵn sàng xử lý` : 'Chưa có lượt đang thuê', hasActive)}
-      ${returnStep('map-pin', 'Chọn bãi trả', hasActive ? 'Có thể khác bãi nhận' : 'Chờ rental active', hasActive)}
+      ${returnStep('map-pin-check', 'Khách xác nhận bãi trả', confirmed ? `${confirmed}/${state.activeRentals.length} lượt đã xác nhận` : 'Chờ xác nhận từ khách', confirmed > 0)}
       ${returnStep('wrench', 'Kiểm tra xe', hasActive ? 'Sẵn sàng hoặc cần sửa' : 'Chờ xe trả', hasActive)}
       ${returnStep('receipt-text', 'Xuất vé', ticket ? `TCK${ticket.ticket_id} · ${money(ticket.total_amount)}` : 'Chưa có vé mới', Boolean(ticket))}
     </div>
@@ -1289,6 +1318,15 @@ function currentLocation() {
     return { ...state.lastKnownLocation, id: 'last-known', mode: 'saved' };
   }
   return LOCATION_PRESETS.find((preset) => preset.id === state.locationPresetId) || LOCATION_PRESETS[0];
+}
+
+function locationPayload(location) {
+  return {
+    latitude: Number(location.lat),
+    longitude: Number(location.lng),
+    mode: location.mode || 'manual',
+    label: locationShortLabel(location)
+  };
 }
 
 function locationShortLabel(preset) {
@@ -1506,7 +1544,10 @@ function mountGpsDemoMap() {
     zoomControl: true,
     attributionControl: false,
     scrollWheelZoom: false
-  }).setView([mapCenter.lat, mapCenter.lng], 15);
+  }).setView(
+    state.gpsMapView ? [state.gpsMapView.lat, state.gpsMapView.lng] : [mapCenter.lat, mapCenter.lng],
+    state.gpsMapView?.zoom || 15
+  );
 
   window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -1550,7 +1591,7 @@ function mountGpsDemoMap() {
 
   if (target) {
     window.L.circle([Number(target.latitude), Number(target.longitude)], {
-      radius: 120,
+      radius: gpsTargetRadiusMeters(),
       color: '#1596c2',
       fillColor: '#1596c2',
       fillOpacity: 0.08,
@@ -1558,36 +1599,63 @@ function mountGpsDemoMap() {
     }).addTo(gpsMapInstance);
   }
 
+  if (!selectedGpsSession()) {
+    if (!state.gpsMapView) {
+      gpsMapInstance.fitBounds(boundsForGpsDemo(roadLatLngs), { padding: [28, 28], maxZoom: 16 });
+      rememberGpsMapView();
+    }
+    return;
+  }
+
   const startPoint = routePath[0] || state.gpsBikePosition;
   gpsBikeMarker = window.L.marker([startPoint.lat, startPoint.lng], {
     draggable: true,
     icon: window.L.divIcon({
       className: 'bike-gps-pin',
-      html: '<span><img src="/vendor/icons/bike.svg" alt=""></span><strong>GPS xe</strong>',
-      iconSize: [92, 36],
+      html: '<span><img src="/vendor/icons/user-round.svg" alt=""></span><strong>GPS khách</strong>',
+      iconSize: [104, 36],
       iconAnchor: [18, 18]
     })
   }).addTo(gpsMapInstance);
+  gpsMapInstance.on('moveend zoomend', rememberGpsMapView);
   gpsBikeMarker.on('drag', () => {
     const latLng = gpsBikeMarker.getLatLng();
     const snapped = snapToRoad(latLng.lat, latLng.lng);
     gpsBikeMarker.setLatLng([snapped.lat, snapped.lng]);
   });
   gpsBikeMarker.on('dragend', () => {
+    rememberGpsMapView();
     const latLng = gpsBikeMarker.getLatLng();
     const snapped = snapToRoad(latLng.lat, latLng.lng);
     state.gpsRoutePath = buildRoadRoute(state.gpsBikePosition, snapped);
     state.gpsBikePosition = snapped;
-    notify('Đã đưa GPS xe về tuyến đường hợp lệ');
+    notify('Đã đưa GPS người dùng về tuyến đường hợp lệ');
     render();
   });
 
-  const bounds = window.L.latLngBounds([
+  const bounds = boundsForGpsDemo(roadLatLngs);
+  if (!state.gpsMapView) {
+    gpsMapInstance.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
+    rememberGpsMapView();
+  }
+  animateGpsMarkerAlongRoute(routePath);
+}
+
+function boundsForGpsDemo(roadLatLngs) {
+  return window.L.latLngBounds([
     ...roadLatLngs,
     ...state.stations.map((station) => [Number(station.latitude), Number(station.longitude)])
   ]);
-  gpsMapInstance.fitBounds(bounds, { padding: [28, 28], maxZoom: 16 });
-  animateGpsMarkerAlongRoute(routePath);
+}
+
+function rememberGpsMapView() {
+  if (!gpsMapInstance) return;
+  const center = gpsMapInstance.getCenter();
+  state.gpsMapView = {
+    lat: center.lat,
+    lng: center.lng,
+    zoom: gpsMapInstance.getZoom()
+  };
 }
 
 function animateGpsMarkerAlongRoute(path) {
@@ -1644,6 +1712,7 @@ function disposeGpsDemoMap() {
   }
   gpsBikeMarker = null;
   if (!gpsMapInstance) return;
+  rememberGpsMapView();
   gpsMapInstance.remove();
   gpsMapInstance = null;
 }
@@ -1925,8 +1994,14 @@ function customerActivity() {
   `).join('');
   const active = state.history.activeRentals.map((item) => `
     <li class="activity-item rental-active">
-      <strong>${escapeHtml(item.bike_code)}</strong>
-      <span>${rentalTimingLabel(item)} · trả dự kiến ${formatTime(item.planned_end_at)} · cọc ${money(item.deposit_amount)}</span>
+      <div>
+        <strong>${escapeHtml(item.bike_code)}</strong>
+        <span>${rentalTimingLabel(item)} · trả dự kiến ${formatTime(item.planned_end_at)} · cọc ${money(item.deposit_amount)}</span>
+        <span class="cell-subtext">${item.return_confirmed_at ? `Đã xác nhận trả tại ${escapeHtml(item.return_station || selectedStationName())}` : `Chưa xác nhận trả · bãi đang chọn: ${selectedStationName()}`}</span>
+      </div>
+      <button class="secondary small" type="button" data-confirm-return="${item.rental_id}">
+        <img src="/vendor/icons/map-pin-check.svg" alt="">${item.return_confirmed_at ? 'Đổi bãi trả' : 'Xác nhận trả'}
+      </button>
     </li>
   `).join('');
   const completed = state.history.completedRentals.map((item) => `
@@ -2157,11 +2232,11 @@ function activeRentalsTable() {
               <td data-label="Khách">${escapeHtml(item.full_name)}</td>
               <td data-label="Xe"><strong>${escapeHtml(item.bike_code)}</strong><span class="cell-subtext">Dự kiến ${formatTime(item.planned_end_at)}</span></td>
               <td data-label="Bãi nhận">${escapeHtml(item.pickup_station)}</td>
-              <td data-label="Bãi trả">${stationSelect(`return-station-${item.rental_id}`, item.pickup_station_id)}</td>
+              <td data-label="Bãi trả">${stationSelect(`return-station-${item.rental_id}`, item.return_station_id || item.pickup_station_id)}<span class="cell-subtext">${item.return_confirmed_at ? `Khách xác nhận ${escapeHtml(item.return_station || '')}` : 'Chờ khách xác nhận'}</span></td>
               <td data-label="Giờ trả"><input id="returned-at-${item.rental_id}" type="datetime-local" value="${toDatetimeLocal(defaultReturnTime(item))}" aria-label="Giờ trả RENT${item.rental_id}"></td>
               <td data-label="Tình trạng">${rentalConditionSelect(`condition-${item.rental_id}`)}</td>
               <td data-label="Ghi chú"><input id="condition-note-${item.rental_id}" value="Nhận xe tại bãi trả" aria-label="Ghi chú tình trạng RENT${item.rental_id}"></td>
-              <td class="actions-cell" data-label=""><button class="primary small" data-return="${item.rental_id}"><img src="/vendor/icons/receipt-text.svg" alt="">Xuất vé</button></td>
+              <td class="actions-cell" data-label=""><button class="primary small" data-return="${item.rental_id}" ${item.return_confirmed_at ? '' : 'disabled'}><img src="/vendor/icons/receipt-text.svg" alt="">Xuất vé</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -2320,15 +2395,18 @@ function bindGpsDemoEvents() {
     button.addEventListener('click', () => {
       state.gpsMode = button.dataset.gpsMode;
       state.gpsRoutePath = [];
+      const session = gpsSessionsForMode()[0] || null;
+      state.gpsSelectedSessionKey = session?.session_key || null;
+      state.gpsTargetStationId = session?.target_station_id || state.gpsTargetStationId;
       render();
     });
   });
-  document.querySelectorAll('[data-gps-bike]').forEach((button) => {
+  document.querySelectorAll('[data-gps-session]').forEach((button) => {
     button.addEventListener('click', () => {
-      state.gpsSelectedBikeId = Number(button.dataset.gpsBike);
-      const bike = selectedGpsBike();
-      if (state.gpsMode === 'pickup' && bike) {
-        state.gpsTargetStationId = bike.station_id;
+      state.gpsSelectedSessionKey = button.dataset.gpsSession;
+      const session = selectedGpsSession();
+      if (session) {
+        state.gpsTargetStationId = session.target_station_id;
       }
       setGpsBikeNearTarget(false);
       render();
@@ -2343,14 +2421,32 @@ function bindGpsDemoEvents() {
   });
   document.querySelectorAll('[data-gps-snap]').forEach((button) => {
     button.addEventListener('click', () => {
+      if (!selectedGpsSession()) return;
       setGpsBikeNearTarget(button.dataset.gpsSnap === 'near');
       render();
     });
   });
 }
 
+function bindPasswordToggles() {
+  document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const field = button.closest('.password-field')?.querySelector('input');
+      if (!field) return;
+      const isVisible = field.type === 'text';
+      field.type = isVisible ? 'password' : 'text';
+      button.title = isVisible ? 'Hiện mật khẩu' : 'Ẩn mật khẩu';
+      button.setAttribute('aria-label', button.title);
+      const icon = button.querySelector('img');
+      if (icon) icon.src = `/vendor/icons/${isVisible ? 'eye' : 'eye-off'}.svg`;
+      field.focus({ preventScroll: true });
+    });
+  });
+}
+
 function bindAuthEvents() {
   bindThemeEvents();
+  bindPasswordToggles();
   bindCustomSelectEvents();
   bindRegisterCustomerTypeDropdown();
 
@@ -2683,12 +2779,29 @@ function bindCustomerEvents() {
           body: {
             bikeId,
             stationId: state.selectedStationId,
-            requestedDurationMinutes: Number(duration)
+            requestedDurationMinutes: Number(duration),
+            userLocation: locationPayload(currentLocation())
           }
         });
         await refreshData();
         render();
       }, 'Đã gửi yêu cầu thuê xe');
+    });
+  });
+  document.querySelectorAll('[data-confirm-return]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const rentalId = Number(button.dataset.confirmReturn);
+      await runAction(async () => {
+        await api(`/api/customer/rentals/${rentalId}/confirm-return`, {
+          method: 'POST',
+          body: {
+            returnStationId: state.selectedStationId,
+            userLocation: locationPayload(currentLocation())
+          }
+        });
+        await refreshData();
+        render();
+      }, 'Đã xác nhận vị trí trả xe');
     });
   });
   bindCancelRequestButtons();
@@ -3179,8 +3292,8 @@ function statusLabel(status) {
 
 function identityStatusLabel(status) {
   return ({
-    verified: 'Đã xác minh',
-    pending: 'Chờ rà soát',
+    verified: 'Hợp lệ',
+    pending: 'Chờ bổ sung',
     rejected: 'Từ chối',
     blocked: 'Bị khóa'
   })[status] || 'Chưa rõ';
