@@ -57,16 +57,17 @@ vào Secret Manager; log vận hành đi qua Cloud Logging/Monitoring.
 \subsection{Đánh giá nhanh phần back-end}
 Back-end hiện tại đã hỗ trợ vòng đời thuê-trả theo scope report: đăng ký/đăng
 nhập, xác minh email bằng mã demo-local, reset mật khẩu demo-local, tách phiên
-theo cookie, giữ chỗ xe bằng request pending, giao xe có cọc/giấy tờ, đổi xe
-trước handover, trả xe khác bãi, tính vé, giảm giá cư dân, cập nhật trạng thái
-xe, mở nhật ký audit và tổng hợp báo cáo có biểu đồ/table/CSV.
+theo cookie, giữ chỗ xe bằng request pending có geofence bãi nhận, giao xe có
+cọc/giấy tờ và kiểm tra lại vị trí khách, đổi xe trước handover, trả xe khác bãi
+sau khi customer xác nhận vị trí trong bán kính bãi trả, tính vé, giảm giá cư dân,
+cập nhật trạng thái xe, mở nhật ký audit và tổng hợp báo cáo có biểu đồ/table/CSV.
 
 \begin{longtable}{P{0.22\textwidth}P{0.38\textwidth}P{0.30\textwidth}}
 \toprule
 \textbf{Mảng back-end} & \textbf{Đã có trong platform} & \textbf{GCP / production note} \\
 \midrule
 Authentication & Session cookie riêng cho từng browser/context; role customer, staff, admin; email verification, reset password và PBKDF2 salted password hash. & Secret Manager cho cấu hình; session store bền vững hơn nếu scale nhiều instance. \\
-Rental lifecycle & Request pending, giữ xe, hủy/hết hạn, đổi xe trước handover, staff scope theo bãi, rental in-progress, return ticket. & SQLite/WAL đủ cho demo single-instance; Cloud SQL là hướng nâng cấp khi scale ngang. \\
+Rental lifecycle & Request pending có tọa độ pickup, giữ xe, hủy/hết hạn, đổi xe trước handover, staff scope theo bãi, rental in-progress, customer confirm return và return ticket. & SQLite/WAL đủ cho demo single-instance; Cloud SQL là hướng nâng cấp khi scale ngang. \\
 Pricing & Bảng giá 1/2/3 giờ, phụ thu trễ block 30 phút, giảm cư dân 40\%. & Policy có thể versioning để đổi giá không sửa code. \\
 Fleet reports & Chart doanh thu, trạng thái đội xe, lượt thuê/phụ thu, bảng chi tiết và CSV theo bộ lọc. & Có thể backup file SQLite định kỳ lên Cloud Storage nếu cần. \\
 Auditability & Có bảng \texttt{BIKE\_STATUS\_LOGS}, API đọc log và panel nhật ký trạng thái xe. & Cloud Logging giữ log runtime; DB giữ audit nghiệp vụ. \\
@@ -207,7 +208,7 @@ hoàn tất trả xe.
 \draw[msg] (8.4,-2.1) -- node[above,font=\tiny] {3. create rental, mark rented} (12.6,-2.1);
 \draw[msg] (8.4,-2.75) -- node[above,font=\tiny] {4. active rental} (4.2,-2.75);
 \node[note] at (4.2,-3.25) {Return pipeline is enabled\\when a rental is active};
-\draw[msg] (0,-4.0) -- node[above,font=\tiny] {5. return station/time/condition} (4.2,-4.0);
+\draw[msg] (0,-4.0) -- node[above,font=\tiny] {5. confirmed return station/time/condition} (4.2,-4.0);
 \draw[msg] (4.2,-4.65) -- node[above,font=\tiny] {6. \texttt{POST /api/staff/return}} (8.4,-4.65);
 \draw[msg] (8.4,-5.3) -- node[above,font=\tiny] {7. ticket, bike update, audit log} (12.6,-5.3);
 \draw[msg] (8.4,-5.95) -- node[above,font=\tiny] {8. ticket + charts + logs} (4.2,-5.95);

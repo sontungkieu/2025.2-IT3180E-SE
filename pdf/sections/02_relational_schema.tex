@@ -56,12 +56,12 @@ quan hệ phục vụ trực tiếp đề hiện hành trong `docs/đề.txt`.
 \textbf{CUSTOMER\_PROFILES} & \underline{customer\_id} (PK, FK $\rightarrow$ USERS.user\_id), identity\_number, address, customer\_type, resident\_card\_id (FK, nullable), identity\_status, discount\_eligible, identity\_review\_note, created\_at \\
 \textbf{RESIDENT\_CARDS} & \underline{resident\_card\_id} (PK), customer\_id (FK $\rightarrow$ CUSTOMER\_PROFILES.customer\_id), card\_number, registered\_address, verification\_status, review\_note, verified\_by (FK $\rightarrow$ USERS.user\_id, nullable), verified\_at \\
 \textbf{STAFF} & \underline{staff\_id} (PK, FK $\rightarrow$ USERS.user\_id), staff\_code, staff\_role, station\_id (FK $\rightarrow$ STATIONS.station\_id, nullable), active \\
-\textbf{STATIONS} & \underline{station\_id} (PK), station\_name, address, latitude, longitude, capacity, station\_status \\
+\textbf{STATIONS} & \underline{station\_id} (PK), station\_name, address, latitude, longitude, capacity, station\_radius\_meters, station\_status \\
 \textbf{BIKE\_TYPES} & \underline{bike\_type\_id} (PK), type\_name, description, active \\
 \textbf{BIKES} & \underline{bike\_id} (PK), station\_id (FK $\rightarrow$ STATIONS.station\_id), bike\_type\_id (FK $\rightarrow$ BIKE\_TYPES.bike\_type\_id), bike\_code (unique), bike\_status, last\_status\_updated\_at \\
 \textbf{PRICING\_POLICIES} & \underline{policy\_id} (PK), duration\_minutes, base\_price, late\_fee\_per\_30min, resident\_discount\_rate, active, effective\_from \\
-\textbf{RENTAL\_REQUESTS} & \underline{request\_id} (PK), customer\_id (FK), bike\_id (FK), pickup\_station\_id (FK), requested\_duration\_minutes, request\_status, created\_at, expires\_at \\
-\textbf{RENTALS} & \underline{rental\_id} (PK), request\_id (FK), customer\_id (FK), bike\_id (FK), pickup\_station\_id (FK), return\_station\_id (FK, nullable), picked\_up\_by (FK $\rightarrow$ STAFF.staff\_id), returned\_by (FK $\rightarrow$ STAFF.staff\_id, nullable), planned\_duration\_minutes, started\_at, returned\_at, rental\_status \\
+\textbf{RENTAL\_REQUESTS} & \underline{request\_id} (PK), customer\_id (FK), bike\_id (FK), pickup\_station\_id (FK), requested\_duration\_minutes, request\_status, pickup\_latitude, pickup\_longitude, pickup\_distance\_meters, created\_at, expires\_at \\
+\textbf{RENTALS} & \underline{rental\_id} (PK), request\_id (FK), customer\_id (FK), bike\_id (FK), pickup\_station\_id (FK), return\_station\_id (FK, nullable), picked\_up\_by (FK $\rightarrow$ STAFF.staff\_id), returned\_by (FK $\rightarrow$ STAFF.staff\_id, nullable), planned\_duration\_minutes, started\_at, returned\_at, return\_confirmed\_at, return\_confirmed\_latitude, return\_confirmed\_longitude, return\_distance\_meters, rental\_status \\
 \textbf{RENTAL\_DEPOSITS} & \underline{deposit\_id} (PK), rental\_id (FK $\rightarrow$ RENTALS.rental\_id), amount, document\_type, document\_reference\_masked, deposit\_status, collected\_at, returned\_at \\
 \textbf{RENTAL\_TICKETS} & \underline{ticket\_id} (PK), rental\_id (FK $\rightarrow$ RENTALS.rental\_id), base\_fee, resident\_discount\_amount, late\_fee, total\_amount, issued\_at \\
 \textbf{BIKE\_STATUS\_LOGS} & \underline{log\_id} (PK), bike\_id (FK $\rightarrow$ BIKES.bike\_id), old\_status, new\_status, station\_id (FK), changed\_by (FK $\rightarrow$ USERS.user\_id), reason, changed\_at \\
@@ -91,11 +91,11 @@ quan hệ phục vụ trực tiếp đề hiện hành trong `docs/đề.txt`.
 \begin{itemize}
   \item USERS.email phải duy nhất đối với tài khoản đang hoạt động.
   \item BIKES.bike\_code phải duy nhất toàn hệ thống, không chỉ duy nhất trong một bãi xe.
-  \item Chỉ cho phép tạo RENTAL\_REQUESTS nếu khách có tài khoản hợp lệ và đã cung cấp CCCD/chứng minh thư cùng email.
-  \item Không cho phép giao xe nếu BIKES.bike\_status khác \textit{available} hoặc STATIONS.station\_status không hoạt động.
+  \item Chỉ cho phép tạo RENTAL\_REQUESTS nếu khách có tài khoản hợp lệ, đã cung cấp CCCD/chứng minh thư cùng email và tọa độ pickup nằm trong STATIONS.station\_radius\_meters.
+  \item Không cho phép giao xe nếu BIKES.bike\_status khác \textit{available}, STATIONS.station\_status không hoạt động hoặc tọa độ pickup đã lưu không còn nằm trong bán kính bãi nhận.
   \item Tại một thời điểm, một Customer chỉ được có một RENTALS ở trạng thái \textit{in\_progress}.
   \item Khi UC003 hoàn tất, BIKES.bike\_status phải chuyển sang \textit{rented}; khi UC004 hoàn tất, bike\_status chuyển sang \textit{available} hoặc \textit{broken} tùy kết quả kiểm tra.
-  \item Khi trả xe ở bãi khác bãi nhận, RENTALS.return\_station\_id và BIKES.station\_id phải được cập nhật theo bãi trả.
+  \item Khi trả xe, Customer phải xác nhận bãi trả bằng tọa độ nằm trong bán kính bãi; sau đó RENTALS.return\_station\_id và BIKES.station\_id được cập nhật theo bãi trả.
   \item PRICING\_POLICIES phải thể hiện đúng bảng giá 50k/1 giờ, 70k/2 giờ, 100k/3 giờ và phụ thu 30k/30 phút.
   \item Giảm giá cư dân 40\% chỉ được áp dụng khi RESIDENT\_CARDS.verification\_status là \textit{verified} và CUSTOMER\_PROFILES.discount\_eligible là true.
   \item Phí đặt cọc không phải doanh thu thuê xe; RENTAL\_DEPOSITS được quản lý riêng với RENTAL\_TICKETS.

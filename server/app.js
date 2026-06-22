@@ -10,6 +10,7 @@ const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 const DEMO_CLOCK_OFFSET_KEY = 'demo_clock_offset_minutes';
 const MAX_DEMO_CLOCK_OFFSET_MINUTES = 7 * 24 * 60;
 const MIN_DEMO_CLOCK_OFFSET_MINUTES = -24 * 60;
+const DEFAULT_STATION_RADIUS_METERS = 180;
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -166,6 +167,19 @@ async function handleApi(ctx) {
   if (method === 'GET' && pathname === '/api/customer/history') {
     const user = requireRole(ctx, ['customer']);
     sendJson(res, 200, getCustomerHistory(ctx.db, user.user_id));
+    return;
+  }
+
+  const returnConfirmMatch = pathname.match(/^\/api\/customer\/rentals\/(\d+)\/confirm-return$/);
+  if (method === 'POST' && returnConfirmMatch) {
+    const user = requireRole(ctx, ['customer']);
+    const body = await readJson(req);
+    sendJson(res, 200, { rental: confirmRentalReturn(ctx.db, user, Number(returnConfirmMatch[1]), body) });
+    return;
+  }
+
+  if (method === 'GET' && pathname === '/api/gps-demo/sessions') {
+    sendJson(res, 200, { sessions: getGpsDemoSessions(ctx.db) });
     return;
   }
 
@@ -543,9 +557,11 @@ function createRentalRequest(db, user, body) {
   const bikeId = Number(body.bikeId);
   const stationId = Number(body.stationId);
   const requestedDurationMinutes = Number(body.requestedDurationMinutes);
+  const pickupLocation = requiredCustomerLocation(body, 'Pickup location');
   if (!BASE_PRICES.has(requestedDurationMinutes)) {
     throw httpError(400, 'Rental duration must be 60, 120 or 180 minutes');
   }
+  const pickupCheck = ensureLocationWithinStation(db, stationId, pickupLocation, 'Pickup');
 
   const profile = db.prepare('SELECT * FROM customer_profiles WHERE customer_id = ?').get(user.user_id);
   if (!user.email_verified_at) {
@@ -600,9 +616,20 @@ function createRentalRequest(db, user, body) {
   const expiresAt = new Date(appDate(db).getTime() + 45 * 60 * 1000).toISOString();
   const requestId = Number(db.prepare(`
     INSERT INTO rental_requests
-      (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at)
-    VALUES (?, ?, ?, ?, 'pending_pickup', ?, ?)
-  `).run(user.user_id, bikeId, stationId, requestedDurationMinutes, createdAt, expiresAt).lastInsertRowid);
+      (customer_id, bike_id, pickup_station_id, requested_duration_minutes, request_status, created_at, expires_at,
+       pickup_latitude, pickup_longitude, pickup_distance_meters)
+    VALUES (?, ?, ?, ?, 'pending_pickup', ?, ?, ?, ?, ?)
+  `).run(
+    user.user_id,
+    bikeId,
+    stationId,
+    requestedDurationMinutes,
+    createdAt,
+    expiresAt,
+    pickupLocation.lat,
+    pickupLocation.lng,
+    pickupCheck.distanceMeters
+  ).lastInsertRowid);
   return getPendingRequest(db, requestId);
 }
 
@@ -717,6 +744,12 @@ function handoverBike(db, user, body) {
   if (request.bike_status !== 'available' || request.station_id !== request.pickup_station_id || request.station_status !== 'active') {
     throw httpError(409, 'Bike cannot be handed over from this station');
   }
+  ensureLocationWithinStation(
+    db,
+    request.pickup_station_id,
+    { lat: request.pickup_latitude, lng: request.pickup_longitude },
+    'Handover'
+  );
 
   const startedAt = currentDate.toISOString();
   try {
@@ -758,6 +791,49 @@ function handoverBike(db, user, body) {
   }
 }
 
+function confirmRentalReturn(db, user, rentalId, body) {
+  const returnStationId = Number(body.returnStationId);
+  const returnLocation = requiredCustomerLocation(body, 'Return location');
+  const returnCheck = ensureLocationWithinStation(db, returnStationId, returnLocation, 'Return');
+  const rental = db.prepare(`
+    SELECT r.*, b.bike_status, ps.station_name AS pickup_station
+    FROM rentals r
+    JOIN bikes b ON b.bike_id = r.bike_id
+    JOIN stations ps ON ps.station_id = r.pickup_station_id
+    WHERE r.rental_id = ?
+  `).get(rentalId);
+  if (!rental || rental.rental_status !== 'in_progress') {
+    throw httpError(404, 'Active rental not found');
+  }
+  if (Number(rental.customer_id) !== Number(user.user_id)) {
+    throw httpError(403, 'Customers can only confirm return for their own rental');
+  }
+  if (rental.bike_status !== 'rented') {
+    throw httpError(409, 'Bicycle must still be in rented status before return confirmation');
+  }
+
+  const confirmedAt = appNow(db);
+  db.prepare(`
+    UPDATE rentals
+    SET return_station_id = ?,
+        return_confirmed_at = ?,
+        return_confirmed_by = ?,
+        return_confirmed_latitude = ?,
+        return_confirmed_longitude = ?,
+        return_distance_meters = ?
+    WHERE rental_id = ?
+  `).run(
+    returnStationId,
+    confirmedAt,
+    user.user_id,
+    returnLocation.lat,
+    returnLocation.lng,
+    returnCheck.distanceMeters,
+    rentalId
+  );
+  return getCustomerActiveRental(db, rentalId);
+}
+
 function returnBike(db, user, body) {
   const rentalId = Number(body.rentalId);
   const returnStationId = Number(body.returnStationId);
@@ -766,14 +842,26 @@ function returnBike(db, user, body) {
   const conditionNote = body.conditionNote ? String(body.conditionNote).trim() : 'Returned after customer ride';
 
   const rental = db.prepare(`
-    SELECT r.*, cp.discount_eligible, b.bike_status
+    SELECT r.*, b.bike_status,
+      CASE
+        WHEN cp.customer_type = 'resident'
+          AND cp.discount_eligible = 1
+          AND rc.verification_status = 'verified'
+        THEN 1 ELSE 0 END AS resident_discount_eligible
     FROM rentals r
     JOIN customer_profiles cp ON cp.customer_id = r.customer_id
+    LEFT JOIN resident_cards rc ON rc.resident_card_id = cp.resident_card_id
     JOIN bikes b ON b.bike_id = r.bike_id
     WHERE r.rental_id = ?
   `).get(rentalId);
   if (!rental || rental.rental_status !== 'in_progress') {
     throw httpError(404, 'Active rental not found');
+  }
+  if (!rental.return_confirmed_at) {
+    throw httpError(409, 'Customer must confirm return at the selected station before ticket issuance');
+  }
+  if (Number(rental.return_station_id) !== returnStationId) {
+    throw httpError(409, 'Return station must match the customer confirmation');
   }
 
   const station = db.prepare("SELECT * FROM stations WHERE station_id = ? AND station_status = 'active'").get(returnStationId);
@@ -781,6 +869,12 @@ function returnBike(db, user, body) {
     throw httpError(400, 'Return station must be active');
   }
   ensureStaffCanAccessStation(user, returnStationId);
+  ensureLocationWithinStation(
+    db,
+    returnStationId,
+    { lat: rental.return_confirmed_latitude, lng: rental.return_confirmed_longitude },
+    'Return'
+  );
 
   let pricing;
   try {
@@ -788,7 +882,7 @@ function returnBike(db, user, body) {
       plannedDurationMinutes: rental.planned_duration_minutes,
       startedAt: rental.started_at,
       returnedAt,
-      discountEligible: Boolean(rental.discount_eligible)
+      discountEligible: Boolean(rental.resident_discount_eligible)
     });
   } catch (error) {
     throw httpError(400, error.message);
@@ -945,10 +1039,12 @@ function getCustomerHistory(db, customerId) {
     pickup_deadline_minutes: minutesBetween(currentDate, new Date(item.expires_at))
   }));
   const activeRentals = db.prepare(`
-    SELECT r.*, b.bike_code, ps.station_name AS pickup_station, rd.deposit_status, rd.amount AS deposit_amount
+    SELECT r.*, b.bike_code, ps.station_name AS pickup_station, rs.station_name AS return_station,
+      rd.deposit_status, rd.amount AS deposit_amount
     FROM rentals r
     JOIN bikes b ON b.bike_id = r.bike_id
     JOIN stations ps ON ps.station_id = r.pickup_station_id
+    LEFT JOIN stations rs ON rs.station_id = r.return_station_id
     JOIN rental_deposits rd ON rd.rental_id = r.rental_id
     WHERE r.customer_id = ? AND r.rental_status = 'in_progress'
     ORDER BY r.started_at DESC
@@ -979,15 +1075,36 @@ function getCustomerHistory(db, customerId) {
   };
 }
 
+function getCustomerActiveRental(db, rentalId) {
+  const currentDate = appDate(db);
+  const rental = db.prepare(`
+    SELECT r.*, b.bike_code, ps.station_name AS pickup_station, rs.station_name AS return_station,
+      rd.deposit_status, rd.amount AS deposit_amount
+    FROM rentals r
+    JOIN bikes b ON b.bike_id = r.bike_id
+    JOIN stations ps ON ps.station_id = r.pickup_station_id
+    LEFT JOIN stations rs ON rs.station_id = r.return_station_id
+    JOIN rental_deposits rd ON rd.rental_id = r.rental_id
+    WHERE r.rental_id = ? AND r.rental_status = 'in_progress'
+  `).get(rentalId);
+  return rental ? decorateRentalTiming(rental, currentDate) : null;
+}
+
 function getPendingRequests(db, user = null) {
   expirePendingRequests(db);
   const stationScope = scopedStationId(user);
   return db.prepare(`
-    SELECT rr.*, u.full_name, cp.identity_number, cp.customer_type, cp.discount_eligible,
+    SELECT rr.*, u.full_name, cp.identity_number, cp.customer_type,
+      CASE
+        WHEN cp.customer_type = 'resident'
+          AND cp.discount_eligible = 1
+          AND rc.verification_status = 'verified'
+        THEN 1 ELSE 0 END AS discount_eligible,
       b.bike_code, bt.type_name, s.station_name AS pickup_station
     FROM rental_requests rr
     JOIN users u ON u.user_id = rr.customer_id
     JOIN customer_profiles cp ON cp.customer_id = rr.customer_id
+    LEFT JOIN resident_cards rc ON rc.resident_card_id = cp.resident_card_id
     JOIN bikes b ON b.bike_id = rr.bike_id
     JOIN bike_types bt ON bt.bike_type_id = b.bike_type_id
     JOIN stations s ON s.station_id = rr.pickup_station_id
@@ -1011,16 +1128,95 @@ function getActiveRentals(db, user = null) {
   const currentDate = appDate(db);
   const stationScope = scopedStationId(user);
   return db.prepare(`
-    SELECT r.*, u.full_name, b.bike_code, ps.station_name AS pickup_station, rd.amount AS deposit_amount
+    SELECT r.*, u.full_name, b.bike_code, ps.station_name AS pickup_station, rs.station_name AS return_station,
+      rd.amount AS deposit_amount
     FROM rentals r
     JOIN users u ON u.user_id = r.customer_id
     JOIN bikes b ON b.bike_id = r.bike_id
     JOIN stations ps ON ps.station_id = r.pickup_station_id
+    LEFT JOIN stations rs ON rs.station_id = r.return_station_id
     JOIN rental_deposits rd ON rd.rental_id = r.rental_id
     WHERE r.rental_status = 'in_progress'
-      AND (? IS NULL OR r.pickup_station_id = ?)
+      AND (? IS NULL OR r.pickup_station_id = ? OR r.return_station_id = ?)
     ORDER BY r.started_at ASC
-  `).all(stationScope, stationScope).map((item) => decorateRentalTiming(item, currentDate));
+  `).all(stationScope, stationScope, stationScope).map((item) => decorateRentalTiming(item, currentDate));
+}
+
+function getGpsDemoSessions(db) {
+  expirePendingRequests(db);
+  const currentDate = appDate(db);
+  const pickupSessions = db.prepare(`
+    SELECT
+      'request' AS session_type,
+      'pickup' AS flow,
+      'request-' || rr.request_id AS session_key,
+      rr.request_id,
+      NULL AS rental_id,
+      rr.request_status AS workflow_status,
+      rr.customer_id,
+      u.full_name AS customer_name,
+      b.bike_id,
+      b.bike_code,
+      b.bike_status,
+      bt.type_name,
+      rr.pickup_station_id AS pickup_station_id,
+      ps.station_name AS pickup_station,
+      rr.pickup_station_id AS target_station_id,
+      ps.station_name AS target_station,
+      ps.latitude AS target_latitude,
+      ps.longitude AS target_longitude,
+      ps.station_radius_meters AS target_radius_meters,
+      rr.created_at AS started_at,
+      rr.expires_at AS deadline_at,
+      rr.pickup_distance_meters AS last_distance_meters,
+      NULL AS return_confirmed_at,
+      NULL AS return_station_id,
+      NULL AS return_station
+    FROM rental_requests rr
+    JOIN users u ON u.user_id = rr.customer_id
+    JOIN bikes b ON b.bike_id = rr.bike_id
+    JOIN bike_types bt ON bt.bike_type_id = b.bike_type_id
+    JOIN stations ps ON ps.station_id = rr.pickup_station_id
+    WHERE rr.request_status = 'pending_pickup'
+    ORDER BY rr.created_at ASC
+  `).all();
+  const returnSessions = db.prepare(`
+    SELECT
+      'rental' AS session_type,
+      'return' AS flow,
+      'rental-' || r.rental_id AS session_key,
+      r.request_id,
+      r.rental_id,
+      r.rental_status AS workflow_status,
+      r.customer_id,
+      u.full_name AS customer_name,
+      b.bike_id,
+      b.bike_code,
+      b.bike_status,
+      bt.type_name,
+      r.pickup_station_id,
+      ps.station_name AS pickup_station,
+      COALESCE(r.return_station_id, r.pickup_station_id) AS target_station_id,
+      COALESCE(rs.station_name, ps.station_name) AS target_station,
+      COALESCE(rs.latitude, ps.latitude) AS target_latitude,
+      COALESCE(rs.longitude, ps.longitude) AS target_longitude,
+      COALESCE(rs.station_radius_meters, ps.station_radius_meters) AS target_radius_meters,
+      r.started_at,
+      datetime(r.started_at, '+' || r.planned_duration_minutes || ' minutes') AS deadline_at,
+      r.return_distance_meters AS last_distance_meters,
+      r.return_confirmed_at,
+      r.return_station_id,
+      rs.station_name AS return_station
+    FROM rentals r
+    JOIN users u ON u.user_id = r.customer_id
+    JOIN bikes b ON b.bike_id = r.bike_id
+    JOIN bike_types bt ON bt.bike_type_id = b.bike_type_id
+    JOIN stations ps ON ps.station_id = r.pickup_station_id
+    LEFT JOIN stations rs ON rs.station_id = r.return_station_id
+    WHERE r.rental_status = 'in_progress'
+    ORDER BY r.started_at ASC
+  `).all().map((item) => decorateRentalTiming(item, currentDate));
+  return [...pickupSessions, ...returnSessions];
 }
 
 function getRental(db, rentalId) {
@@ -1153,14 +1349,15 @@ function createStation(db, body) {
   const latitude = Number(body.latitude);
   const longitude = Number(body.longitude);
   const capacity = Number(body.capacity);
+  const stationRadiusMeters = normalizeStationRadius(body.stationRadiusMeters);
   const status = ['active', 'paused', 'maintenance'].includes(body.stationStatus) ? body.stationStatus : 'active';
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || capacity < 1) {
     throw httpError(400, 'Station coordinates and capacity must be valid');
   }
   const stationId = Number(db.prepare(`
-    INSERT INTO stations (station_name, address, latitude, longitude, capacity, station_status)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(stationName, address, latitude, longitude, capacity, status).lastInsertRowid);
+    INSERT INTO stations (station_name, address, latitude, longitude, capacity, station_radius_meters, station_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(stationName, address, latitude, longitude, capacity, stationRadiusMeters, status).lastInsertRowid);
   return db.prepare('SELECT * FROM stations WHERE station_id = ?').get(stationId);
 }
 
@@ -1173,6 +1370,9 @@ function updateStation(db, stationId, body) {
     latitude: Number.isFinite(Number(body.latitude)) ? Number(body.latitude) : existing.latitude,
     longitude: Number.isFinite(Number(body.longitude)) ? Number(body.longitude) : existing.longitude,
     capacity: Number.isFinite(Number(body.capacity)) ? Number(body.capacity) : existing.capacity,
+    station_radius_meters: Number.isFinite(Number(body.stationRadiusMeters))
+      ? normalizeStationRadius(body.stationRadiusMeters)
+      : existing.station_radius_meters,
     station_status: ['active', 'paused', 'maintenance'].includes(body.stationStatus) ? body.stationStatus : existing.station_status
   };
   const currentBikeCount = db.prepare('SELECT COUNT(*) AS count FROM bikes WHERE station_id = ?').get(stationId).count;
@@ -1181,9 +1381,9 @@ function updateStation(db, stationId, body) {
   }
   db.prepare(`
     UPDATE stations
-    SET station_name = ?, address = ?, latitude = ?, longitude = ?, capacity = ?, station_status = ?
+    SET station_name = ?, address = ?, latitude = ?, longitude = ?, capacity = ?, station_radius_meters = ?, station_status = ?
     WHERE station_id = ?
-  `).run(next.station_name, next.address, next.latitude, next.longitude, next.capacity, next.station_status, stationId);
+  `).run(next.station_name, next.address, next.latitude, next.longitude, next.capacity, next.station_radius_meters, next.station_status, stationId);
   return db.prepare('SELECT * FROM stations WHERE station_id = ?').get(stationId);
 }
 
@@ -1372,10 +1572,19 @@ function getUserById(db, userId) {
       LEFT JOIN resident_cards rc ON rc.resident_card_id = cp.resident_card_id
       WHERE cp.customer_id = ?
     `).get(userId);
+    if (user.profile) {
+      user.profile.discount_eligible = residentDiscountEligible(user.profile) ? 1 : 0;
+    }
   } else {
     user.staff = db.prepare('SELECT * FROM staff WHERE staff_id = ?').get(userId);
   }
   return user;
+}
+
+function residentDiscountEligible(profile) {
+  return profile?.customer_type === 'resident'
+    && Number(profile.discount_eligible) === 1
+    && profile.resident_verification_status === 'verified';
 }
 
 function setSessionCookie(res, sessions, userId) {
@@ -1535,6 +1744,39 @@ function validatePasswordPolicy(password) {
   }
 }
 
+function requiredCustomerLocation(body, label) {
+  const source = body.userLocation || body.location || body;
+  const lat = Number(source.customerLatitude ?? source.latitude ?? source.lat);
+  const lng = Number(source.customerLongitude ?? source.longitude ?? source.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw httpError(400, `${label} is required`);
+  }
+  return { lat, lng };
+}
+
+function ensureLocationWithinStation(db, stationId, location, actionLabel) {
+  const station = db.prepare("SELECT * FROM stations WHERE station_id = ? AND station_status = 'active'").get(Number(stationId));
+  if (!station) {
+    throw httpError(400, `${actionLabel} station must be active`);
+  }
+  const radiusMeters = stationRadiusMeters(station);
+  const distanceMetersValue = distanceMeters(location.lat, location.lng, station.latitude, station.longitude);
+  if (distanceMetersValue > radiusMeters) {
+    throw httpError(403, `${actionLabel} location must be within ${radiusMeters}m of ${station.station_name}`);
+  }
+  return { station, radiusMeters, distanceMeters: Math.round(distanceMetersValue) };
+}
+
+function stationRadiusMeters(station) {
+  return normalizeStationRadius(station?.station_radius_meters);
+}
+
+function normalizeStationRadius(value) {
+  const radius = Math.round(Number(value || DEFAULT_STATION_RADIUS_METERS));
+  if (!Number.isFinite(radius)) return DEFAULT_STATION_RADIUS_METERS;
+  return Math.min(500, Math.max(60, radius));
+}
+
 function evaluateResidentCard(cardNumber, address) {
   const card = String(cardNumber || '').trim();
   if (!card) {
@@ -1578,6 +1820,10 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat / 2) ** 2
     + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return 2 * radius * Math.asin(Math.sqrt(a));
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  return haversineKm(Number(lat1), Number(lon1), Number(lat2), Number(lon2)) * 1000;
 }
 
 function toRad(value) {

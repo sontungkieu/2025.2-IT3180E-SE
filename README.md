@@ -107,11 +107,17 @@ gcloud run deploy ecopark-bicycle-parking \
 - Khách hàng tạo tài khoản, đăng nhập, xác minh email bằng mã demo-local, bổ
   sung thẻ cư dân, tìm bãi gần nhất theo GPS demo, vị trí đã lưu hoặc vị trí
   nhập tay, lọc loại xe, chọn xe rảnh, gửi yêu cầu thuê và hủy yêu cầu khi chưa
-  nhận xe. API đăng ký kiểm tra họ tên, số điện thoại Việt Nam, CCCD/CMND 9 hoặc
+  nhận xe. Khi gửi yêu cầu thuê, API kiểm tra tọa độ khách phải nằm trong bán
+  kính phục vụ của bãi đã chọn và lưu tọa độ này cùng request để guard lại ở
+  bước giao xe. API đăng ký kiểm tra họ tên, số điện thoại Việt Nam, CCCD/CMND 9 hoặc
   12 chữ số, chặn trùng số điện thoại/giấy tờ, chặn giấy tờ bị khóa và yêu cầu
-  mật khẩu tối thiểu 8 ký tự có chữ + số. Password mới dùng PBKDF2 salted, còn
-  hash SHA-256 cũ vẫn đăng nhập được và được nâng cấp sau login.
-- Form đăng nhập có flow khôi phục mật khẩu bằng mã demo-local. Các bộ lọc tìm
+  mật khẩu tối thiểu 8 ký tự có chữ + số. CCCD/CMND hợp lệ là điều kiện thuê
+  theo UC001/UC002; staff vẫn đối chiếu giấy tờ thật ở bước giao xe, còn thẻ cư
+  dân pending/rejected chỉ làm mất ưu đãi 40% chứ không chặn thuê xe. Password
+  mới dùng PBKDF2 salted, còn hash SHA-256 cũ vẫn đăng nhập được và được nâng
+  cấp sau login.
+- Form đăng nhập có flow khôi phục mật khẩu bằng mã demo-local và form tạo tài
+  khoản có nút hiện/ẩn mật khẩu để người dùng kiểm tra trước khi gửi. Các bộ lọc tìm
   bãi, dropdown loại khách trong form đăng ký, dropdown thời lượng thuê và các
   dropdown trong bảng staff/admin dùng custom dropdown HTML/CSS thay cho
   dropdown native để tránh popup thô và giữ layout ổn định trên desktop lẫn
@@ -129,13 +135,16 @@ gcloud run deploy ecopark-bicycle-parking \
 - Nhân sự bãi xe chỉ thấy/xử lý request thuộc bãi được phân công, đối chiếu
   loại/số giấy tờ, ghi nhận đặt cọc 200k, giấy tờ giữ lại, hủy yêu cầu không đủ
   điều kiện, đổi sang xe rảnh cùng bãi trước khi giao nếu xe cũ không phù hợp,
-  giao xe và chuyển xe sang trạng thái đang thuê. Admin/Operator vẫn xử lý toàn
-  hệ thống để demo và hỗ trợ ngoại lệ.
+  kiểm tra lại tọa độ khách trong bán kính bãi ở bước handover, giao xe và
+  chuyển xe sang trạng thái đang thuê. Admin/Operator vẫn xử lý toàn hệ thống để
+  demo và hỗ trợ ngoại lệ.
 - Nhân sự nhận xe trả tại bãi được phân công; Admin/Operator xử lý toàn hệ thống
-  và hỗ trợ luồng trả khác bãi khi cần. Hệ thống tính vé cuối cùng, áp dụng giảm
-  40% cho cư dân hợp lệ, phụ thu 30k mỗi 30 phút trả muộn, ghi chú tình trạng xe
-  và hiển thị lại phiếu vừa xuất. Màn vận hành có pipeline trả xe riêng để luôn
-  thấy các bước nhận xe, chọn bãi trả, kiểm tra xe và xuất vé.
+  và hỗ trợ luồng trả khác bãi khi cần. Trước khi staff xuất vé, khách phải xác
+  nhận bãi trả bằng vị trí hiện tại; backend chỉ chấp nhận nếu vị trí này nằm
+  trong bán kính phục vụ của bãi trả. Hệ thống tính vé cuối cùng, chỉ áp dụng
+  giảm 40% khi tài khoản là cư dân và thẻ cư dân đang verified, phụ thu 30k mỗi
+  30 phút trả muộn, ghi chú tình trạng xe và hiển thị lại phiếu vừa xuất. Màn vận hành có pipeline trả xe riêng để luôn
+  thấy các bước nhận xe, khách xác nhận bãi trả, kiểm tra xe và xuất vé.
 - Admin/Operator quản lý bãi xe, xe, trạng thái xe, trạng thái tài khoản, danh
   sách CCCD/CMND bị khóa, tra cứu vị trí xe, lọc thống
   kê theo ngày/tuần/tháng, theo bãi/xe bằng custom dropdown, xem dashboard biểu
@@ -149,18 +158,22 @@ gcloud run deploy ecopark-bicycle-parking \
   smoke test vẫn kiểm tra mức tải demo tối đa 2 khách hàng và 2 admin để chắc các
   phiên không đá nhau.
 - Route demo `http://127.0.0.1:4173/gd` là bảng điều khiển trình bày: chọn
-  xe/người thuê, kéo thả marker GPS, snap xe về tuyến đường demo và cho xe đi
-  theo polyline đường tới bãi nhận/trả thay vì bay thẳng qua hồ hoặc nhà. Cùng
+  phiên khách đang chờ nhận xe hoặc đang thuê xe, kéo thả marker GPS người dùng,
+  snap marker về tuyến đường demo và cho marker đi theo polyline tới bãi nhận/trả
+  thay vì bay thẳng qua hồ hoặc nhà. `/gd` không cho kéo xe rảnh không gắn với
+  khách nào; nếu chưa có lượt đang thuê ở mode trả xe, màn hình hiển thị empty
+  state và khóa các nút snap thay vì thao tác trên marker ẩn. Cùng
   màn này có đồng hồ hệ thống nội bộ để staff/admin tua +15/+30/+60 phút hoặc
   reset, giúp demo quá hạn và phụ thu 30k/30 phút; `/gps` vẫn là alias tương
   thích cũ. Khi dữ liệu demo đang tải lần đầu, `/gd` hiển thị skeleton thay vì
   một grid trắng.
 - Giao diện theo phong cách Civic Mobility Command Center: rail điều hướng tối
   có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table sắc cạnh,
-  dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar sticky có nền
-  đặc để nội dung cuộn bên dưới không gây rối mắt và mật độ thông tin phù hợp
+  dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar không sticky để
+  nội dung không trượt bên dưới lớp header nổi và mật độ thông tin phù hợp
   phần mềm vận hành. App hỗ trợ light/dark/system theme bằng design tokens,
-  lưu lựa chọn trong `localStorage` và giữ bản đồ/scene 3D đủ sáng để demo.
+  lưu lựa chọn trong `localStorage`, có dark treatment cho Leaflet tiles/control
+  và giữ scene 3D đủ tương phản để demo.
   Trên mobile, màn hình bỏ topbar riêng,
   đưa scene 3D lên đầu hero, nén các metric thành hàng ngang, gói card xe và
   dropdown thời lượng trong bề ngang viewport, đồng thời rút rail tối thành dock
@@ -186,9 +199,10 @@ npm test
 
 Test hiện bao phủ đăng ký tài khoản, password policy, nâng cấp hash cũ, xác minh
 email, reset mật khẩu demo-local, chống trùng email/phone/CCCD, chặn CCCD bị
-khóa, trạng thái resident pending thuê như khách thường, staff scope theo bãi,
-đổi xe trước handover, giao xe, trả xe, tính phí, thống kê, audit log trạng thái
-xe và phiên đăng nhập đồng thời.
+khóa, trạng thái resident pending thuê như khách thường, khách thường không được
+giảm cư dân dù dữ liệu cũ bật nhầm cờ giảm giá, staff scope theo bãi, đổi xe
+trước handover, giao xe, trả xe, tính phí, thống kê, audit log trạng thái xe và
+phiên đăng nhập đồng thời.
 
 Kiểm tra giao diện bằng browser thật:
 
@@ -208,10 +222,11 @@ Khi cần rà thiết kế thủ công, có thể chụp lại các trạng thá
 bằng Playwright trước khi chốt thay đổi giao diện.
 
 Smoke test UC chạy pipeline giao diện chính: mở demo director `/gd` ở context riêng,
-kiểm tra người chỉnh GPS vẫn kéo/snap marker được trong kịch bản tải tối đa 2
+kiểm tra người chỉnh GPS vẫn kéo/snap marker người dùng được trong kịch bản tải tối đa 2
 customer và 2 admin đăng nhập đồng thời, cư dân tìm bãi theo GPS/nhập tay, gửi rồi
 hủy yêu cầu thuê, gửi lại yêu cầu, staff giao xe sau khi nhận cọc/giấy tờ, nhận
-trả xe tại bãi staff được phân công, xuất ticket, kiểm tra dashboard chart/audit
+trả xe sau khi khách xác nhận vị trí trong bán kính bãi staff được phân công,
+xuất ticket, kiểm tra dashboard chart/audit
 log và tải báo cáo CSV. Luồng trả khác bãi vẫn được backend/UI hỗ trợ khi
 Admin/Operator xử lý toàn hệ thống.
 

@@ -26,6 +26,10 @@
 \setbeamercolor{frametitle}{fg=white,bg=EcoparkGreen}
 
 \newcommand{\tightitems}{\setlength{\itemsep}{3pt}\setlength{\parskip}{0pt}}
+\newcommand{\slidecaption}[1]{%
+  \vspace{1.5mm}
+  {\scriptsize\bfseries\color{Ink}#1}
+}
 
 \begin{document}
 
@@ -50,7 +54,7 @@ Nguyễn Ngọc Minh & 20235533 \\
 \small
 \begin{itemize}\tightitems
   \item Ecopark có nhiều bãi xe, nhiều loại xe và trạng thái xe thay đổi liên tục theo lượt thuê.
-  \item Khách cần tìm bãi gần mình, chọn xe rảnh, gửi request và theo dõi lượt thuê.
+  \item Khách cần tìm bãi gần mình, chọn xe rảnh, gửi request và xem trạng thái yêu cầu/lượt thuê.
   \item Staff/Admin cần kiểm giấy tờ, nhận cọc 200k, giao xe, nhận trả xe khác bãi và xuất vé.
   \item Quản lý cần dashboard doanh thu, trạng thái đội xe, audit log và CSV report theo bộ lọc.
   \item Nhóm triển khai một platform web có UI desktop/mobile và target deploy lên GCP.
@@ -86,49 +90,48 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 \centering
 \resizebox{0.96\textwidth}{!}{%
 \begin{tikzpicture}[
-  group/.style={draw=EcoparkGreen,thick,rounded corners=3pt,fill=SoftGreen,minimum width=3.35cm,minimum height=2.35cm,align=left,font=\scriptsize},
-  core/.style={draw=EcoparkTeal,thick,rounded corners=3pt,fill=cyan!8,minimum width=3.45cm,minimum height=2.55cm,align=left,font=\scriptsize},
-  report/.style={draw=EcoparkAmber,thick,rounded corners=3pt,fill=yellow!10,minimum width=3.35cm,minimum height=1.45cm,align=left,font=\scriptsize},
-  arr/.style={-{Latex[length=2mm]},draw=Ink,thick}
+  domaincard/.style={draw=EcoparkGreen,thick,rounded corners=4pt,fill=SoftGreen,minimum width=3.25cm,minimum height=1.78cm,align=left,font=\scriptsize,inner sep=7pt},
+  core/.style={draw=EcoparkTeal,very thick,rounded corners=4pt,fill=cyan!8,minimum width=3.55cm,minimum height=2.12cm,align=left,font=\scriptsize,inner sep=8pt},
+  support/.style={draw=EcoparkAmber,thick,rounded corners=4pt,fill=yellow!10,minimum width=3.25cm,minimum height=1.48cm,align=left,font=\scriptsize,inner sep=7pt},
+  arr/.style={-{Latex[length=2mm]},draw=Ink,line width=0.85pt}
 ]
-\node[group] (identity) at (0,0) {
-  \textbf{Người dùng \& hồ sơ}\\[1mm]
-  USERS\\
-  CUSTOMER\_PROFILES\\
-  RESIDENT\_CARDS\\
-  STAFF
-};
-\node[core] (rental) at (4.25,0) {
+\node[core] (rental) at (0,0) {
   \textbf{Giao dịch thuê - trả}\\[1mm]
   RENTAL\_REQUESTS\\
   RENTALS\\
   DEPOSITS\\
   TICKETS
 };
-\node[group] (fleet) at (8.65,0) {
+\node[domaincard] (identity) at (-4.55,0) {
+  \textbf{Người dùng \& hồ sơ}\\[1mm]
+  USERS\\
+  CUSTOMER\_PROFILES\\
+  RESIDENT\_CARDS\\
+  STAFF
+};
+\node[domaincard] (fleet) at (4.55,0) {
   \textbf{Bãi \& đội xe}\\[1mm]
   STATIONS\\
   BIKE\_TYPES\\
   BIKES\\
   BIKE\_STATUS\_LOGS
 };
-\node[report] (policy) at (2.1,-3.0) {
+\node[support] (policy) at (0,2.35) {
   \textbf{Chính sách phí}\\
   resident discount, late surcharge, deposit
 };
-\node[report] (ops) at (6.45,-3.0) {
+\node[support] (ops) at (0,-2.35) {
   \textbf{Báo cáo vận hành}\\
   revenue, fleet status, audit trail
 };
 \draw[arr] (identity.east) -- (rental.west);
 \draw[arr] (fleet.west) -- (rental.east);
-\draw[arr] (policy.north east) -- (rental.south west);
-\draw[arr] (rental.south east) -- (ops.north west);
-\draw[arr] (fleet.south west) -- (ops.north east);
+\draw[arr] (policy.south) -- (rental.north);
+\draw[arr] (rental.south) -- (ops.north);
 \end{tikzpicture}
 }
 \vspace{0.2cm}
-\small ERD chi tiết nằm trong report; slide này gom schema theo cụm để dễ đọc khi thuyết trình.
+\small ERD chi tiết nằm trong report; slide này chỉ giữ các quan hệ dữ liệu chính quanh lõi thuê - trả.
 \end{frame}
 
 \begin{frame}{Vòng Đời Thuê Xe}
@@ -159,18 +162,18 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 \begin{columns}[T,totalwidth=0.98\textwidth]
 \begin{column}{0.31\textwidth}
 \centering
-\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio,trim=0 2030bp 0 0,clip]{customer_mobile.png}\\[-1mm]
-\scriptsize Tổng quan
+\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio,trim=0 2030bp 0 0,clip]{customer_mobile.png}
+\slidecaption{Tổng quan}
 \end{column}
 \begin{column}{0.31\textwidth}
 \centering
-\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio,trim=0 1120bp 0 900bp,clip]{customer_mobile.png}\\[-1mm]
-\scriptsize Tìm bãi
+\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio,trim=0 1216bp 0 880bp,clip]{customer_mobile.png}
+\slidecaption{Tìm bãi}
 \end{column}
 \begin{column}{0.31\textwidth}
 \centering
-\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio,trim=0 600bp 0 1450bp,clip]{customer_mobile.png}\\[-1mm]
-\scriptsize Chọn xe
+\includegraphics[width=\linewidth,height=0.62\textheight,keepaspectratio,trim=0 600bp 0 1450bp,clip]{customer_mobile.png}
+\slidecaption{Chọn xe}
 \end{column}
 \end{columns}
 \vspace{0.15cm}
@@ -198,22 +201,53 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 \begin{columns}[T,totalwidth=0.98\textwidth]
 \begin{column}{0.49\textwidth}
 \centering
-\scriptsize Tổng quan vận hành
+\slidecaption{Tổng quan vận hành}
 \end{column}
 \begin{column}{0.49\textwidth}
 \centering
-\scriptsize Báo cáo, yêu cầu và pipeline trả xe
+\slidecaption{Báo cáo, yêu cầu và pipeline trả xe}
 \end{column}
 \end{columns}
 \vspace{0.15cm}
 \scriptsize Screenshot operations được chia thành hai lát để giữ dashboard, biểu đồ và khu vực xử lý đủ lớn khi thuyết trình.
 \end{frame}
 
-\begin{frame}{Demo Director Cho Alternative Flow}
+\begin{frame}{Light/Dark Mode}
+\begin{columns}[T,totalwidth=0.98\textwidth]
+\begin{column}{0.58\textwidth}
 \centering
-\includegraphics[width=\textwidth,height=0.78\textheight,keepaspectratio]{gps_demo.png}
-\vspace{0.1cm}
-\scriptsize Tab \texttt{/gd} cho phép kéo xe theo polyline đường và tua đồng hồ hệ thống để demo phụ thu trễ.
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{darkmode_customer.png}
+\end{column}
+\begin{column}{0.37\textwidth}
+\small
+\begin{itemize}\tightitems
+  \item Theme \textit{Sáng}, \textit{Tối}, \textit{Hệ thống} lưu trong trình duyệt.
+  \item Leaflet map có dark treatment riêng, không còn mảng bản đồ trắng gắt.
+  \item Card tài khoản, dropdown, chart và form dùng cùng design tokens.
+  \item Scene 3D vẫn giữ tương phản để nhìn rõ xe, đường, hồ và cây.
+\end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Demo Director Cho Alternative Flow}
+\begin{columns}[T,totalwidth=0.98\textwidth]
+\begin{column}{0.61\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio]{gps_demo.png}
+\end{column}
+\begin{column}{0.34\textwidth}
+\scriptsize
+\begin{tikzpicture}[
+  stepcard/.style={draw=EcoparkGreen!30,rounded corners=3pt,fill=white,text width=0.95\linewidth,minimum height=1.05cm,align=left,inner sep=6pt}
+]
+\node[stepcard] at (0,0) {\textbf{1. Chọn session}\\Customer đang request hoặc đang thuê.};
+\node[stepcard] at (0,-1.35) {\textbf{2. Kéo GPS người dùng}\\Di chuyển theo polyline đường, không nhảy qua hồ/nhà.};
+\node[stepcard] at (0,-2.70) {\textbf{3. Tua giờ hệ thống}\\Dùng để demo quá hạn và phụ thu trễ.};
+\node[stepcard] at (0,-4.05) {\textbf{4. Kiểm geofence}\\Nhận/trả xe chỉ hợp lệ khi ở gần bãi.};
+\end{tikzpicture}
+\end{column}
+\end{columns}
 \end{frame}
 
 \begin{frame}{API Và Backend Implementation}
@@ -237,51 +271,87 @@ Admin/Report & Staff/Admin & \texttt{/api/admin/bikes}, \texttt{/api/admin/repor
 \end{frame}
 
 \begin{frame}{Dashboard Báo Cáo}
+\begin{columns}[T,totalwidth=0.98\textwidth]
+\begin{column}{0.58\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.72\textheight,keepaspectratio,trim=240bp 2550bp 0 430bp,clip]{operations_desktop.png}
+\end{column}
+\begin{column}{0.37\textwidth}
 \small
 \begin{itemize}\tightitems
-  \item Revenue by period: tổng tiền vé theo ngày/tuần/tháng và filter station/bike.
-  \item Fleet status distribution: số xe available/rented/broken để admin nắm sức khỏe đội xe.
-  \item Rentals and late fees: lượt thuê và phụ thu trễ theo report rows.
-  \item CSV export dùng đúng filter hiện tại, không xuất dữ liệu lệch màn hình đang xem.
-  \item Audit panel giúp truy vết đổi trạng thái xe khi staff/admin thao tác.
+  \item Doanh thu theo kỳ dùng cùng scale tiền giữa các chart.
+  \item Fleet status cho biết xe sẵn sàng, đang thuê, cần sửa.
+  \item Lượt thuê và phụ thu trễ hiển thị cạnh bảng report gốc.
+  \item CSV export dùng đúng filter đang chọn trên dashboard.
+  \item Audit log giúp truy vết ai đổi trạng thái xe và vì sao.
 \end{itemize}
+\end{column}
+\end{columns}
 \end{frame}
 
 \begin{frame}{Testing Và Evidence}
 \small
-\begin{itemize}\tightitems
-  \item Backend tests: đăng ký, duplicate data, held bikes, cancel, handover, return pricing, reports, audit log và concurrent sessions.
-  \item UI smoke: desktop/mobile render, GSAP load, Three.js canvas pixel, Leaflet markers, no console errors, no horizontal overflow.
-  \item UC smoke: GPS context, 2 customers + 2 admins, request/cancel, handover, return ticket, charts, audit log và CSV download.
-  \item Report dùng screenshot thật từ app: auth, customer desktop/mobile, operations và \texttt{/gd}.
-\end{itemize}
+\begin{tikzpicture}[
+  card/.style={draw=EcoparkGreen!30,rounded corners=3pt,fill=white,text width=4.85cm,minimum width=5.35cm,minimum height=1.52cm,align=left,inner xsep=9pt,inner ysep=8pt}
+]
+\node[card] at (0,1.58) {
+  \begin{minipage}{4.42cm}\raggedright
+  {\Large\bfseries\color{EcoparkGreen}21/21}\\[0.45mm]
+  {\scriptsize\bfseries Backend API tests}\\[0.25mm]
+  {\scriptsize Geofence, handover, ticket, report, audit}
+  \end{minipage}
+};
+\node[card] at (6.0,1.58) {
+  \begin{minipage}{4.42cm}\raggedright
+  {\Large\bfseries\color{EcoparkTeal}4 viewports}\\[0.45mm]
+  {\scriptsize\bfseries UI smoke}\\[0.25mm]
+  {\scriptsize Desktop, staff-wide, medium, mobile}
+  \end{minipage}
+};
+\node[card] at (0,-0.72) {
+  \begin{minipage}{4.42cm}\raggedright
+  {\Large\bfseries\color{EcoparkAmber}UC smoke}\\[0.45mm]
+  {\scriptsize\bfseries End-to-end demo path}\\[0.25mm]
+  {\scriptsize /gd, request/cancel, handover, return, CSV}
+  \end{minipage}
+};
+\node[card] at (6.0,-0.72) {
+  \begin{minipage}{4.42cm}\raggedright
+  {\Large\bfseries\color{EcoparkGreen}CI/CD}\\[0.45mm]
+  {\scriptsize\bfseries GitHub Actions}\\[0.25mm]
+  {\scriptsize node --check, coverage, smoke, Docker}
+  \end{minipage}
+};
+\end{tikzpicture}
+\vspace{0.26cm}
+\begin{center}
+\begin{tikzpicture}
+\node[draw=EcoparkGreen!30,rounded corners=3pt,fill=SoftGreen,text width=0.88\textwidth,inner sep=7pt,align=left] {
+  \scriptsize\textbf{Điểm nổi bật:} UC smoke đi qua đúng luồng demo: customer gửi request, staff giao xe, customer xác nhận bãi trả trong geofence, staff xuất vé, dashboard cập nhật chart và audit log.
+};
+\end{tikzpicture}
+\end{center}
 \end{frame}
 
-\begin{frame}{Demo Script Khi Thuyết Trình}
+\begin{frame}{Mở Demo Trực Tiếp}
+\begin{columns}[T,totalwidth=0.96\textwidth]
+\begin{column}{0.52\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.68\textheight,keepaspectratio]{gps_demo.png}
+\end{column}
+\begin{column}{0.42\textwidth}
 \small
 \begin{enumerate}\tightitems
-  \item Mở platform và tab \texttt{/gd}; kéo xe gần bãi nhận và tua giờ nếu cần demo phụ thu.
-  \item Customer đăng nhập, tìm bãi gần nhất, lọc loại xe, chọn xe và gửi request.
-  \item Staff/Admin xác nhận giấy tờ, cọc 200k và giao xe.
-  \item Staff nhận xe trả ở bãi khác, chọn tình trạng, xuất vé và xem tổng tiền.
-  \item Admin xem dashboard chart, audit log và export CSV; nhắc target deploy GCP.
+  \item Mở Customer, Staff/Admin và tab \texttt{/gd}.
+  \item Kéo GPS người dùng vào bán kính bãi nhận, gửi request.
+  \item Staff đối chiếu giấy tờ, nhận cọc 200k và giao xe.
+  \item Customer xác nhận bãi trả; Staff xuất vé và xem phụ thu.
+  \item Chốt bằng dashboard, audit log và CSV export.
 \end{enumerate}
-\end{frame}
-
-\begin{frame}{Kết Luận}
-\small
-\begin{itemize}\tightitems
-  \item Platform đã bao phủ UC001--UC005 với cả main flow và alternative flow quan trọng.
-  \item UI đã có phiên bản desktop/mobile, 3D scene, map thật và demo director \texttt{/gd}.
-  \item Backend đã có session role, validation, transaction nghiệp vụ, report chart và audit log.
-  \item Repo đã có Dockerfile để đóng gói triển khai GCP; bước production tiếp theo là Cloud SQL/backup/session store bền vững.
-\end{itemize}
-\end{frame}
-
-\begin{frame}[plain]
-\centering
-{\Huge \textbf{Q\&A}}\\[0.45cm]
-{\large Ecopark Bicycle Parking Platform}
+\vspace{0.2cm}
+{\scriptsize\bfseries\color{EcoparkGreen}Demo live: chạy 5 bước trên app.}
+\end{column}
+\end{columns}
 \end{frame}
 
 \end{document}
