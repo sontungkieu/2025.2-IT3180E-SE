@@ -1,0 +1,199 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[english,vietnamese]{babel}
+\usepackage{mathptmx}
+\usepackage[a4paper,top=2.2cm,bottom=2.2cm,left=2.05cm,right=2.05cm,headheight=18pt]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage[unicode]{hyperref}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage[skins,breakable]{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\graphicspath{{assets/}{assets/screenshots/}{assets/drawio/}}
+\usetikzlibrary{arrows.meta,calc,fit,positioning,shapes.geometric,shapes.misc}
+
+\AtBeginDocument{\selectlanguage{vietnamese}}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=EbpGreen,
+  urlcolor=EbpTeal
+}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlist[itemize]{leftmargin=1.2cm}
+\setlist[enumerate]{leftmargin=1.2cm}
+\renewcommand{\arraystretch}{1.18}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{P}[1]{>{\raggedright\arraybackslash}p{#1}}
+\definecolor{EcoparkGreen}{HTML}{0F7B55}
+\definecolor{EcoparkTeal}{HTML}{0891B2}
+\definecolor{EcoparkAmber}{HTML}{B7791F}
+\definecolor{SoftGreen}{HTML}{E8F7EF}
+\definecolor{Ink}{HTML}{12201A}
+\definecolor{EbpDeep}{HTML}{062E22}
+\definecolor{EbpGreen}{HTML}{0F7B55}
+\definecolor{EbpTeal}{HTML}{0891B2}
+\definecolor{EbpAmber}{HTML}{B7791F}
+\definecolor{EbpCanvas}{HTML}{F4FAF7}
+\definecolor{EbpPanel}{HTML}{FFFFFF}
+\definecolor{EbpBorder}{HTML}{BFDCCF}
+\definecolor{EbpMuted}{HTML}{61746A}
+
+\pagecolor{EbpCanvas}
+\color{Ink}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\sffamily\bfseries\textcolor{EbpDeep}{Ecopark Bicycle Parking}}
+\fancyhead[R]{\sffamily\small\textcolor{EbpMuted}{\nouppercase{\leftmark}}}
+\fancyfoot[L]{%
+  \tikz[baseline=-0.6ex]{
+    \node[rounded corners=3pt,fill=EbpDeep,inner xsep=7pt,inner ysep=3pt,text=white,font=\scriptsize\sffamily\bfseries]
+    {EBP platform report};
+  }%
+}
+\fancyfoot[R]{\sffamily\bfseries\textcolor{EbpGreen}{\thepage}}
+
+\titleformat{\section}
+  {\normalfont\sffamily\LARGE\bfseries\color{Ink}}
+  {\tikz[baseline=(n.base)]\node[rounded corners=3pt,fill=EbpGreen,text=white,inner xsep=7pt,inner ysep=4pt,font=\large\sffamily\bfseries] (n) {\thesection};}
+  {0.65em}
+  {}
+  [\vspace{0.18cm}{\color{EbpBorder}\titlerule[0.8pt]}]
+\titleformat{\subsection}
+  {\normalfont\sffamily\Large\bfseries\color{EbpDeep}}
+  {\textcolor{EbpTeal}{\thesubsection}}
+  {0.6em}
+  {}
+\titleformat{\subsubsection}
+  {\normalfont\sffamily\large\bfseries\color{EbpDeep}}
+  {\textcolor{EbpAmber}{\thesubsubsection}}
+  {0.55em}
+  {}
+\titlespacing*{\section}{0pt}{0.35cm}{0.25cm}
+\titlespacing*{\subsection}{0pt}{0.28cm}{0.14cm}
+\titlespacing*{\subsubsection}{0pt}{0.18cm}{0.10cm}
+
+\tcbset{
+  ebpbox/.style={
+    enhanced,
+    colback=EbpPanel,
+    colframe=EbpBorder,
+    boxrule=0.5pt,
+    arc=3pt,
+    left=8pt,
+    right=8pt,
+    top=7pt,
+    bottom=7pt,
+    drop shadow={black!10!white}
+  }
+}
+
+\newcommand{\EbpChip}[2]{%
+  \tikz[baseline=(c.base)]\node[
+    rounded corners=4pt,
+    fill=#1,
+    text=white,
+    inner xsep=7pt,
+    inner ysep=3pt,
+    font=\scriptsize\sffamily\bfseries
+  ] (c) {#2};%
+}
+
+\begin{document}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[EbpCanvas] (current page.south west) rectangle (current page.north east);
+  \fill[EbpDeep] (current page.south west) rectangle ([xshift=6.15cm]current page.north west);
+  \draw[EbpBorder,line width=0.5pt] ([xshift=6.15cm]current page.south west) -- ([xshift=6.15cm]current page.north west);
+  \foreach \x in {0.8,1.6,...,20.8} {
+    \draw[white,opacity=0.06] ([xshift=\x cm]current page.south west) -- ([xshift=\x cm]current page.north west);
+  }
+  \foreach \y in {0.8,1.6,...,29.0} {
+    \draw[white,opacity=0.06] (current page.south west |- 0,\y cm) -- ([xshift=6.15cm]current page.south west |- 0,\y cm);
+  }
+\end{tikzpicture}
+
+\vspace*{0.9cm}
+\begin{minipage}[t]{4.0cm}
+\raggedright
+\color{white}
+\includegraphics[width=2.1cm]{logo-soict-hust-1.png}\\[0.8cm]
+{\sffamily\small HANOI UNIVERSITY OF SCIENCE\\AND TECHNOLOGY}\\[0.15cm]
+{\sffamily\small School of Information\\Communication Technology}\\[1.0cm]
+\EbpChip{EbpGreen}{GCP-ready}\\[0.28cm]
+\EbpChip{EbpTeal}{Mobile + desktop}\\[0.28cm]
+\EbpChip{EbpAmber}{UC001--UC005}\\[1.1cm]
+{\sffamily\bfseries Supervisor}\\[0.12cm]
+{\sffamily Ph.D. Bùi Thị\\Mai Anh}\\[1.0cm]
+{\sffamily\bfseries Hanoi - Vietnam}\\[0.12cm]
+{\sffamily 2026}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.62\textwidth}
+\raggedright
+\vspace*{0.35cm}
+{\sffamily\bfseries\color{EbpGreen}CAPSTONE PROJECT REPORT}\\[0.3cm]
+{\sffamily\fontsize{34}{38}\selectfont\bfseries\color{Ink}Ecopark Bicycle\\Parking Platform}\\[0.35cm]
+{\Large\color{EbpMuted}Nền tảng thuê - trả xe đạp Ecopark với giao diện khách hàng, vận hành và demo GPS.}\\[0.8cm]
+
+\begin{tcolorbox}[ebpbox,width=\linewidth]
+{\sffamily\bfseries\color{EbpDeep}Presented by}\\[0.25cm]
+\begin{tabular}{@{}ll@{}}
+Kiều Sơn Tùng & 20235571 \\
+Nguyễn Phú An & 20235466 \\
+Phạm Chí Bằng & 20235477 \\
+Nguyễn Thanh Lâm & 20235519 \\
+Nguyễn Ngọc Minh & 20235533 \\
+\end{tabular}
+\end{tcolorbox}
+
+\vspace{0.35cm}
+\begin{tcolorbox}[ebpbox,width=\linewidth]
+{\sffamily\bfseries\color{EbpDeep}Scope delivered}\\[0.15cm]
+\EbpChip{EbpGreen}{Customer flow}\hspace{0.15cm}
+\EbpChip{EbpTeal}{Staff handover}\hspace{0.15cm}
+\EbpChip{EbpAmber}{Reports + audit}\\[0.25cm]
+{\small Tài liệu này trình bày phân tích yêu cầu, use case, kiến trúc, dữ liệu, API, UI và kiểm thử của platform.}
+\end{tcolorbox}
+\end{minipage}
+\end{titlepage}
+\setcounter{page}{2}
+
+\begin{center}
+\textit{Báo cáo phân tích, thiết kế và triển khai nền tảng thuê-trả xe đạp Ecopark trên Google Cloud Platform.}
+\end{center}
+
+\tableofcontents
+\newpage
+
+\input{sections/00_requirements_problem}
+\newpage
+\input{sections/01_overview}
+\newpage
+\input{sections/03_use_case_specs}
+\newpage
+\input{sections/01b_user_stories}
+\newpage
+\input{sections/04_system_architecture}
+\newpage
+\input{sections/02_relational_schema}
+\newpage
+\input{sections/04_web_implementation}
+
+\end{document}

@@ -1,5 +1,43 @@
 # Milestones
 
+## 2026-06-23 - Staff UI dropdown and dark mode polish
+
+- Replaced remaining staff/admin native selects in handover, return, fleet and
+  management forms with the shared custom dropdown component backed by hidden
+  form values.
+- Raised open dropdown panels above neighboring cards so table menus are not
+  clipped by return/fleet panels.
+- Made the sticky topbar visually solid during scroll and separated the staff
+  overview label from the report/export section.
+- Added light/dark/system theme support with localStorage persistence, mobile
+  dock access and dark-mode tokens for panels, tables, dropdowns, charts, map
+  frames and the Three.js hero frame.
+- Rounded and normalized report/status chart bars so the colored fill matches
+  the pill-shaped track.
+
+## 2026-06-23 - Tech stack diagram for deployed platform
+
+- Added local SVG logo assets and a Playwright renderer for the deployment tech
+  stack diagram used by both report and slide outputs.
+- Rendered the logo-based stack chart for Cloudflare Tunnel, GCP Compute Engine,
+  Docker/Node.js, JavaScript/GSAP/Three.js/Leaflet and SQLite.
+- Inserted the chart into the system architecture report section and replaced
+  the GCP architecture slide with the deployed stack view.
+- Updated README with the `npm run diagrams:techstack` command.
+
+## 2026-06-22 - App-style report and slide variants
+
+- Added parallel app-style LaTeX sources and PDFs for the report and slide deck
+  so the submitted document can follow the platform's dark-green/mint interface
+  language without overwriting the existing `main.pdf`, `slides.pdf` or
+  `slide.pdf`.
+- Styled the new report cover, headers, footers, section labels, chips and
+  panel cards with the same Civic Mobility palette used by the app.
+- Styled the new slide deck with a dark-green title/sidebar treatment, grid
+  canvas, app-like frame header and footer, and preserved the current cropped UI
+  evidence slides.
+- Updated README with the separate app-style artifact paths and build commands.
+
 ## 2026-06-22 - 3D/UI polish from improvement proposal
 
 - Applied the 3D scene proposal with responsive orthographic framing for auth,

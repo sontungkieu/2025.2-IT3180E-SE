@@ -6,6 +6,7 @@
   "scripts": {
     "check": "node --check public/app.js public/scene.js server/app.js server/db.js test/app.test.js scripts/ui-smoke.js scripts/uc-flow-smoke.js scripts/capture-uc001-screenshots.js",
     "ci": "npm run check && npm run test:coverage && npm run smoke:ui && npm run smoke:uc",
+    "diagrams:techstack": "node scripts/render-tech-stack-diagram.js",
     "docker:build": "docker build -t ecopark-bicycle-parking .",
     "dev": "node server/index.js",
     "reset-db": "node server/reset-db.js",

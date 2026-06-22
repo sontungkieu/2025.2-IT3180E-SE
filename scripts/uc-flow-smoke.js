@@ -54,8 +54,8 @@ async function main() {
 
     const rentalRow = page.locator('.active-rentals-table tbody tr').filter({ hasText: 'Tran Minh An' }).first();
     await rentalRow.waitFor();
-    await rentalRow.locator('select[id^="return-station-"]').selectOption('2');
-    await rentalRow.locator('select[id^="condition-"]').selectOption('broken');
+    await choosePrettyInputSelect(rentalRow, 'return-station-', '2');
+    await choosePrettyInputSelect(rentalRow, 'condition-', 'broken');
     await rentalRow.locator('input[id^="condition-note-"]').fill('Xe trả có tiếng kêu, cần kiểm tra');
     await rentalRow.locator('[data-return]').click();
     await page.waitForSelector('.ticket-panel');
@@ -154,6 +154,13 @@ async function chooseDropdownOption(page, name, optionSelector) {
   await page.click(`[data-select-trigger="${name}"]`);
   await page.waitForSelector(`${optionSelector}:visible`);
   await page.click(optionSelector);
+}
+
+async function choosePrettyInputSelect(scope, triggerPrefix, value) {
+  await scope.locator(`[data-select-trigger^="${triggerPrefix}"]`).click();
+  const option = scope.page().locator(`[data-select-target^="${triggerPrefix}"][data-select-value="${value}"]`).first();
+  await option.waitFor({ state: 'visible' });
+  await option.click();
 }
 
 async function logout(page) {

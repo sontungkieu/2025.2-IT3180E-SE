@@ -17,7 +17,8 @@ liệu bền vững.
 
 - Node.js 24 trở lên.
 - Docker nếu cần kiểm tra container/GCP image.
-- LaTeX `latexmk` nếu cần build lại `pdf/main.pdf`.
+- LaTeX `latexmk` nếu cần build lại `pdf/main.pdf` hoặc các bản tài liệu
+  app-style trong `pdf/`.
 
 ## Chạy ứng dụng
 
@@ -38,6 +39,7 @@ npm run test:coverage
 npm run smoke:ui
 npm run smoke:uc
 npm run screenshots:uc001
+npm run diagrams:techstack
 npm run docker:build
 ```
 
@@ -45,6 +47,8 @@ npm run docker:build
   line coverage backend `78.93%`, branch `69.31%`, functions `80.58%`.
 - `npm run screenshots:uc001` sinh bộ ảnh UC001/alternative flow 1 vào
   `pdf/assets/uc001_flow/` để đưa vào report.
+- `npm run diagrams:techstack` render lại hình tech stack có logo trong
+  `pdf/assets/techstack/` để dùng chung cho report và slide.
 - `.github/workflows/ci.yml` tự động chạy static check, backend coverage test,
   smoke UI, smoke UC và build Docker image trên mọi push/PR. Bước deploy GCP thật
   vẫn để cấu hình riêng bằng secrets/project của nhóm.
@@ -86,7 +90,7 @@ gcloud run deploy ecopark-bicycle-parking \
 - `scripts/`: smoke test giao diện bằng Playwright.
 - `test/`: test nghiệp vụ backend bằng `node --test`.
 - `docs/`: tài liệu nguồn như use-case diagram và brief 3D scene cho agent ngoài.
-- `pdf/`: tài liệu LaTeX và bản build `pdf/main.pdf`.
+- `pdf/`: tài liệu LaTeX, bản report/slide hiện tại và bản app-style song song.
 
 ## Tài khoản demo
 
@@ -107,9 +111,10 @@ gcloud run deploy ecopark-bicycle-parking \
   12 chữ số, chặn trùng số điện thoại/giấy tờ, chặn giấy tờ bị khóa và yêu cầu
   mật khẩu tối thiểu 8 ký tự có chữ + số. Password mới dùng PBKDF2 salted, còn
   hash SHA-256 cũ vẫn đăng nhập được và được nâng cấp sau login.
-- Form đăng nhập có flow khôi phục mật khẩu bằng mã demo-local. Các bộ lọc tìm bãi, dropdown loại khách trong
-  form đăng ký và dropdown thời lượng thuê dùng custom dropdown HTML/CSS thay
-  cho dropdown native để tránh popup thô và giữ layout ổn định trên desktop lẫn
+- Form đăng nhập có flow khôi phục mật khẩu bằng mã demo-local. Các bộ lọc tìm
+  bãi, dropdown loại khách trong form đăng ký, dropdown thời lượng thuê và các
+  dropdown trong bảng staff/admin dùng custom dropdown HTML/CSS thay cho
+  dropdown native để tránh popup thô và giữ layout ổn định trên desktop lẫn
   mobile.
 - Workspace khách hàng gom vị trí, bãi gần nhất, bản đồ, xe rảnh và nút thuê vào
   cùng vùng `Thuê xe`; các vùng `Lượt thuê` và `Tài khoản` tách riêng để màn đầu
@@ -152,11 +157,14 @@ gcloud run deploy ecopark-bicycle-parking \
   một grid trắng.
 - Giao diện theo phong cách Civic Mobility Command Center: rail điều hướng tối
   có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table sắc cạnh,
-  dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar sticky và mật
-  độ thông tin phù hợp phần mềm vận hành. Trên mobile, màn hình bỏ topbar riêng,
+  dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar sticky có nền
+  đặc để nội dung cuộn bên dưới không gây rối mắt và mật độ thông tin phù hợp
+  phần mềm vận hành. App hỗ trợ light/dark/system theme bằng design tokens,
+  lưu lựa chọn trong `localStorage` và giữ bản đồ/scene 3D đủ sáng để demo.
+  Trên mobile, màn hình bỏ topbar riêng,
   đưa scene 3D lên đầu hero, nén các metric thành hàng ngang, gói card xe và
   dropdown thời lượng trong bề ngang viewport, đồng thời rút rail tối thành dock
-  icon-only nổi ở đáy màn hình, có cả refresh/logout.
+  icon-only nổi ở đáy màn hình, có cả refresh/theme/logout.
   Motion GSAP có hỗ trợ `prefers-reduced-motion`, scene Three.js low-poly mô
   phỏng Bike Hub isometric với đường nội khu, bike lane, canopy, dock/rack,
   status light và các xe City, Tandem, Child-seat khác hình dáng; bản scene mới
@@ -209,12 +217,40 @@ Admin/Operator xử lý toàn hệ thống.
 
 ## Tài liệu PDF
 
-Khi cập nhật tài liệu trong `pdf/`, build theo đúng quy trình:
+Các bản chính hiện tại vẫn giữ nguyên ở `pdf/main.pdf`, `pdf/slides.pdf` và
+`pdf/slide.pdf`. Nếu cần bản trình bày có visual style gần app hơn, dùng các file
+song song `pdf/main_app_style.pdf`, `pdf/slides_app_style.pdf` và
+`pdf/slide_app_style.pdf`.
+
+Khi cập nhật tài liệu chính trong `pdf/`, build theo đúng quy trình:
 
 ```bash
 cd pdf
 latexmk -pdf main.tex
 latexmk -c main.tex
+find . -maxdepth 1 -type f \( \
+  -name "*.aux" -o -name "*.log" -o -name "*.out" -o -name "*.toc" -o \
+  -name "*.fls" -o -name "*.fdb_latexmk" -o -name "*.synctex.gz" -o \
+  -name "*.nav" -o -name "*.snm" -o -name "*.vrb" -o \
+  -name "*.bbl" -o -name "*.blg" \
+\) -delete
+```
+
+Nếu chỉnh logo hoặc bố cục hình tech stack, render lại asset trước khi build PDF:
+
+```bash
+npm run diagrams:techstack
+```
+
+Với bản app-style, build tương tự nhưng dùng source song song:
+
+```bash
+cd pdf
+latexmk -pdf main_app_style.tex
+latexmk -pdf slides_app_style.tex
+cp slides_app_style.pdf slide_app_style.pdf
+latexmk -c main_app_style.tex
+latexmk -c slides_app_style.tex
 find . -maxdepth 1 -type f \( \
   -name "*.aux" -o -name "*.log" -o -name "*.out" -o -name "*.toc" -o \
   -name "*.fls" -o -name "*.fdb_latexmk" -o -name "*.synctex.gz" -o \
