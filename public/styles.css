@@ -445,7 +445,7 @@ hr {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 12;
+  z-index: 10;
   min-height: 70px;
   display: flex;
   align-items: center;
@@ -455,6 +455,10 @@ hr {
   border-bottom: 1px solid rgba(190, 215, 202, 0.76);
   background: rgba(248, 251, 249, 0.86);
   backdrop-filter: blur(14px);
+}
+
+body:has(.pretty-select.open) .topbar {
+  z-index: 8;
 }
 
 .user-actions {
@@ -714,6 +718,15 @@ hr {
   grid-column: 1 / -1;
 }
 
+.report-panel {
+  position: relative;
+  z-index: 5;
+}
+
+.report-panel:has(.pretty-select.open) {
+  z-index: 40;
+}
+
 .admin-panel {
   grid-column: 1 / -1;
 }
@@ -723,6 +736,7 @@ hr {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
@@ -742,6 +756,11 @@ hr {
   color: var(--ink-500);
   font-size: 0.86rem;
   font-weight: 700;
+}
+
+.section-heading > button {
+  flex: 0 0 auto;
+  max-width: 100%;
 }
 
 .flow-controls {
@@ -1695,7 +1714,7 @@ hr {
   padding: 12px;
   display: grid;
   grid-template-columns: 94px minmax(0, 1fr) auto;
-  grid-template-rows: auto 42px;
+  grid-template-rows: auto minmax(42px, auto);
   gap: 10px 12px;
   align-items: start;
   box-shadow: 0 8px 18px rgba(17, 65, 47, 0.06);
@@ -1838,6 +1857,7 @@ hr {
   grid-column: 2 / -1;
   grid-row: 2;
   width: 100%;
+  min-height: 42px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
@@ -2889,11 +2909,6 @@ select {
   opacity: 1;
 }
 
-.auth-scene .park-scene-canvas {
-  transform: scale(1.55);
-  transform-origin: center;
-}
-
 .command-shell {
   width: min(1540px, calc(100% - 28px));
   display: grid;
@@ -3268,7 +3283,7 @@ select {
 .bike-card {
   min-height: 132px;
   grid-template-columns: 94px minmax(0, 1fr) auto;
-  grid-template-rows: auto 42px;
+  grid-template-rows: auto minmax(42px, auto);
   gap: 10px 12px;
   align-items: start;
   background:
@@ -3293,6 +3308,7 @@ select {
   grid-column: 2 / -1;
   grid-row: 2;
   width: 100%;
+  min-height: 42px;
   align-self: start;
 }
 
@@ -3371,6 +3387,60 @@ td {
 
 .gps-status-panel {
   grid-area: status;
+}
+
+.gps-loading-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: none;
+}
+
+.gps-loading-state {
+  min-height: 360px;
+  display: grid;
+  gap: 14px;
+  align-content: center;
+  color: var(--ink-500);
+  text-align: center;
+}
+
+.gps-loading-state h2 {
+  margin-bottom: 6px;
+  color: var(--ink-900);
+  font-size: 1.16rem;
+}
+
+.gps-loading-state p {
+  margin: 0;
+  font-weight: 700;
+}
+
+.skeleton-block {
+  width: min(720px, 100%);
+  height: 18px;
+  justify-self: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(232, 244, 237, 0.92) 0%, rgba(255, 255, 255, 0.96) 42%, rgba(232, 244, 237, 0.92) 84%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+.skeleton-block.wide {
+  height: 96px;
+}
+
+.skeleton-block.short {
+  width: min(420px, 78%);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
 }
 
 .demo-clock-face {
@@ -3828,14 +3898,14 @@ td {
     align-items: center;
     flex-direction: row;
     gap: 8px;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
   }
 
   .section-heading h2 {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .section-heading > span {
@@ -3894,6 +3964,7 @@ td {
   .rent-row {
     grid-column: 1 / -1;
     grid-row: 2;
+    min-height: 42px;
   }
 
   .duration-select .duration-select-menu {
@@ -4021,5 +4092,9 @@ td {
 @media (prefers-reduced-motion: reduce) {
   .rail-item {
     will-change: auto;
+  }
+
+  .skeleton-block {
+    animation: none;
   }
 }

@@ -148,7 +148,8 @@ gcloud run deploy ecopark-bicycle-parking \
   theo polyline đường tới bãi nhận/trả thay vì bay thẳng qua hồ hoặc nhà. Cùng
   màn này có đồng hồ hệ thống nội bộ để staff/admin tua +15/+30/+60 phút hoặc
   reset, giúp demo quá hạn và phụ thu 30k/30 phút; `/gps` vẫn là alias tương
-  thích cũ.
+  thích cũ. Khi dữ liệu demo đang tải lần đầu, `/gd` hiển thị skeleton thay vì
+  một grid trắng.
 - Giao diện theo phong cách Civic Mobility Command Center: rail điều hướng tối
   có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table sắc cạnh,
   dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar sticky và mật
@@ -160,10 +161,12 @@ gcloud run deploy ecopark-bicycle-parking \
   phỏng Bike Hub isometric với đường nội khu, bike lane, canopy, dock/rack,
   status light và các xe City, Tandem, Child-seat khác hình dáng; bản scene mới
   mở rộng hồ nước, bờ kè, dải cây xanh và hàng cây ven đường để khung 3D không
-  chỉ còn là mặt đường. Scene có
-  thêm xe chạy vòng theo hành lang đường, người đi bộ/kiểm tra xe/em nhỏ vẫy tay
-  và sway cây nhẹ để loop không bị tĩnh. Trên màn hình đăng nhập, scene được
-  đóng như một dải preview bám theo cột nội dung thay vì một ảnh rời nằm lơ lửng.
+  chỉ còn là mặt đường. Camera/frustum của scene tự fit theo tỉ lệ khung auth,
+  hero và mobile, không dùng CSS zoom thô; khi render lại cùng view, canvas được
+  giữ để tránh remount nhấp nháy. Scene có thêm xe chạy vòng theo hành lang
+  đường, người đi bộ/kiểm tra xe/em nhỏ vẫy tay và sway cây nhẹ để loop không bị
+  tĩnh. Trên màn hình đăng nhập, scene được đóng như một dải preview bám theo
+  cột nội dung thay vì một ảnh rời nằm lơ lửng.
   Layout đã được kiểm tra lại trên desktop/mobile để tránh che chữ, tràn ngang
   và lệch bố cục.
 

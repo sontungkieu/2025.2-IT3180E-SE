@@ -36,9 +36,11 @@ kiểu xe khác nhau. Bản scene mới mở rộng mặt hồ, bờ kè, cụm 
 hàng cây ven đường để phần minh hoạ có chiều sâu hơn trong khung hero hẹp. Scene
 có thêm xe chạy vòng trên hành lang đường, người đi
 bộ/kiểm tra xe/em nhỏ vẫy tay và sway cây nhẹ để tạo loop thị giác mượt. Scene
-này được đóng thành một dải preview cân với cột nội dung ở màn hình đăng nhập và
-chỉ đóng vai trò nhấn thị giác, không thay thế các bảng, form và trạng thái nghiệp
-vụ chính.
+này dùng camera/frustum responsive để tự fit trong khung đăng nhập, hero dashboard
+và mobile, thay cho cách phóng canvas bằng CSS; khi render lại cùng màn hình, app
+giữ node canvas cũ để tránh nhấp nháy. Scene được đóng thành một dải preview cân
+với cột nội dung ở màn hình đăng nhập và chỉ đóng vai trò nhấn thị giác, không
+thay thế các bảng, form và trạng thái nghiệp vụ chính.
 
 Các thẻ xe trong luồng khách hàng dùng minh hoạ SVG theo loại xe thay vì dùng
 một icon chung cho mọi dữ liệu. City bike, Family tandem và Child-seat bike có
@@ -161,28 +163,35 @@ hiển thị trường lỗi và giữ khách ở bước nhập liệu.
 \centering
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-  screen/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=3.2cm,minimum height=0.9cm,align=center,font=\small},
-  ops/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!10,minimum width=3.2cm,minimum height=0.9cm,align=center,font=\small},
-  aid/.style={draw=EcoparkTeal,thick,rounded corners=2pt,fill=cyan!8,minimum width=3.2cm,minimum height=0.9cm,align=center,font=\small},
-  arr/.style={-{Latex[length=2.2mm]},draw=Ink,thick}
+  lane/.style={font=\footnotesize\bfseries,align=right,text=Ink},
+  screen/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=3.0cm,minimum height=0.82cm,align=center,font=\small,inner xsep=5pt},
+  ops/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!10,minimum width=3.0cm,minimum height=0.82cm,align=center,font=\small,inner xsep=5pt},
+  aid/.style={draw=EcoparkTeal,thick,rounded corners=2pt,fill=cyan!8,minimum width=3.0cm,minimum height=0.82cm,align=center,font=\small,inner xsep=5pt},
+  arr/.style={-{Latex[length=2.2mm]},draw=Ink,thick},
+  support/.style={-{Latex[length=2.0mm]},draw=EcoparkTeal,thick,dashed}
 ]
-\node[screen] (auth) {Login / Register};
-\node[screen,right=1.0cm of auth] (rent) {Customer\\Thuê xe};
-\node[screen,right=1.0cm of rent] (history) {Lượt thuê\\Tài khoản};
-\node[ops,below=1.0cm of rent] (pickup) {Operations\\Nhận xe};
-\node[ops,right=1.0cm of pickup] (return) {Trả xe\\Xuất vé};
-\node[ops,right=1.0cm of return] (reports) {Báo cáo\\Chart + CSV};
-\node[ops,below=1.0cm of return] (fleet) {Đội xe\\Audit log};
-\node[aid,below=1.0cm of auth] (gps) {\texttt{/gd}\\Demo director};
+\node[lane] at (0,1.60) {Customer};
+\node[lane] at (0,0.15) {Staff/Admin};
+\node[lane] at (0,-1.30) {Demo};
 
-\draw[arr] (auth) -- node[above,font=\scriptsize] {customer} (rent);
-\draw[arr] (rent) -- node[above,font=\scriptsize] {request/history} (history);
-\draw[arr] (auth) |- node[near start,left,font=\scriptsize] {staff/admin} (pickup);
+\node[screen] (authCustomer) at (2.35,1.60) {Login\\Register};
+\node[screen] (rent) at (5.75,1.60) {Tìm bãi\\Chọn xe};
+\node[screen] (history) at (9.15,1.60) {Lượt thuê\\Tài khoản};
+\node[ops] (authStaff) at (2.35,0.15) {Login\\Register};
+\node[ops] (pickup) at (5.75,0.15) {Nhận xe\\Giữ cọc};
+\node[ops] (return) at (9.15,0.15) {Trả xe\\Xuất vé};
+\node[ops] (manage) at (12.55,0.15) {Báo cáo\\Đội xe/Audit};
+\node[aid] (director) at (2.35,-1.30) {\texttt{/gd}\\Demo director};
+\node[aid] (gps) at (5.75,-1.30) {GPS xe\\theo đường};
+\node[aid] (clock) at (9.15,-1.30) {Giờ hệ thống\\phụ thu};
+
+\draw[arr] (authCustomer) -- (rent);
+\draw[arr] (rent) -- (history);
+\draw[arr] (authStaff) -- (pickup);
 \draw[arr] (pickup) -- (return);
-\draw[arr] (return) -- (reports);
-\draw[arr] (return) -- (fleet);
-\draw[arr] (gps) -- node[below,font=\scriptsize] {supports UC002/UC004 demo} (rent);
-\draw[arr] (gps) |- (return);
+\draw[arr] (return) -- (manage);
+\draw[support] (director) -- (gps);
+\draw[support] (gps) -- (clock);
 \end{tikzpicture}
 }
 \caption{Screen-flow chính của platform và route hỗ trợ demo GPS}
@@ -207,7 +216,9 @@ thị polyline đường đi tới bãi nhận/trả. Cùng màn này có đồn
 staff/admin có thể tua +15/+30/+60 phút hoặc reset về giờ thật để diễn trường
 hợp quá hạn và phụ thu 30k/30 phút. Nhờ đó phần diễn UC002/UC004 không tạo cảm
 giác xe bay thẳng qua hồ hoặc nhà, đồng thời phí phạt vẫn được tính bởi backend
-theo cùng mốc giờ mà customer và staff nhìn thấy.
+theo cùng mốc giờ mà customer và staff nhìn thấy. Khi mở \texttt{/gd} trước lúc
+danh sách bãi/xe sẵn sàng, giao diện hiển thị skeleton loading để không xuất hiện
+một grid trắng trong lúc demo.
 
 \subsection{Use-case to screen mapping}
 \begin{longtable}{P{0.18\textwidth}P{0.34\textwidth}P{0.38\textwidth}}
@@ -230,7 +241,7 @@ UC005 & Fleet table, quản lý bãi/xe, dashboard báo cáo, audit log & Admin/
 \textbf{Module} & \textbf{File chính} & \textbf{Vai trò triển khai} \\
 \midrule
 Frontend shell & \texttt{public/app.js}, \texttt{public/styles.css} & Render auth, customer, operations và \texttt{/gd}; quản lý state client, custom dropdown, map, table, form, report charts, audit timeline, demo clock và CSV download. \\
-3D scene & \texttt{public/scene.js} & Mount scene Three.js low-poly, tự cleanup scene cũ, giữ \texttt{preserveDrawingBuffer} cho smoke test pixel. \\
+3D scene & \texttt{public/scene.js} & Mount scene Three.js low-poly, tự cleanup scene cũ, dùng frustum responsive và giữ \texttt{preserveDrawingBuffer} cho smoke test pixel. \\
 API server & \texttt{server/app.js} & HTTP router, session cookie, role guard, static/vendor serving và các endpoint nghiệp vụ. \\
 Database & \texttt{server/db.js} & SQLite schema, seed data, demo accounts, foreign keys và WAL mode; khi deploy GCP, file DB được đặt trên persistent disk. \\
 Pricing & \texttt{server/pricing.js} & Tính phí cơ bản, phụ thu trễ và giảm giá cư dân theo policy đề bài. \\
