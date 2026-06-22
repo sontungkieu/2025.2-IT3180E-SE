@@ -1,5 +1,22 @@
 # Milestones
 
+## 2026-06-22 - 3D/UI polish from improvement proposal
+
+- Applied the 3D scene proposal with responsive orthographic framing for auth,
+  dashboard hero and mobile containers, removing the auth-page CSS canvas zoom.
+- Stabilized the moving-bike direction and wheel spin loop, skipped zero-length
+  pedestrian path segments and cached status-light scale updates.
+- Added bike-lane markings and reusable tree materials so the scene reads more
+  clearly in compact hero frames.
+- Preserved the Three.js canvas when re-rendering the same app view to avoid
+  unnecessary remount flicker.
+- Added a `/gd` skeleton loading state while stations/bikes are fetched for the
+  demo director.
+- Raised report dropdown menus above sticky chrome, compacted mobile bike-card
+  rows and allowed narrow section headings to wrap without horizontal overflow.
+- Updated README and report implementation notes for responsive scene fitting
+  and `/gd` loading behavior.
+
 ## 2026-06-19 - UC001 evidence and CI automation
 
 - Added a Playwright screenshot capture script for UC001 account registration,
@@ -313,4 +330,7 @@
 - Mindmap/drawio 2026-06-15 report submission pass: reviewed; no semantic update
   required because existing UC001-UC005 remain the same, while report diagrams add
   architecture, data, UI and implementation views around the same use cases.
+- Mindmap/drawio 2026-06-22 3D/UI polish proposal: reviewed; no update required
+  because this changes only responsive rendering, loading states and visual polish
+  for existing screens, not actor interactions or UC001-UC005 scope.
 - Version bump: N/A because the repo has no `VERSION` or `versioning.py`.

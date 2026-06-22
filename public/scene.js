@@ -16,6 +16,7 @@ const C = {
   kerb:       0xb0bac8,
   grass:      0x5a8a5a,
   treeTop:    0x3a7a3a,
+  treeTopDark: 0x2d6a2d,
   treeTrunk:  0x6b4a2a,
   water:      0x5b9bd5,
   rack:       0x8899aa,
@@ -78,6 +79,7 @@ function makeMats(store) {
     kerb:       lam(C.kerb),
     grass:      lam(C.grass),
     treeTop:    lam(C.treeTop),
+    treeTopDark: lam(C.treeTopDark),
     treeTrunk:  lam(C.treeTrunk),
     rack:       lam(C.rack),
     rackBase:   lam(C.rackBase),
@@ -102,6 +104,7 @@ function makeMats(store) {
     statusOn:  basic(C.statusOn),
     statusOff: basic(C.statusOff),
     dashLine:  basic(0xffd700),
+    laneMark:  basic(0xf0f8ff),
     signText:  basic(0xf0f8ff),
   };
 }
@@ -153,6 +156,13 @@ function addRoad(scene, mats, store) {
     const dash = mkMesh(store.geo(box(1.4, 0.17, 0.06)), mats.dashLine);
     at(dash, x, 0.01, 1.8);
     scene.add(dash);
+  }
+
+  // Short white lane markers help the bike lane read clearly in small heroes.
+  for (let x = -12; x < 17; x += 3.2) {
+    const mark = mkMesh(store.geo(box(1.8, 0.18, 0.08)), mats.laneMark);
+    at(mark, x, 0.02, 0.7);
+    scene.add(mark);
   }
 }
 
@@ -214,8 +224,7 @@ function addTree(scene, mats, store, x, z, scale = 1.0) {
   // Layered canopy for fuller look
   const canopy1 = mkMesh(store.geo(sph(canopyR, 8, 7)), mats.treeTop);
   at(canopy1, x, trunkH + canopyR * 0.7, z);
-  const canopy2 = mkMesh(store.geo(sph(canopyR * 0.72, 7, 6)),
-    store.mat(new THREE.MeshLambertMaterial({ color: 0x2d6a2d })));
+  const canopy2 = mkMesh(store.geo(sph(canopyR * 0.72, 7, 6)), mats.treeTopDark);
   at(canopy2, x + 0.15 * scale, trunkH + canopyR * 1.1, z - 0.1 * scale);
   scene.add(trunk, canopy1, canopy2);
   return canopy1; // primary for sway
@@ -520,6 +529,8 @@ function buildMovingBike(mats, store) {
   const wF = buildWheel(mats, store, 0.26); at(wF,  0.35, 0.26, 0);
   const wR = buildWheel(mats, store, 0.26); at(wR, -0.35, 0.26, 0);
   root.add(wF, wR);
+  root.userData.wheels = [wF, wR];
+  root.userData.direction = -1;
 
   const tt = mkMesh(store.geo(box(0.6, 0.04, 0.04)), mats.bikeCity);
   at(tt, 0, 0.52, 0);
@@ -563,8 +574,15 @@ function makeClosedPath(points) {
     const dx = b[0] - a[0];
     const dz = b[1] - a[1];
     const len = Math.sqrt(dx * dx + dz * dz);
+    if (len <= 0.0001) continue;
     total += len;
     segs.push({ a, b, dx, dz, len, cum: total });
+  }
+  if (!segs.length) {
+    return function sampleStationaryPath() {
+      const point = points[0] || [0, 0];
+      return { x: point[0], z: point[1], angle: 0 };
+    };
   }
   return function samplePath(t) {
     const target = ((t % 1) + 1) % 1;          // clamp [0,1)
@@ -575,7 +593,7 @@ function makeClosedPath(points) {
     }
     const prev = seg.a;
     const cumPrev = seg.cum - seg.len;
-    const localT = seg.len > 0 ? (dist - cumPrev) / seg.len : 0;
+    const localT = (dist - cumPrev) / seg.len;
     return {
       x:     prev[0] + seg.dx * localT,
       z:     prev[1] + seg.dz * localT,
@@ -661,7 +679,6 @@ function addPedestrians(scene, mats, store) {
     [ 1.0, -0.4],
     [-2.0, -1.0],
     [-5.0, -0.8],
-    [-7.5,  0.1],
   ]);
 
   const pA = buildPerson(mats, store, mats.personA, 0.95);
@@ -728,19 +745,23 @@ function addLighting(scene) {
 }
 
 /* ─────────────────────────── CAMERA ─────────────────────────── */
+function responsiveFrustum(aspect) {
+  if (aspect < 1.7) return 12.0;
+  if (aspect > 2.2) return 9.5;
+  return 10.5;
+}
+
 function makeCamera(w, h) {
   const aspect  = w / h;
-  const frustum = 10.0;
+  const frustum = responsiveFrustum(aspect);
   const cam = new THREE.OrthographicCamera(
     -frustum * aspect, frustum * aspect,
     frustum, -frustum,
     0.1, 200
   );
-  // True side-on isometric: camera directly to the side + elevated
-  // Road (X-axis) appears perfectly horizontal in viewport.
-  // Azimuth = 0° (pure +Z side), elevation ≈ 45°
-  cam.position.set(0, 18, 18);
-  cam.lookAt(2, 0, -2.0);
+  // Slight azimuth keeps the road mostly horizontal while giving lake/tree depth.
+  cam.position.set(2.5, 17, 19);
+  cam.lookAt(1.8, 0, -2.5);
   return cam;
 }
 
@@ -754,7 +775,7 @@ function makeResizeHandler(renderer, camera, container) {
     renderer.setPixelRatio(pr);
 
     const aspect  = w / h;
-    const frustum = 10.0;
+    const frustum = responsiveFrustum(aspect);
     camera.left   = -frustum * aspect;
     camera.right  =  frustum * aspect;
     camera.top    =  frustum;
@@ -765,23 +786,32 @@ function makeResizeHandler(renderer, camera, container) {
 
 /* ─────────────────────────── ANIMATION HELPERS ─────────────────── */
 
-function animateBikeAlongLane(bike, elapsed) {
+function animateBikeAlongLane(bike, elapsed, dt = 0) {
   // Bike lane centre line is at z ≈ 0.7, road runs along X.
   // Loop: x from -11 to +11, then back (closed loop via path).
   const LOOP = 16.0; // seconds
   const t = (elapsed % LOOP) / LOOP;
+  const angle = t * Math.PI * 2;
 
   // Smooth closed loop: go left-to-right then right-to-left via sin curve
   // Use parametric: x = cos(2πt) * 10, which gives smooth ping-pong
-  const x = Math.cos(t * Math.PI * 2) * 10.2;
-  const dx = -Math.sin(t * Math.PI * 2); // derivative for heading
+  const x = Math.cos(angle) * 10.2;
+  const dx = -Math.sin(angle); // derivative for heading
 
   bike.position.x = x;
   bike.position.z = 0.7;
   bike.position.y = 0;
 
   // Face direction of travel
-  bike.rotation.y = Math.atan2(dx, 0) + (dx < 0 ? Math.PI : 0);
+  if (Math.abs(dx) > 0.02) {
+    bike.userData.direction = dx < 0 ? -1 : 1;
+  }
+  bike.rotation.y = bike.userData.direction < 0 ? Math.PI : 0;
+
+  const wheelSpeed = Math.abs(dx) * 10.2 * (2 * Math.PI / LOOP);
+  for (const wheel of bike.userData.wheels || []) {
+    wheel.rotation.z += wheelSpeed * dt * 3.2;
+  }
 }
 
 function animateStatusLights(leds, elapsed) {
@@ -789,7 +819,10 @@ function animateStatusLights(leds, elapsed) {
     const s = isOn
       ? 1.0 + 0.18 * Math.abs(Math.sin(elapsed * 2.1))
       : 0.85 + 0.06 * Math.abs(Math.sin(elapsed * 0.9 + 1.2));
-    led.scale.setScalar(s);
+    if (led.userData.lastScale === undefined || Math.abs(led.userData.lastScale - s) > 0.002) {
+      led.scale.setScalar(s);
+      led.userData.lastScale = s;
+    }
   }
 }
 
@@ -885,7 +918,7 @@ export function mountScene(target) {
     lastTs = ts;
     elapsed += prefersReduced ? 0 : dt;
 
-    animateBikeAlongLane(movingBike, elapsed);
+    animateBikeAlongLane(movingBike, elapsed, prefersReduced ? 0 : dt);
     for (const upd of pedUpdaters) upd(elapsed);
     animateStatusLights(leds, elapsed);
     animatePond(pond, elapsed);
@@ -897,7 +930,7 @@ export function mountScene(target) {
   // Render at least one frame even if reduced motion
   if (prefersReduced) {
     // Single static frame
-    animateBikeAlongLane(movingBike, 0);
+    animateBikeAlongLane(movingBike, 0, 0);
     for (const upd of pedUpdaters) upd(0);
     renderer.render(scene, camera);
   } else {

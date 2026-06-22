@@ -116,7 +116,8 @@ const state = {
   gpsTargetStationId: null,
   gpsBikePosition: null,
   gpsMode: 'pickup',
-  gpsRoutePath: []
+  gpsRoutePath: [],
+  gpsDemoLoading: false
 };
 
 const app = document.querySelector('#app');
@@ -138,11 +139,12 @@ async function init() {
     const session = await api('/api/session');
     state.user = session.user;
     if (isGpsDemoRoute()) {
-      await refreshGpsDemoData();
+      await refreshGpsDemoDataWithLoading({ renderInitial: true });
     } else {
       await refreshData();
     }
   } catch (error) {
+    state.gpsDemoLoading = false;
     notify(error.message, true);
   }
   render();
@@ -213,6 +215,18 @@ async function refreshGpsDemoData() {
   }
 }
 
+async function refreshGpsDemoDataWithLoading({ renderInitial = false } = {}) {
+  const shouldShowLoading = renderInitial || !state.stations.length || !state.gpsBikes.length;
+  state.gpsDemoLoading = true;
+  if (shouldShowLoading) render();
+  try {
+    await refreshGpsDemoData();
+  } finally {
+    state.gpsDemoLoading = false;
+    if (shouldShowLoading) render();
+  }
+}
+
 async function loadStationBikes() {
   if (!state.selectedStationId) {
     state.stationBikes = [];
@@ -240,6 +254,7 @@ function render() {
   }
   const nextView = !state.user ? 'auth' : state.user.role === 'customer' ? 'customer' : 'operations';
   const isViewSwitch = currentView !== nextView;
+  const reusableScene = isViewSwitch ? null : document.querySelector('#scene');
   currentView = nextView;
   app.className = `app-root view-${nextView}`;
 
@@ -247,7 +262,7 @@ function render() {
     app.innerHTML = authView();
     resetScrollOnViewSwitch(isViewSwitch);
     bindAuthEvents();
-    mountScene(document.querySelector('#scene'));
+    restoreOrMountScene(reusableScene);
     runPageMotion(nextView, isViewSwitch);
     return;
   }
@@ -255,11 +270,21 @@ function render() {
   app.innerHTML = shellView();
   resetScrollOnViewSwitch(isViewSwitch);
   bindAppEvents();
-  mountScene(document.querySelector('#scene'));
+  restoreOrMountScene(reusableScene);
   if (state.user.role === 'customer') {
     mountStationMap();
   }
   runPageMotion(nextView, isViewSwitch);
+}
+
+function restoreOrMountScene(reusableScene) {
+  const placeholder = document.querySelector('#scene');
+  if (!placeholder) return;
+  if (reusableScene?.querySelector('.park-scene-canvas')) {
+    placeholder.replaceWith(reusableScene);
+    return;
+  }
+  mountScene(placeholder);
 }
 
 function authView() {
@@ -531,6 +556,9 @@ function operationsView() {
 }
 
 function gpsDemoView() {
+  if (state.gpsDemoLoading && (!state.stations.length || !state.gpsBikes.length)) {
+    return gpsDemoLoadingView();
+  }
   const bike = selectedGpsBike();
   const target = selectedGpsTargetStation();
   const distance = gpsDistanceToTarget();
@@ -611,6 +639,37 @@ function gpsDemoView() {
             <div><dt>Lng</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lng.toFixed(6) : '-'}</dd></div>
             <div><dt>Loại xe</dt><dd>${bike ? escapeHtml(bike.type_name) : '-'}</dd></div>
           </dl>
+        </section>
+      </main>
+    </div>
+  `;
+}
+
+function gpsDemoLoadingView() {
+  return `
+    <div class="gps-demo-shell">
+      <header class="topbar gps-demo-topbar">
+        <div class="brand-row">
+          <span class="brand-mark"><img src="/vendor/icons/navigation.svg" alt=""></span>
+          <div>
+            <strong>Bảng điều khiển demo</strong>
+            <span>/gd · GPS xe và đồng hồ hệ thống</span>
+          </div>
+        </div>
+        <div class="user-actions">
+          <a class="ghost" href="/"><img src="/vendor/icons/layout-dashboard.svg" alt="">Bảng chính</a>
+          <button id="refresh-gps-demo" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu GPS"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
+        </div>
+      </header>
+      <main class="gps-demo-grid gps-loading-grid" aria-busy="true">
+        <section class="panel gps-loading-state">
+          <div>
+            <h2>Đang tải dữ liệu demo</h2>
+            <p>Chuẩn bị danh sách bãi, xe và tuyến đường GPS.</p>
+          </div>
+          <div class="skeleton-block wide"></div>
+          <div class="skeleton-block"></div>
+          <div class="skeleton-block short"></div>
         </section>
       </main>
     </div>
@@ -2122,7 +2181,7 @@ function stationManagementTable() {
 function bindGpsDemoEvents() {
   document.querySelector('#refresh-gps-demo')?.addEventListener('click', async () => {
     await runAction(async () => {
-      await refreshGpsDemoData();
+      await refreshGpsDemoDataWithLoading();
       render();
     }, 'Đã làm mới dữ liệu GPS');
   });
@@ -2133,7 +2192,7 @@ function bindGpsDemoEvents() {
           method: 'POST',
           body: { email: button.dataset.gdLogin, password: button.dataset.gdPassword }
         })).user;
-        await refreshGpsDemoData();
+        await refreshGpsDemoDataWithLoading();
         render();
       }, 'Đã đăng nhập bảng điều khiển demo');
     });
@@ -2146,7 +2205,7 @@ function bindGpsDemoEvents() {
           method: 'POST',
           body: { advanceMinutes }
         });
-        await refreshGpsDemoData();
+        await refreshGpsDemoDataWithLoading();
         render();
       }, `Đã tua giờ +${advanceMinutes} phút`);
     });
@@ -2157,7 +2216,7 @@ function bindGpsDemoEvents() {
         method: 'POST',
         body: { reset: true }
       });
-      await refreshGpsDemoData();
+      await refreshGpsDemoDataWithLoading();
       render();
     }, 'Đã đưa đồng hồ về giờ thật');
   });
