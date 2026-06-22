@@ -19,6 +19,10 @@ const REPORT_PERIOD_OPTIONS = [
   { value: 'month', label: 'Tháng', detail: 'Gom theo từng tháng', icon: 'calendar-check-2' }
 ];
 
+const THEME_STORAGE_KEY = 'ecopark-theme';
+const THEME_OPTIONS = ['light', 'dark', 'system'];
+const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
 const GPS_DEMO_ROAD = [
   { lat: 20.953894, lng: 105.933030 },
   { lat: 20.953046, lng: 105.933525 },
@@ -88,6 +92,7 @@ const GPS_DEMO_ROAD = [
 
 const state = {
   user: null,
+  themePreference: readThemePreference(),
   stations: [],
   bikeTypes: [],
   selectedStationId: null,
@@ -132,6 +137,8 @@ let currentView = null;
 let toastTween = null;
 let customSelectEventsBound = false;
 
+applyThemePreference();
+bindSystemThemePreference();
 init();
 
 async function init() {
@@ -148,6 +155,74 @@ async function init() {
     notify(error.message, true);
   }
   render();
+}
+
+function readThemePreference() {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return THEME_OPTIONS.includes(saved) ? saved : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+function bindSystemThemePreference() {
+  systemThemeQuery.addEventListener('change', () => {
+    if (state.themePreference === 'system') applyThemePreference();
+  });
+}
+
+function resolvedTheme() {
+  if (state.themePreference === 'system') {
+    return systemThemeQuery.matches ? 'dark' : 'light';
+  }
+  return state.themePreference;
+}
+
+function applyThemePreference() {
+  const theme = resolvedTheme();
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.themePreference = state.themePreference;
+  document.documentElement.style.colorScheme = theme;
+}
+
+function nextThemePreference() {
+  const currentIndex = THEME_OPTIONS.indexOf(state.themePreference);
+  return THEME_OPTIONS[(currentIndex + 1) % THEME_OPTIONS.length];
+}
+
+function themeOptionMeta(preference = state.themePreference) {
+  return {
+    light: { label: 'Sáng', icon: 'sun' },
+    dark: { label: 'Tối', icon: 'moon' },
+    system: { label: 'Hệ thống', icon: 'monitor' }
+  }[preference] || { label: 'Hệ thống', icon: 'monitor' };
+}
+
+function themeToggleButton() {
+  const current = themeOptionMeta();
+  const next = themeOptionMeta(nextThemePreference());
+  return `
+    <button class="icon-button theme-toggle" type="button" data-theme-toggle title="Chế độ màu: ${current.label}. Bấm để chuyển ${next.label}" aria-label="Chế độ màu: ${current.label}">
+      <img src="/vendor/icons/${current.icon}.svg" alt="">
+      <span>${current.label}</span>
+    </button>
+  `;
+}
+
+function bindThemeEvents() {
+  document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.themePreference = nextThemePreference();
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, state.themePreference);
+      } catch {
+        // localStorage can be unavailable in hardened browsers; keep the in-memory preference.
+      }
+      applyThemePreference();
+      render();
+    });
+  });
 }
 
 function isGpsDemoRoute() {
@@ -313,6 +388,7 @@ function authView() {
             <p class="eyebrow">Truy cập hệ thống</p>
             <h2>Đăng nhập</h2>
           </div>
+          ${themeToggleButton()}
         </div>
         <form id="login-form" class="form-grid">
           <label>Email<input name="email" type="email" value="customer@ecopark.test" autocomplete="username" required></label>
@@ -373,8 +449,9 @@ function shellView() {
         <nav class="rail-nav">
           ${isCustomer
             ? `${railItem('bike', 'Thuê xe', true, 'workspace-rent')}${railItem('receipt-text', 'Lượt thuê', false, 'workspace-rentals')}${railItem('id-card', 'Tài khoản', false, 'workspace-account')}`
-            : `${railItem('layout-dashboard', 'Tổng quan', true, 'workspace-overview')}${railItem('clipboard-check', 'Nhận xe', false, 'workspace-pickup')}${railItem('receipt-text', 'Trả xe', false, 'workspace-return')}${railItem('bar-chart-3', 'Báo cáo', false, 'workspace-reports')}`}
+            : `${railItem('layout-dashboard', 'Vận hành', true, 'workspace-overview')}${railItem('clipboard-check', 'Nhận xe', false, 'workspace-pickup')}${railItem('receipt-text', 'Trả xe', false, 'workspace-return')}${railItem('bar-chart-3', 'Báo cáo', false, 'workspace-reports')}`}
           <button id="mobile-refresh" class="rail-item rail-mobile-action" type="button" title="Làm mới" aria-label="Làm mới dữ liệu"><img src="/vendor/icons/refresh-cw.svg" alt=""><span>Làm mới</span></button>
+          <button class="rail-item rail-mobile-action" type="button" data-theme-toggle title="Chế độ màu" aria-label="Chế độ màu"><img src="/vendor/icons/${themeOptionMeta().icon}.svg" alt=""><span>Giao diện</span></button>
           <button id="mobile-logout" class="rail-item rail-mobile-action" type="button" title="Đăng xuất" aria-label="Đăng xuất"><img src="/vendor/icons/log-out.svg" alt=""><span>Đăng xuất</span></button>
         </nav>
         <div class="rail-status">
@@ -393,6 +470,7 @@ function shellView() {
           </div>
           <div class="user-actions">
             <span class="session-chip"><span class="session-avatar">${userInitials(state.user.full_name)}</span>${escapeHtml(state.user.full_name)}</span>
+            ${themeToggleButton()}
             <button id="refresh" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
             <button id="logout" class="ghost" type="button" title="Đăng xuất" aria-label="Đăng xuất"><img src="/vendor/icons/log-out.svg" alt="">Đăng xuất</button>
           </div>
@@ -400,7 +478,7 @@ function shellView() {
         <section id="workspace-overview" class="dashboard-hero">
           <div class="hero-copy">
             <p class="eyebrow">${isCustomer ? 'Khu vực khách hàng' : 'Khu vực vận hành'}</p>
-            <h1>${isCustomer ? 'Tìm bãi gần bạn, chọn xe và gửi yêu cầu thuê.' : 'Xử lý nhận xe, trả xe, đội xe và thống kê tập trung.'}</h1>
+            <h1>${isCustomer ? 'Tìm bãi gần bạn, chọn xe và gửi yêu cầu thuê.' : 'Theo dõi ca vận hành, nhận trả xe và tình trạng đội xe.'}</h1>
             <div class="metric-strip">
               ${metric(isCustomer ? 'Bãi gần bạn' : 'Bãi hoạt động', isCustomer ? state.stations.length : state.stations.filter((s) => s.station_status === 'active').length, 'map-pin')}
               ${metric(isCustomer ? 'Xe có thể thuê' : 'Xe sẵn sàng', state.stations.reduce((sum, s) => sum + Number(s.available_bikes || 0), 0), 'bike')}
@@ -506,7 +584,7 @@ function operationsView() {
     <main class="content-grid ops-grid">
       <section class="panel report-panel" id="workspace-reports">
         <div class="section-heading">
-          <h2>Thống kê</h2>
+          <h2>Báo cáo & CSV</h2>
           <button id="export-report" class="secondary small" type="button"><img src="/vendor/icons/file-down.svg" alt="">Xuất CSV theo bộ lọc</button>
         </div>
         ${reportFilters()}
@@ -575,6 +653,7 @@ function gpsDemoView() {
         </div>
         <div class="user-actions">
           <a class="ghost" href="/"><img src="/vendor/icons/layout-dashboard.svg" alt="">Bảng chính</a>
+          ${themeToggleButton()}
           <button id="refresh-gps-demo" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu GPS"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
         </div>
       </header>
@@ -658,6 +737,7 @@ function gpsDemoLoadingView() {
         </div>
         <div class="user-actions">
           <a class="ghost" href="/"><img src="/vendor/icons/layout-dashboard.svg" alt="">Bảng chính</a>
+          ${themeToggleButton()}
           <button id="refresh-gps-demo" class="icon-button" type="button" title="Làm mới" aria-label="Làm mới dữ liệu GPS"><img src="/vendor/icons/refresh-cw.svg" alt=""></button>
         </div>
       </header>
@@ -1120,6 +1200,47 @@ function reportFilterOption(name, option, selectedValue) {
       <span class="select-option-copy">
         <strong>${escapeHtml(option.label)}</strong>
         <span>${escapeHtml(option.detail)}</span>
+      </span>
+      <img class="select-check" src="/vendor/icons/check.svg" alt="">
+    </button>
+  `;
+}
+
+function prettyInputSelect({ id, name = '', options = [], selectedValue = '', label = 'Chọn', disabled = false, compact = true }) {
+  const normalizedValue = String(selectedValue ?? '');
+  const fallback = { value: '', label: 'Không có dữ liệu', detail: 'Không thể chọn', icon: 'circle-alert' };
+  const selected = options.find((option) => String(option.value) === normalizedValue) || options[0] || fallback;
+  const isDisabled = disabled || !options.length;
+  const menuId = `${id}-menu`;
+  const inputName = name ? ` name="${escapeAttr(name)}"` : '';
+  return `
+    <div class="pretty-input-select ${compact ? 'table-select' : ''} ${isDisabled ? 'disabled' : ''}" data-pretty-input-select>
+      <input type="hidden" id="${escapeAttr(id)}"${inputName} value="${escapeAttr(selected.value)}" aria-label="${escapeAttr(label)}">
+      <div class="pretty-select ${compact ? 'compact-select' : ''} ${isDisabled ? 'disabled' : ''}" data-select-root>
+        <button class="pretty-select-trigger ${compact ? 'compact-select-trigger' : ''}" type="button" data-select-trigger="${escapeAttr(id)}" aria-expanded="false" aria-controls="${escapeAttr(menuId)}" ${isDisabled ? 'disabled' : ''}>
+          <span class="select-leading"><img src="/vendor/icons/${selected.icon || 'chevrons-up-down'}.svg" alt=""></span>
+          <span class="select-value">
+            <strong>${escapeHtml(selected.label)}</strong>
+            <span>${escapeHtml(selected.detail || label)}</span>
+          </span>
+          <img class="select-chevron" src="/vendor/icons/chevron-down.svg" alt="">
+        </button>
+        <div id="${escapeAttr(menuId)}" class="pretty-select-menu compact-select-menu" role="listbox">
+          ${(options.length ? options : [fallback]).map((option) => prettyInputSelectOption(id, option, selected.value)).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function prettyInputSelectOption(targetId, option, selectedValue) {
+  const active = String(option.value) === String(selectedValue);
+  return `
+    <button class="pretty-select-option compact-select-option ${active ? 'active' : ''}" type="button" role="option" aria-selected="${active}" data-pretty-select-option data-select-target="${escapeAttr(targetId)}" data-select-value="${escapeAttr(option.value)}" data-select-label="${escapeAttr(option.label)}" data-select-detail="${escapeAttr(option.detail || '')}" data-select-icon="${escapeAttr(option.icon || 'chevrons-up-down')}">
+      <span class="select-leading"><img src="/vendor/icons/${option.icon || 'chevrons-up-down'}.svg" alt=""></span>
+      <span class="select-option-copy">
+        <strong>${escapeHtml(option.label)}</strong>
+        <span>${escapeHtml(option.detail || '')}</span>
       </span>
       <img class="select-check" src="/vendor/icons/check.svg" alt="">
     </button>
@@ -1927,7 +2048,7 @@ function fleetStatusBar(item, total) {
 function barPercent(value, maxValue) {
   const number = Number(value || 0);
   if (number <= 0) return 0;
-  return Math.max(8, Math.round((number / Math.max(1, Number(maxValue || 1))) * 100));
+  return Math.max(12, Math.round((number / Math.max(1, Number(maxValue || 1))) * 100));
 }
 
 function emptyChart(message) {
@@ -1972,11 +2093,7 @@ function pendingRequestsTable() {
               </td>
               <td data-label="Giấy tờ">
                 <div class="stacked-inputs">
-                  <select id="doc-type-${item.request_id}" aria-label="Loại giấy tờ REQ${item.request_id}">
-                    <option value="CCCD">CCCD</option>
-                    <option value="CMND">CMND</option>
-                    <option value="Passport">Hộ chiếu</option>
-                  </select>
+                  ${documentTypeSelect(`doc-type-${item.request_id}`)}
                   <input id="identity-${item.request_id}" value="${escapeAttr(item.identity_number)}" aria-label="Số giấy tờ REQ${item.request_id}">
                 </div>
               </td>
@@ -2002,11 +2119,18 @@ function replacementBikeSelect(request) {
     && bike.bike_status === 'available'
     && !bike.held_for_pickup
   ));
-  return `
-    <select id="exchange-bike-${request.request_id}" aria-label="Xe đổi cho REQ${request.request_id}" ${options.length ? '' : 'disabled'}>
-      ${options.map((bike) => `<option value="${bike.bike_id}">${escapeHtml(bike.bike_code)} · ${escapeHtml(bikeTypeShortLabel(bike.type_name))}</option>`).join('') || '<option>Không còn xe rảnh</option>'}
-    </select>
-  `;
+  return prettyInputSelect({
+    id: `exchange-bike-${request.request_id}`,
+    label: `Xe đổi cho REQ${request.request_id}`,
+    selectedValue: options[0]?.bike_id || '',
+    options: options.map((bike) => ({
+      value: bike.bike_id,
+      label: bike.bike_code,
+      detail: `${bikeTypeShortLabel(bike.type_name)} · ${bike.station_name}`,
+      icon: 'bike'
+    })),
+    disabled: !options.length
+  });
 }
 
 function activeRentalsTable() {
@@ -2035,12 +2159,7 @@ function activeRentalsTable() {
               <td data-label="Bãi nhận">${escapeHtml(item.pickup_station)}</td>
               <td data-label="Bãi trả">${stationSelect(`return-station-${item.rental_id}`, item.pickup_station_id)}</td>
               <td data-label="Giờ trả"><input id="returned-at-${item.rental_id}" type="datetime-local" value="${toDatetimeLocal(defaultReturnTime(item))}" aria-label="Giờ trả RENT${item.rental_id}"></td>
-              <td data-label="Tình trạng">
-                <select id="condition-${item.rental_id}">
-                  <option value="available">Sẵn sàng</option>
-                  <option value="broken">Cần sửa</option>
-                </select>
-              </td>
+              <td data-label="Tình trạng">${rentalConditionSelect(`condition-${item.rental_id}`)}</td>
               <td data-label="Ghi chú"><input id="condition-note-${item.rental_id}" value="Nhận xe tại bãi trả" aria-label="Ghi chú tình trạng RENT${item.rental_id}"></td>
               <td class="actions-cell" data-label=""><button class="primary small" data-return="${item.rental_id}"><img src="/vendor/icons/receipt-text.svg" alt="">Xuất vé</button></td>
             </tr>
@@ -2066,11 +2185,7 @@ function fleetTable() {
               <td data-label="Mã xe">${isAdmin ? `<input id="bike-code-${bike.bike_id}" value="${escapeAttr(bike.bike_code)}" aria-label="Mã xe ${escapeAttr(bike.bike_code)}">` : escapeHtml(bike.bike_code)}</td>
               <td data-label="Loại">${isAdmin ? bikeTypeSelect(`bike-type-${bike.bike_id}`, bike.bike_type_id) : escapeHtml(bike.type_name)}</td>
               <td data-label="Bãi hiện tại">${isAdmin ? stationSelect(`bike-station-${bike.bike_id}`, bike.station_id) : escapeHtml(bike.station_name)}</td>
-              <td data-label="Trạng thái">
-                <select id="bike-status-${bike.bike_id}">
-                  ${['available', 'rented', 'broken'].map((status) => `<option value="${status}" ${bike.bike_status === status ? 'selected' : ''}>${statusLabel(status)}</option>`).join('')}
-                </select>
-              </td>
+              <td data-label="Trạng thái">${bikeStatusSelect(`bike-status-${bike.bike_id}`, bike.bike_status)}</td>
               <td data-label="Lý do"><input id="bike-reason-${bike.bike_id}" value="${bike.bike_status === 'broken' ? 'Đánh dấu cần sửa chữa' : 'Kiểm tra vận hành'}" aria-label="Lý do cập nhật ${escapeAttr(bike.bike_code)}"></td>
               <td data-label="Giữ chỗ">${bike.held_for_pickup ? 'Có' : 'Không'}</td>
               <td class="actions-cell" data-label=""><button class="secondary small" data-save-bike="${bike.bike_id}"><img src="/vendor/icons/save.svg" alt="">Lưu</button></td>
@@ -2096,30 +2211,15 @@ function adminForms() {
           <label>Vĩ độ<input name="latitude" type="number" step="0.000001" value="20.949000" required></label>
           <label>Kinh độ<input name="longitude" type="number" step="0.000001" value="105.934000" required></label>
           <label>Sức chứa<input name="capacity" type="number" min="1" value="20" required></label>
-          <label>Trạng thái
-            <select name="stationStatus">
-              <option value="active">Hoạt động</option>
-              <option value="paused">Tạm ngưng</option>
-              <option value="maintenance">Bảo trì</option>
-            </select>
-          </label>
+          <div class="field-block"><span>Trạng thái</span>${stationStatusSelect('new-station-status', 'active')}</div>
           <button class="secondary" type="submit"><img src="/vendor/icons/map-pin-plus.svg" alt="">Thêm bãi</button>
         </form>
         <form id="bike-form" class="form-grid compact">
           <h3>Xe</h3>
           <label>Mã xe<input name="bikeCode" required></label>
-          <label>Bãi${stationSelect('new-bike-station')}</label>
-          <label>Loại xe
-            <select name="bikeTypeId" required>
-              ${state.bikeTypes.map((type) => `<option value="${type.bike_type_id}">${escapeHtml(type.type_name)}</option>`).join('')}
-            </select>
-          </label>
-          <label>Trạng thái
-            <select name="bikeStatus">
-              <option value="available">Sẵn sàng</option>
-              <option value="broken">Cần sửa</option>
-            </select>
-          </label>
+          <div class="field-block"><span>Bãi</span>${stationSelect('new-bike-station')}</div>
+          <div class="field-block"><span>Loại xe</span>${bikeTypeSelect('new-bike-type')}</div>
+          <div class="field-block"><span>Trạng thái</span>${bikeStatusSelect('new-bike-status', 'available')}</div>
           <button class="secondary" type="submit"><img src="/vendor/icons/bike.svg" alt="">Thêm xe</button>
         </form>
       </div>
@@ -2133,12 +2233,7 @@ function policyManagementForms() {
       <form id="user-status-form" class="form-grid compact">
         <h3>Trạng thái tài khoản</h3>
         <label>User ID<input name="userId" type="number" min="1" placeholder="VD: 4" required></label>
-        <label>Trạng thái
-          <select name="status">
-            <option value="active">Mở khóa</option>
-            <option value="blocked">Khóa tài khoản</option>
-          </select>
-        </label>
+        <div class="field-block"><span>Trạng thái</span>${accountStatusSelect('user-status-value')}</div>
         <button class="secondary" type="submit"><img src="/vendor/icons/shield-check.svg" alt="">Cập nhật</button>
       </form>
       <form id="identity-block-form" class="form-grid compact">
@@ -2179,6 +2274,7 @@ function stationManagementTable() {
 }
 
 function bindGpsDemoEvents() {
+  bindThemeEvents();
   document.querySelector('#refresh-gps-demo')?.addEventListener('click', async () => {
     await runAction(async () => {
       await refreshGpsDemoDataWithLoading();
@@ -2254,6 +2350,7 @@ function bindGpsDemoEvents() {
 }
 
 function bindAuthEvents() {
+  bindThemeEvents();
   bindCustomSelectEvents();
   bindRegisterCustomerTypeDropdown();
 
@@ -2406,6 +2503,7 @@ function bindRentDurationDropdowns() {
 }
 
 function bindAppEvents() {
+  bindThemeEvents();
   bindRailEvents();
   document.querySelectorAll('#logout, #mobile-logout').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -2475,6 +2573,33 @@ function bindCustomSelectEvents() {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeCustomSelects();
+  });
+}
+
+function bindPrettyInputSelects() {
+  document.querySelectorAll('[data-pretty-select-option]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const input = document.getElementById(button.dataset.selectTarget);
+      const root = button.closest('[data-select-root]');
+      const trigger = root?.querySelector('[data-select-trigger]');
+      const triggerIcon = trigger?.querySelector('.select-leading img');
+      const triggerLabel = trigger?.querySelector('.select-value strong');
+      const triggerDetail = trigger?.querySelector('.select-value span');
+      if (!input) return;
+
+      input.value = button.dataset.selectValue || '';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      if (triggerIcon) triggerIcon.src = `/vendor/icons/${button.dataset.selectIcon || 'chevrons-up-down'}.svg`;
+      if (triggerLabel) triggerLabel.textContent = button.dataset.selectLabel || '';
+      if (triggerDetail) triggerDetail.textContent = button.dataset.selectDetail || '';
+
+      root?.querySelectorAll('[data-pretty-select-option]').forEach((option) => {
+        const active = option === button;
+        option.classList.toggle('active', active);
+        option.setAttribute('aria-selected', String(active));
+      });
+      closeCustomSelects();
+    });
   });
 }
 
@@ -2579,6 +2704,7 @@ async function selectStation(stationId) {
 
 function bindOpsEvents() {
   bindCustomSelectEvents();
+  bindPrettyInputSelects();
   bindReportFilterDropdowns();
   document.querySelector('#export-report')?.addEventListener('click', () => {
     exportReportCsv();
@@ -2922,29 +3048,100 @@ function accountStatusCard(icon, label, value, tone = '') {
   `;
 }
 
-function stationSelect(id, selectedId) {
-  return `
-    <select id="${id}" name="stationId">
-      ${state.stations.map((station) => `<option value="${station.station_id}" ${Number(selectedId) === station.station_id ? 'selected' : ''}>${escapeHtml(station.station_name)}</option>`).join('')}
-    </select>
-  `;
+function stationSelect(id, selectedId, name = 'stationId') {
+  return prettyInputSelect({
+    id,
+    name,
+    label: 'Bãi xe',
+    selectedValue: selectedId ?? state.stations[0]?.station_id ?? '',
+    options: state.stations.map((station) => ({
+      value: station.station_id,
+      label: station.station_name,
+      detail: station.address || `${station.available_bikes || 0} xe sẵn sàng`,
+      icon: 'map-pin'
+    }))
+  });
 }
 
-function bikeTypeSelect(id, selectedId) {
-  return `
-    <select id="${id}" name="bikeTypeId">
-      ${state.bikeTypes.map((type) => `<option value="${type.bike_type_id}" ${Number(selectedId) === type.bike_type_id ? 'selected' : ''}>${escapeHtml(type.type_name)}</option>`).join('')}
-    </select>
-  `;
+function bikeTypeSelect(id, selectedId, name = 'bikeTypeId') {
+  return prettyInputSelect({
+    id,
+    name,
+    label: 'Loại xe',
+    selectedValue: selectedId ?? state.bikeTypes[0]?.bike_type_id ?? '',
+    options: state.bikeTypes.map((type) => ({
+      value: type.bike_type_id,
+      label: type.type_name,
+      detail: bikeTypeShortLabel(type.type_name),
+      icon: 'bike'
+    }))
+  });
 }
 
-function stationStatusSelect(id, selectedStatus) {
-  const labels = { active: 'Hoạt động', paused: 'Tạm ngưng', maintenance: 'Bảo trì' };
-  return `
-    <select id="${id}" name="stationStatus">
-      ${Object.entries(labels).map(([value, label]) => `<option value="${value}" ${value === selectedStatus ? 'selected' : ''}>${label}</option>`).join('')}
-    </select>
-  `;
+function stationStatusSelect(id, selectedStatus = 'active', name = 'stationStatus') {
+  return prettyInputSelect({
+    id,
+    name,
+    label: 'Trạng thái bãi',
+    selectedValue: selectedStatus,
+    options: [
+      { value: 'active', label: 'Hoạt động', detail: 'Cho nhận và trả xe', icon: 'badge-check' },
+      { value: 'paused', label: 'Tạm ngưng', detail: 'Tạm dừng phục vụ', icon: 'pause-circle' },
+      { value: 'maintenance', label: 'Bảo trì', detail: 'Đang kiểm tra bãi', icon: 'wrench' }
+    ]
+  });
+}
+
+function documentTypeSelect(id) {
+  return prettyInputSelect({
+    id,
+    label: 'Loại giấy tờ',
+    selectedValue: 'CCCD',
+    options: [
+      { value: 'CCCD', label: 'CCCD', detail: 'Căn cước công dân', icon: 'id-card' },
+      { value: 'CMND', label: 'CMND', detail: 'Chứng minh nhân dân', icon: 'badge' },
+      { value: 'Passport', label: 'Hộ chiếu', detail: 'Giấy tờ thay thế', icon: 'book-user' }
+    ]
+  });
+}
+
+function rentalConditionSelect(id) {
+  return prettyInputSelect({
+    id,
+    label: 'Tình trạng xe',
+    selectedValue: 'available',
+    options: [
+      { value: 'available', label: 'Sẵn sàng', detail: 'Đưa về đội xe rảnh', icon: 'badge-check' },
+      { value: 'broken', label: 'Cần sửa', detail: 'Chuyển sang kiểm tra', icon: 'wrench' }
+    ]
+  });
+}
+
+function bikeStatusSelect(id, selectedStatus = 'available', name = 'bikeStatus') {
+  return prettyInputSelect({
+    id,
+    name,
+    label: 'Trạng thái xe',
+    selectedValue: selectedStatus,
+    options: [
+      { value: 'available', label: 'Sẵn sàng', detail: 'Có thể thuê', icon: 'badge-check' },
+      { value: 'rented', label: 'Đang thuê', detail: 'Đang có lượt chạy', icon: 'timer' },
+      { value: 'broken', label: 'Cần sửa', detail: 'Khóa khỏi đội rảnh', icon: 'wrench' }
+    ]
+  });
+}
+
+function accountStatusSelect(id, selectedStatus = 'active', name = 'status') {
+  return prettyInputSelect({
+    id,
+    name,
+    label: 'Trạng thái tài khoản',
+    selectedValue: selectedStatus,
+    options: [
+      { value: 'active', label: 'Mở khóa', detail: 'Cho phép đăng nhập', icon: 'shield-check' },
+      { value: 'blocked', label: 'Khóa tài khoản', detail: 'Chặn thao tác thuê xe', icon: 'ban' }
+    ]
+  });
 }
 
 function selectedStationName() {

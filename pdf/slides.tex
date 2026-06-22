@@ -79,31 +79,7 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 
 \begin{frame}{Kiến Trúc GCP}
 \centering
-\resizebox{\textwidth}{!}{%
-\begin{tikzpicture}[
-  box/.style={draw=EcoparkGreen,thick,rounded corners=2pt,fill=SoftGreen,minimum width=3.15cm,minimum height=1.02cm,align=center,font=\scriptsize},
-  gcp/.style={draw=EcoparkTeal,thick,rounded corners=2pt,fill=cyan!8,minimum width=3.15cm,minimum height=1.02cm,align=center,font=\scriptsize},
-  store/.style={draw=EcoparkAmber,thick,rounded corners=2pt,fill=yellow!10,minimum width=3.15cm,minimum height=1.02cm,align=center,font=\scriptsize},
-  arr/.style={-{Latex[length=2.2mm]},thick,draw=Ink}
-]
-\node[box] (client) at (0,0) {Customer / Staff / Admin\\Browser UI};
-\node[gcp] (run) at (4.45,0) {GCP Cloud Run\\Node.js container\\Static UI + API};
-\node[box] (domain) at (8.9,0) {Domain modules\\Auth, rental, pricing\\reports, audit};
-\node[store] (sql) at (8.9,-1.9) {Cloud SQL\\production storage};
-\node[store] (sqlite) at (4.45,-1.9) {SQLite profile\\local/demo tests};
-\node[gcp] (logs) at (8.9,1.75) {Cloud Logging\\Monitoring};
-\node[box] (osm) at (0,-1.9) {OpenStreetMap\\optional tiles};
-
-\draw[arr] (client) -- (run);
-\draw[arr] (run) -- (domain);
-\draw[arr] (domain) -- (sql);
-\draw[arr] (run) -- (sqlite);
-\draw[arr] (run) -- (logs);
-\draw[arr] (client) -- (osm);
-\end{tikzpicture}
-}
-\vspace{0.25cm}
-\small Dockerfile đã cấu hình \texttt{HOST=0.0.0.0}, \texttt{PORT=8080} và DB path cho bản demo cloud.
+\includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{techstack/tech_stack_architecture.png}
 \end{frame}
 
 \begin{frame}{Thiết Kế Dữ Liệu}
@@ -183,27 +159,54 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 \begin{columns}[T,totalwidth=0.98\textwidth]
 \begin{column}{0.31\textwidth}
 \centering
-\includegraphics[height=0.70\textheight,trim=0 1748bp 0 0,clip]{customer_mobile.png}\\[-1mm]
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio,trim=0 2030bp 0 0,clip]{customer_mobile.png}\\[-1mm]
 \scriptsize Tổng quan
 \end{column}
 \begin{column}{0.31\textwidth}
 \centering
-\includegraphics[height=0.70\textheight,trim=0 928bp 0 820bp,clip]{customer_mobile.png}\\[-1mm]
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio,trim=0 1120bp 0 900bp,clip]{customer_mobile.png}\\[-1mm]
 \scriptsize Tìm bãi
 \end{column}
 \begin{column}{0.31\textwidth}
 \centering
-\includegraphics[height=0.70\textheight,trim=0 348bp 0 1400bp,clip]{customer_mobile.png}\\[-1mm]
+\includegraphics[width=\linewidth,height=0.66\textheight,keepaspectratio,trim=0 600bp 0 1450bp,clip]{customer_mobile.png}\\[-1mm]
 \scriptsize Chọn xe
 \end{column}
 \end{columns}
 \vspace{0.15cm}
-\scriptsize Flow mobile được chia thành 3 lát cắt: tổng quan, tìm bãi trên map và chọn xe rảnh để gửi yêu cầu thuê.
+\scriptsize Flow mobile được tách thành các lát không cắt qua bottom dock: tổng quan, kết quả bãi gần nhất và chọn xe rảnh.
 \end{frame}
 
 \begin{frame}{Operations UI}
+\begin{columns}[T,totalwidth=0.98\textwidth]
+\begin{column}{0.49\textwidth}
 \centering
-\includegraphics[width=\textwidth,height=0.82\textheight,keepaspectratio]{operations_desktop.png}
+\begin{minipage}[t][0.72\textheight][c]{\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio,trim=0 2450bp 0 0,clip]{operations_desktop.png}
+\end{minipage}
+\end{column}
+\begin{column}{0.49\textwidth}
+\centering
+\begin{minipage}[t][0.72\textheight][c]{\linewidth}
+\centering
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio,trim=0 1300bp 0 1020bp,clip]{operations_desktop.png}
+\end{minipage}
+\end{column}
+\end{columns}
+\vspace{-1mm}
+\begin{columns}[T,totalwidth=0.98\textwidth]
+\begin{column}{0.49\textwidth}
+\centering
+\scriptsize Tổng quan vận hành
+\end{column}
+\begin{column}{0.49\textwidth}
+\centering
+\scriptsize Báo cáo, yêu cầu và pipeline trả xe
+\end{column}
+\end{columns}
+\vspace{0.15cm}
+\scriptsize Screenshot operations được chia thành hai lát để giữ dashboard, biểu đồ và khu vực xử lý đủ lớn khi thuyết trình.
 \end{frame}
 
 \begin{frame}{Demo Director Cho Alternative Flow}
