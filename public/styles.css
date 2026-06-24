@@ -1213,6 +1213,40 @@ body:has(.pretty-select.open) .topbar {
   scrollbar-color: rgba(15, 123, 92, 0.42) transparent;
 }
 
+.gps-user-search {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field-bg, #fff);
+  padding: 8px 10px;
+}
+
+.gps-user-search img {
+  width: 18px;
+  height: 18px;
+}
+
+.gps-user-search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink-900);
+  font: inherit;
+  font-weight: 800;
+}
+
+.gps-user-grid {
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-color: rgba(15, 123, 92, 0.42) transparent;
+}
+
 .gps-chip {
   min-height: 54px;
   display: grid;
@@ -2121,7 +2155,6 @@ body:has(.pretty-select.open) .topbar {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
-  scrollbar-gutter: stable;
 }
 
 table {
@@ -2488,11 +2521,29 @@ td {
 }
 
 .active-rentals-table .col-note {
-  width: 13%;
+  width: 10%;
 }
 
 .active-rentals-table .col-action {
-  width: 7%;
+  width: 10%;
+}
+
+.return-table-wrap .active-rentals-table {
+  width: 100%;
+  min-width: 1180px;
+}
+
+.return-table-wrap .actions-cell {
+  min-width: 128px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.return-table-wrap .actions-cell .primary {
+  width: 100%;
+  min-width: 112px;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 tbody tr:hover td {
@@ -2573,28 +2624,63 @@ tbody tr:last-child td {
   display: grid;
   place-items: center;
   margin: 0;
-  border: 1px dashed #bdd9c8;
+  border: 1px dashed var(--empty-border, #bdd9c8);
   border-radius: 8px;
-  color: var(--ink-500);
-  background: rgba(255, 255, 255, 0.72);
+  color: var(--empty-text, var(--ink-500));
+  background: var(--empty-bg, rgba(255, 255, 255, 0.72));
   text-align: center;
   padding: 12px;
+}
+
+.ops-action-error {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(197, 93, 73, 0.34);
+  border-left: 4px solid var(--rose-600);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--rose-600) 9%, var(--surface) 91%);
+  color: var(--ink-900);
+}
+
+.ops-action-error img {
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+}
+
+.ops-action-error strong,
+.ops-action-error span {
+  display: block;
+}
+
+.ops-action-error strong {
+  margin-bottom: 2px;
+}
+
+.ops-action-error span {
+  color: var(--ink-700);
+  line-height: 1.35;
 }
 
 .toast {
   position: fixed;
   right: 18px;
   top: 18px;
-  z-index: 20;
+  z-index: 1000;
   max-width: min(420px, calc(100vw - 36px));
   transform: translateY(20px);
   opacity: 0;
   pointer-events: none;
+  border: 1px solid var(--toast-border, rgba(255, 255, 255, 0.16));
   border-radius: 8px;
-  background: var(--leaf-800);
-  color: white;
+  background: var(--toast-bg, var(--leaf-800));
+  color: var(--toast-text, white);
   padding: 12px 14px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--toast-shadow, var(--shadow));
   transition: opacity 160ms ease, transform 160ms ease;
   will-change: transform, opacity;
 }
@@ -2605,7 +2691,9 @@ tbody tr:last-child td {
 }
 
 .toast.error {
-  background: var(--rose-600);
+  border-color: var(--toast-error-border, rgba(255, 255, 255, 0.16));
+  background: var(--toast-error-bg, var(--rose-600));
+  color: var(--toast-error-text, white);
 }
 
 @media (max-width: 1080px) {
@@ -3588,8 +3676,8 @@ td {
 }
 
 .toast {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: var(--leaf-900);
+  border-color: var(--toast-border, rgba(255, 255, 255, 0.16));
+  background: var(--toast-bg, var(--leaf-900));
 }
 
 @media (max-width: 1365px) {
@@ -4175,11 +4263,22 @@ td {
 /* Staff polish and theme tokens. Keep these late so they override the design pass above. */
 :root {
   --topbar-bg: rgba(253, 255, 253, 0.98);
+  --topbar-gap-bg: rgba(247, 252, 249, 0.88);
   --field-bg: #ffffff;
   --table-bg: #ffffff;
   --table-head-bg: #f2f8f5;
   --chart-track-bg: #edf4f0;
   --overlay-surface: rgba(255, 255, 255, 0.99);
+  --empty-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(246, 251, 248, 0.9));
+  --empty-border: rgba(166, 205, 184, 0.72);
+  --empty-text: var(--ink-500);
+  --toast-bg: linear-gradient(135deg, #0d3829, #0f6f4c);
+  --toast-border: rgba(255, 255, 255, 0.24);
+  --toast-text: #ffffff;
+  --toast-shadow: 0 18px 42px rgba(9, 45, 31, 0.22);
+  --toast-error-bg: linear-gradient(135deg, #8f3326, #c54f3d);
+  --toast-error-border: rgba(255, 214, 206, 0.28);
+  --toast-error-text: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -4211,6 +4310,7 @@ td {
   --command-rail-soft: #092418;
   --command-rail-line: rgba(101, 184, 145, 0.22);
   --topbar-bg: rgba(10, 23, 18, 0.98);
+  --topbar-gap-bg: rgba(4, 15, 10, 0.9);
   --field-bg: #10231b;
   --table-bg: #0e1d17;
   --table-head-bg: #142b22;
@@ -4218,15 +4318,33 @@ td {
   --overlay-surface: rgba(13, 28, 22, 0.99);
   --shadow: 0 22px 54px rgba(0, 0, 0, 0.35);
   --shadow-tight: 0 10px 26px rgba(0, 0, 0, 0.28);
+  --empty-bg: linear-gradient(135deg, rgba(14, 34, 26, 0.86), rgba(10, 24, 18, 0.94));
+  --empty-border: rgba(70, 211, 148, 0.28);
+  --empty-text: #93aa9e;
+  --toast-bg: linear-gradient(135deg, rgba(17, 48, 35, 0.98), rgba(10, 83, 58, 0.98));
+  --toast-border: rgba(70, 211, 148, 0.34);
+  --toast-text: #eef8f2;
+  --toast-shadow: 0 20px 48px rgba(0, 0, 0, 0.46);
+  --toast-error-bg: linear-gradient(135deg, rgba(74, 28, 23, 0.98), rgba(138, 48, 38, 0.98));
+  --toast-error-border: rgba(239, 128, 111, 0.42);
+  --toast-error-text: #fff3ef;
 }
 
 @media (min-width: 761px) {
+  .app-shell,
+  .gps-demo-shell {
+    padding-top: 14px;
+  }
+
   .command-shell {
-    padding-top: 0;
+    padding-top: 14px;
   }
 
   .topbar {
-    top: auto;
+    position: sticky;
+    top: 14px;
+    isolation: isolate;
+    margin-bottom: 14px;
   }
 }
 
@@ -4236,6 +4354,29 @@ td {
   border-color: var(--line-strong);
   box-shadow: 0 14px 34px rgba(20, 60, 43, 0.12);
   backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.topbar::before {
+  content: "";
+  position: absolute;
+  inset: -14px -12px -10px;
+  z-index: -1;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, var(--topbar-gap-bg), rgba(247, 252, 249, 0.08) 72%, transparent),
+    radial-gradient(circle at 100% 50%, var(--topbar-gap-bg), transparent 58%);
+  pointer-events: none;
+  backdrop-filter: blur(13px);
+  -webkit-backdrop-filter: blur(13px);
+  mask-image: linear-gradient(180deg, #000 0%, #000 76%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 76%, transparent 100%);
+}
+
+:root[data-theme="dark"] .topbar::before {
+  background:
+    linear-gradient(180deg, var(--topbar-gap-bg), rgba(4, 15, 10, 0.16) 72%, transparent),
+    radial-gradient(circle at 100% 50%, rgba(4, 15, 10, 0.92), transparent 58%);
 }
 
 .theme-toggle {
@@ -4335,6 +4476,40 @@ td {
 
 body:has(.pretty-select.open) .topbar {
   z-index: 120;
+}
+
+.primary.is-soft-disabled,
+.secondary.is-soft-disabled,
+.ghost.is-soft-disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  filter: saturate(0.72);
+}
+
+.primary.is-soft-disabled:hover,
+.secondary.is-soft-disabled:hover,
+.ghost.is-soft-disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.toast {
+  z-index: 1000;
+}
+
+body:has(.topbar) .toast {
+  top: 108px;
+}
+
+@media (max-width: 1080px) {
+  body:has(.topbar) .toast,
+  .toast {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    max-width: none;
+  }
 }
 
 .chart-track {
