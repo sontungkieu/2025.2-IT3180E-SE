@@ -137,7 +137,7 @@
 \textbf{UC} & \textbf{Mục tiêu} & \textbf{Kết quả trong platform} \\
 \midrule
 UC001 & Tài khoản và xác thực khách & Đăng ký/đăng nhập, validation họ tên, phone, CCCD/CMND, resident discount. \\
-UC002 & Tìm bãi và chọn xe & GPS demo/vị trí nhập tay, range filter, bike type filter, chọn xe rảnh, gửi/hủy request. \\
+UC002 & Tìm bãi và chọn xe & GPS demo/vị trí nhập tay, range/type filter, chọn xe, gửi/hủy request; geofence ở handover. \\
 UC003 & Giao xe và đặt cọc & Staff xác nhận giấy tờ, cọc 200k, giấy tờ giữ lại và chuyển xe sang rented. \\
 UC004 & Trả xe và xuất vé & Trả khác bãi, tính phí, giảm cư dân, phụ thu trễ, condition note và ticket summary. \\
 UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, audit log, CSV export. \\
@@ -305,10 +305,10 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 \begin{tikzpicture}[
   stepcard/.style={draw=EbpBorder,rounded corners=3pt,fill=white,text width=0.95\linewidth,minimum height=1.05cm,align=left,inner sep=6pt}
 ]
-\node[stepcard] at (0,0) {\textbf{1. Chọn session}\\Customer đang request hoặc đang thuê.};
-\node[stepcard] at (0,-1.35) {\textbf{2. Kéo GPS người dùng}\\Di chuyển theo polyline đường, không nhảy qua hồ/nhà.};
+\node[stepcard] at (0,0) {\textbf{1. Chọn user / session}\\Tìm tài khoản khách, chọn session nếu có.};
+\node[stepcard] at (0,-1.35) {\textbf{2. Kéo GPS người dùng}\\Stream sang map customer theo polyline đường.};
 \node[stepcard] at (0,-2.70) {\textbf{3. Tua giờ hệ thống}\\Dùng để demo quá hạn và phụ thu trễ.};
-\node[stepcard] at (0,-4.05) {\textbf{4. Kiểm geofence}\\Nhận/trả xe chỉ hợp lệ khi ở gần bãi.};
+\node[stepcard] at (0,-4.05) {\textbf{4. Kiểm bán kính bãi}\\Request tạo trước; giao/trả mới cần ở gần bãi.};
 \end{tikzpicture}
 \end{column}
 \end{columns}
@@ -363,23 +363,23 @@ Admin/Report & Staff/Admin & \texttt{/api/admin/bikes}, \texttt{/api/admin/repor
 ]
 \node[card] (api) at (0,1.58) {
   \begin{minipage}{4.42cm}\raggedright
-  {\Large\bfseries\color{EbpGreen}21/21}\\[0.45mm]
+  {\Large\bfseries\color{EbpGreen}22/22}\\[0.45mm]
   {\scriptsize\bfseries Backend API tests}\\[0.25mm]
-  {\scriptsize Geofence, handover, ticket, report, audit}
+  {\scriptsize Bán kính bãi, giao xe, vé, báo cáo, audit}
   \end{minipage}
 };
 \node[card] (ui) at (6.0,1.58) {
   \begin{minipage}{4.42cm}\raggedright
-  {\Large\bfseries\color{EbpTeal}4 viewports}\\[0.45mm]
+  {\Large\bfseries\color{EbpTeal}5 cỡ màn hình}\\[0.45mm]
   {\scriptsize\bfseries UI smoke}\\[0.25mm]
-  {\scriptsize Desktop, staff-wide, medium, mobile}
+  {\scriptsize Khách desktop/mobile, nhân sự, admin}
   \end{minipage}
 };
 \node[card] (uc) at (0,-0.72) {
   \begin{minipage}{4.42cm}\raggedright
   {\Large\bfseries\color{EbpAmber}UC smoke}\\[0.45mm]
   {\scriptsize\bfseries End-to-end demo path}\\[0.25mm]
-  {\scriptsize /gd, request/cancel, handover, return, CSV}
+  {\scriptsize /gd, customer map sync, handover, return, CSV}
   \end{minipage}
 };
 \node[card] (ci) at (6.0,-0.72) {
@@ -394,7 +394,7 @@ Admin/Report & Staff/Admin & \texttt{/api/admin/bikes}, \texttt{/api/admin/repor
 \begin{center}
 \begin{tikzpicture}
 \node[draw=EbpBorder,rounded corners=3pt,fill=SoftGreen,text width=0.88\textwidth,inner sep=7pt,align=left] {
-  \scriptsize\textbf{Điểm nổi bật:} UC smoke đi qua đúng luồng demo: customer gửi request, staff giao xe, customer xác nhận bãi trả trong geofence, staff xuất vé, dashboard cập nhật chart và audit log.
+  \scriptsize\textbf{Kịch bản kiểm thử:} mở /gd, chọn đúng user, kiểm marker customer chạy theo GPS stream, khách gửi yêu cầu, nhân sự giao xe, khách xác nhận bãi trả trong bán kính hợp lệ, nhân sự xuất vé, rồi kiểm tra dashboard, CSV và audit log.
 };
 \end{tikzpicture}
 \end{center}
@@ -410,7 +410,7 @@ Admin/Report & Staff/Admin & \texttt{/api/admin/bikes}, \texttt{/api/admin/repor
 \small
 \begin{enumerate}\tightitems
   \item Mở Customer, Staff/Admin và tab \texttt{/gd}.
-  \item Kéo GPS người dùng vào bán kính bãi nhận, gửi request.
+  \item Customer gửi request; \texttt{/gd} kéo user vào bán kính bãi nhận trước khi giao xe.
   \item Staff đối chiếu giấy tờ, nhận cọc 200k và giao xe.
   \item Customer xác nhận bãi trả; Staff xuất vé và xem phụ thu.
   \item Chốt bằng dashboard, audit log và CSV export.

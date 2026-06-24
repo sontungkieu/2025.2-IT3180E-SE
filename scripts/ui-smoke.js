@@ -6,10 +6,11 @@ const { chromium } = require('playwright');
 const { createServer } = require('../server/app');
 
 const viewports = [
-  { name: 'desktop', width: 1440, height: 1000, demo: 'customer@ecopark.test' },
+  { name: 'customer-desktop', width: 1440, height: 1000, demo: 'customer@ecopark.test' },
+  { name: 'customer-mobile', width: 390, height: 844, demo: 'customer@ecopark.test' },
   { name: 'staff-wide', width: 1600, height: 980, demo: 'staff@ecopark.test' },
   { name: 'staff-medium', width: 1200, height: 900, demo: 'staff@ecopark.test' },
-  { name: 'mobile', width: 390, height: 844, demo: 'admin@ecopark.test' }
+  { name: 'admin-mobile', width: 390, height: 844, demo: 'admin@ecopark.test' }
 ];
 
 main().catch((error) => {

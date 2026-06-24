@@ -1,5 +1,59 @@
 # Milestones
 
+## 2026-06-23 - User-level GPS and handover geofence
+
+- Changed rental request creation so customers can send a pending pickup request
+  from any demo location; the current GPS geofence is enforced at staff handover.
+- Extended `/gd` with customer account search and per-user GPS positions, so the
+  presenter can move a selected user even when there is no active return session.
+- Streamed intermediate `/gd` route positions per selected customer and animated
+  the logged-in customer map marker so both tabs follow the same user movement.
+- Rebalanced the staff return table and `Xuất vé` action column so the ticket
+  button no longer looks inset or clipped in dark mode.
+- Rethemed empty-state blocks and toast notifications with light/dark tokens so
+  push messages and empty table panels no longer appear as pale gray blocks in
+  dark mode.
+- Updated backend tests, UC smoke coverage, README, report and slides for the
+  request-anywhere plus handover-geofence and live GPS-sync flow.
+
+## 2026-06-23 - Staff action error visibility
+
+- Added inline operation errors for staff handover and return-ticket actions so
+  blocked pickup/return attempts show the concrete reason in the relevant panel.
+- Kept the return-ticket action clickable before customer confirmation, but now
+  it explains that the customer must confirm the return location within the
+  station radius instead of silently disabling the button.
+- Raised and repositioned toast notifications so the floating topbar no longer
+  covers older push-style messages.
+- Extended the UC smoke flow to cover the blocked return-ticket reason before
+  continuing with the confirmed return flow.
+
+## 2026-06-23 - Shared GPS demo position
+
+- Added a shared `/api/gps-demo/position` endpoint so the `/gd` controller and
+  customer workspace use the same demo GPS coordinate.
+- Updated the customer station search to treat `GPS hiện tại` as live data from
+  `/gd`, while keeping manual and last-known locations for UC alternative flows.
+- Persisted snapped/dragged `/gd` positions and added a backend regression test
+  proving customer station search reads the updated coordinate.
+
+## 2026-06-23 - Floating topbar gap polish
+
+- Restored the desktop workspace topbar as a sticky floating surface with a
+  14px viewport gap, rounded border and stronger opaque background.
+- Added a blurred halo behind the floating topbar so the gap between the bar and
+  page edge feels soft in both light and dark mode.
+- Kept the mobile bottom command rail behavior unchanged.
+
+## 2026-06-23 - Presentation testing terminology polish
+
+- Added a customer-mobile viewport to UI smoke evidence so slide 14 reports 5
+  representative screen sizes instead of the previous 4.
+- Replaced internal terms such as "staff-wide" and "geofence" in the slide deck
+  with presentation-friendly Vietnamese wording.
+- Rewrote the testing evidence highlight as a concrete checked demo scenario
+  instead of generic "điểm nổi bật" phrasing.
+
 ## 2026-06-23 - Testing evidence slide spacing polish
 
 - Increased spacing inside the testing evidence cards so badge, label and detail

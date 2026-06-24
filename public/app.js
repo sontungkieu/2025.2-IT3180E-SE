@@ -1,4 +1,4 @@
-import { mountScene } from '/scene.js';
+import { mountScene } from '/scene.js?v=20260623-gps-stream-3';
 
 const LOCATION_PRESETS = [
   { id: 'gps-demo', label: 'GPS hiện tại - Spring Park Gate', mode: 'gps', lat: 20.950889, lng: 105.936712 },
@@ -22,6 +22,9 @@ const REPORT_PERIOD_OPTIONS = [
 const THEME_STORAGE_KEY = 'ecopark-theme';
 const THEME_OPTIONS = ['light', 'dark', 'system'];
 const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const CUSTOMER_GPS_SYNC_INTERVAL_MS = 700;
+const CUSTOMER_GPS_DATA_REFRESH_INTERVAL_MS = 1800;
+const GPS_DEMO_STREAM_INTERVAL_MS = 420;
 
 const GPS_DEMO_ROAD = [
   { lat: 20.953894, lng: 105.933030 },
@@ -112,10 +115,15 @@ const state = {
   reportStationId: '',
   reportBikeId: '',
   lastTicket: null,
+  opsActionError: null,
   lastEmailVerificationCode: '',
   lastPasswordResetCode: '',
   lastPasswordResetEmail: '',
   lastKnownLocation: readLastKnownLocation(),
+  gpsDemoPosition: null,
+  gpsUsers: [],
+  gpsUserQuery: '',
+  gpsSelectedCustomerId: null,
   gpsSessions: [],
   gpsSelectedSessionKey: null,
   gpsTargetStationId: null,
@@ -130,6 +138,8 @@ const app = document.querySelector('#app');
 const toast = document.querySelector('#toast');
 const gsap = window.gsap;
 let stationMapInstance = null;
+let stationUserMarker = null;
+let stationUserTween = null;
 let gpsMapInstance = null;
 let gpsBikeMarker = null;
 let gpsRouteTween = null;
@@ -137,6 +147,10 @@ let motionContext = null;
 let currentView = null;
 let toastTween = null;
 let customSelectEventsBound = false;
+let customerGpsSyncTimer = null;
+let customerGpsSyncBusy = false;
+let customerGpsLastDataRefreshAt = 0;
+let gpsDemoPersistQueue = Promise.resolve();
 
 applyThemePreference();
 bindSystemThemePreference();
@@ -248,6 +262,9 @@ function isGpsDemoRoute() {
 }
 
 async function refreshData() {
+  if (state.locationPresetId === 'gps-demo') {
+    await refreshGpsDemoPosition({ silent: true });
+  }
   const searchLocation = currentLocation();
   rememberSearchLocation(searchLocation);
   state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
@@ -284,17 +301,30 @@ async function refreshGpsDemoData() {
   if (state.user) {
     state.demoClock = await api('/api/demo-clock');
   }
+  await refreshGpsDemoPosition({ silent: true });
   state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
   state.stations = (await api('/api/stations?lat=20.9491&lng=105.9346')).stations;
+  state.gpsUsers = (await api('/api/gps-demo/users')).users;
   state.gpsSessions = (await api('/api/gps-demo/sessions')).sessions;
+  if (state.gpsSelectedCustomerId && !state.gpsUsers.some((user) => Number(user.user_id) === Number(state.gpsSelectedCustomerId))) {
+    state.gpsSelectedCustomerId = null;
+  }
   if (!selectedGpsSession() && gpsSessionsForMode().length) {
     state.gpsSelectedSessionKey = gpsSessionsForMode()[0].session_key;
+  }
+  if (!state.gpsSelectedCustomerId) {
+    state.gpsSelectedCustomerId = selectedGpsSession()?.customer_id || state.gpsUsers[0]?.user_id || null;
   }
   if (!state.gpsTargetStationId && state.stations.length) {
     state.gpsTargetStationId = selectedGpsSession()?.target_station_id || state.stations[0].station_id;
   }
   if (!state.gpsBikePosition) {
-    state.gpsBikePosition = offsetFromStation(selectedGpsTargetStation(), 55);
+    const userPosition = selectedGpsUserPosition();
+    state.gpsBikePosition = userPosition
+      ? { lat: userPosition.lat, lng: userPosition.lng }
+      : state.gpsDemoPosition
+      ? { lat: state.gpsDemoPosition.lat, lng: state.gpsDemoPosition.lng }
+      : offsetFromStation(selectedGpsTargetStation(), 55);
   }
 }
 
@@ -308,6 +338,136 @@ async function refreshGpsDemoDataWithLoading({ renderInitial = false } = {}) {
     state.gpsDemoLoading = false;
     if (shouldShowLoading) render();
   }
+}
+
+async function refreshGpsDemoPosition({ customerId = null, silent = false } = {}) {
+  try {
+    const effectiveCustomerId = Number(customerId || (state.user?.role === 'customer' ? state.user.user_id : 0) || 0);
+    const suffix = effectiveCustomerId ? `?customerId=${encodeURIComponent(effectiveCustomerId)}` : '';
+    const payload = await api(`/api/gps-demo/position${suffix}`);
+    state.gpsDemoPosition = normalizeClientGpsPosition(payload.position);
+    return state.gpsDemoPosition;
+  } catch (error) {
+    if (!silent) throw error;
+    return state.gpsDemoPosition;
+  }
+}
+
+async function persistGpsDemoPosition(position, customerId = selectedGpsCustomerId()) {
+  if (!position) return;
+  try {
+    const payload = await api('/api/gps-demo/position', {
+      method: 'POST',
+      body: {
+        ...(customerId ? { customerId } : {}),
+        latitude: position.lat,
+        longitude: position.lng,
+        label: 'GPS hiện tại'
+      }
+    });
+    state.gpsDemoPosition = normalizeClientGpsPosition(payload.position);
+    if (customerId && state.gpsDemoPosition) {
+      state.gpsUsers = state.gpsUsers.map((user) => Number(user.user_id) === Number(customerId)
+        ? { ...user, position: state.gpsDemoPosition }
+        : user);
+    }
+  } catch (error) {
+    notify(error.message, true);
+  }
+}
+
+function queuePersistGpsDemoPosition(position, customerId = selectedGpsCustomerId()) {
+  const queuedPosition = position ? { lat: position.lat, lng: position.lng } : null;
+  gpsDemoPersistQueue = gpsDemoPersistQueue
+    .catch(() => null)
+    .then(() => persistGpsDemoPosition(queuedPosition, customerId));
+  return gpsDemoPersistQueue;
+}
+
+function normalizeClientGpsPosition(position) {
+  const lat = Number(position?.lat ?? position?.latitude);
+  const lng = Number(position?.lng ?? position?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return {
+    id: 'gps-demo',
+    customerId: Number(position.customerId || position.customer_id || 0) || null,
+    label: position.label || 'GPS hiện tại',
+    mode: 'gps',
+    lat,
+    lng,
+    updatedAt: typeof position.updatedAt === 'string' ? position.updatedAt : null
+  };
+}
+
+function gpsPositionChanged(previous, next) {
+  if (!previous || !next) return Boolean(previous || next);
+  return distanceMeters(previous.lat, previous.lng, next.lat, next.lng) > 2;
+}
+
+function moveStationUserMarker(position) {
+  if (!stationMapInstance || !stationUserMarker || !position || !window.L) return;
+  const target = { lat: Number(position.lat), lng: Number(position.lng) };
+  if (!Number.isFinite(target.lat) || !Number.isFinite(target.lng)) return;
+  const current = stationUserMarker.getLatLng();
+  const setLatLng = (lat, lng) => stationUserMarker?.setLatLng([lat, lng]);
+  if (stationUserTween) {
+    stationUserTween.kill();
+    stationUserTween = null;
+  }
+  if (!gsap || prefersReducedMotion()) {
+    setLatLng(target.lat, target.lng);
+  } else {
+    const tracker = { lat: current.lat, lng: current.lng };
+    stationUserTween = gsap.to(tracker, {
+      lat: target.lat,
+      lng: target.lng,
+      duration: 0.55,
+      ease: 'none',
+      overwrite: true,
+      onUpdate: () => setLatLng(tracker.lat, tracker.lng),
+      onComplete: () => {
+        setLatLng(target.lat, target.lng);
+        stationUserTween = null;
+      }
+    });
+  }
+  const latLng = window.L.latLng(target.lat, target.lng);
+  if (!stationMapInstance.getBounds().contains(latLng)) {
+    stationMapInstance.panTo(latLng, { animate: !prefersReducedMotion() });
+  }
+}
+
+function syncCustomerGpsPolling(view) {
+  stopCustomerGpsSync();
+  if (view !== 'customer' || state.locationPresetId !== 'gps-demo') return;
+  customerGpsSyncTimer = window.setInterval(async () => {
+    if (customerGpsSyncBusy) return;
+    customerGpsSyncBusy = true;
+    const previous = state.gpsDemoPosition;
+    try {
+      const next = await refreshGpsDemoPosition({ silent: true });
+      if (gpsPositionChanged(previous, next)) {
+        moveStationUserMarker(next);
+        const nowMs = Date.now();
+        if (nowMs - customerGpsLastDataRefreshAt >= CUSTOMER_GPS_DATA_REFRESH_INTERVAL_MS) {
+          customerGpsLastDataRefreshAt = nowMs;
+          state.selectedStationId = null;
+          await refreshData();
+          render();
+        }
+      }
+    } finally {
+      customerGpsSyncBusy = false;
+    }
+  }, CUSTOMER_GPS_SYNC_INTERVAL_MS);
+}
+
+function stopCustomerGpsSync() {
+  if (customerGpsSyncTimer) {
+    window.clearInterval(customerGpsSyncTimer);
+    customerGpsSyncTimer = null;
+  }
+  customerGpsSyncBusy = false;
 }
 
 async function loadStationBikes() {
@@ -324,6 +484,7 @@ function render() {
   disposeStationMap();
   disposeGpsDemoMap();
   if (isGpsDemoRoute()) {
+    stopCustomerGpsSync();
     const nextView = 'gps-demo';
     const isViewSwitch = currentView !== nextView;
     currentView = nextView;
@@ -342,6 +503,7 @@ function render() {
   app.className = `app-root view-${nextView}`;
 
   if (!state.user) {
+    stopCustomerGpsSync();
     app.innerHTML = authView();
     resetScrollOnViewSwitch(isViewSwitch);
     bindAuthEvents();
@@ -356,6 +518,9 @@ function render() {
   restoreOrMountScene(reusableScene);
   if (state.user.role === 'customer') {
     mountStationMap();
+    syncCustomerGpsPolling(nextView);
+  } else {
+    stopCustomerGpsSync();
   }
   runPageMotion(nextView, isViewSwitch);
 }
@@ -603,6 +768,7 @@ function operationsView() {
           <h2>Yêu cầu nhận xe</h2>
           <span>${state.pendingRequests.length} yêu cầu</span>
         </div>
+        ${opsActionErrorView('pickup')}
         ${pendingRequestsTable()}
       </section>
       <section class="panel return-pipeline-panel" id="workspace-return">
@@ -618,6 +784,7 @@ function operationsView() {
           <h2>Danh sách trả xe</h2>
           <span>${state.activeRentals.length} lượt</span>
         </div>
+        ${opsActionErrorView('return')}
         ${activeRentalsTable()}
       </section>
       ${state.lastTicket ? ticketPanel() : ''}
@@ -646,12 +813,14 @@ function gpsDemoView() {
     return gpsDemoLoadingView();
   }
   const session = selectedGpsSession();
+  const selectedUser = selectedGpsUser();
   const target = selectedGpsTargetStation();
   const distance = gpsDistanceToTarget();
   const radius = gpsTargetRadiusMeters();
-  const near = Boolean(session) && distance <= radius;
+  const markerReady = Boolean(selectedGpsCustomerId());
+  const near = markerReady && distance <= radius;
   const sessions = gpsSessionsForMode();
-  const sessionDisabled = session ? '' : ' disabled aria-disabled="true"';
+  const sessionDisabled = markerReady ? '' : ' disabled aria-disabled="true"';
   return `
     <div class="gps-demo-shell">
       <header class="topbar gps-demo-topbar">
@@ -683,7 +852,17 @@ function gpsDemoView() {
             </div>
           </div>
           <div class="control-group">
-            <span class="control-label">${state.gpsMode === 'pickup' ? 'Người chờ nhận xe' : 'Người đang thuê'}</span>
+            <span class="control-label">Tìm tài khoản</span>
+            <label class="gps-user-search">
+              <img src="/vendor/icons/search.svg" alt="">
+              <input id="gps-user-query" value="${escapeAttr(state.gpsUserQuery)}" placeholder="Tên, email hoặc loại khách">
+            </label>
+            <div class="gps-chip-grid gps-user-grid">
+              ${filteredGpsUsers().map((item) => gpsUserChip(item)).join('') || emptyState('Không tìm thấy tài khoản')}
+            </div>
+          </div>
+          <div class="control-group">
+            <span class="control-label">${state.gpsMode === 'pickup' ? 'Phiên chờ nhận xe' : 'Phiên đang thuê'}</span>
             <div class="gps-chip-grid gps-bike-grid">
               ${sessions.map((item) => gpsSessionChip(item)).join('') || emptyState(state.gpsMode === 'pickup' ? 'Chưa có yêu cầu nhận xe' : 'Chưa có lượt đang thuê')}
             </div>
@@ -702,7 +881,7 @@ function gpsDemoView() {
         <section class="panel gps-map-panel">
           <div class="section-heading">
             <h2>Vị trí người dùng trên bản đồ</h2>
-            <span>${session ? `${escapeHtml(session.customer_name)} · ${escapeHtml(session.bike_code)}` : 'N/A'}</span>
+            <span>${selectedUser ? escapeHtml(selectedUser.full_name) : session ? escapeHtml(session.customer_name) : 'N/A'}</span>
           </div>
           <div id="gps-demo-map" class="gps-demo-map" aria-label="Bản đồ kéo thả GPS người dùng"></div>
         </section>
@@ -721,12 +900,13 @@ function gpsDemoView() {
           <div class="return-pipeline gps-checklist">
             ${returnStep('map-pin', state.gpsMode === 'pickup' ? 'Chọn bãi nhận' : 'Chọn bãi trả', target ? escapeHtml(target.station_name) : 'Chưa có bãi', Boolean(target))}
             ${returnStep('navigation', 'GPS người dùng', `${Number.isFinite(distance) ? Math.round(distance) : '-'} m tới bãi`, near)}
-            ${returnStep('bike', state.gpsMode === 'pickup' ? 'Mượn xe' : 'Nhận xe trả', session ? `${escapeHtml(session.bike_code)} · ${escapeHtml(session.customer_name)}` : 'Chưa có phiên', Boolean(session))}
-            ${returnStep('receipt-text', state.gpsMode === 'pickup' ? 'Gửi yêu cầu' : 'Cập nhật vé/trạng thái', near ? 'Có thể diễn flow' : 'Kéo xe gần hơn', near)}
+            ${returnStep('bike', state.gpsMode === 'pickup' ? 'Mượn xe' : 'Nhận xe trả', session ? `${escapeHtml(session.bike_code)} · ${escapeHtml(session.customer_name)}` : selectedUser ? escapeHtml(selectedUser.full_name) : 'Chưa chọn user', markerReady)}
+            ${returnStep('receipt-text', state.gpsMode === 'pickup' ? 'Giao xe' : 'Cập nhật vé/trạng thái', near ? 'Có thể diễn flow' : 'Kéo user gần hơn', near)}
           </div>
           <dl class="detail-list inline-details">
             <div><dt>Lat</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lat.toFixed(6) : '-'}</dd></div>
             <div><dt>Lng</dt><dd>${state.gpsBikePosition ? state.gpsBikePosition.lng.toFixed(6) : '-'}</dd></div>
+            <div><dt>User</dt><dd>${selectedUser ? escapeHtml(selectedUser.email) : '-'}</dd></div>
             <div><dt>Loại xe</dt><dd>${session ? escapeHtml(session.type_name) : '-'}</dd></div>
             <div><dt>Xác nhận trả</dt><dd>${session?.return_confirmed_at ? formatTime(session.return_confirmed_at) : '-'}</dd></div>
           </dl>
@@ -806,7 +986,10 @@ function demoClockPanel() {
 }
 
 function gpsSessionChip(session) {
-  const active = state.gpsSelectedSessionKey === session.session_key ? 'active' : '';
+  const active = state.gpsSelectedSessionKey === session.session_key
+    || (!state.gpsSelectedSessionKey && Number(state.gpsSelectedCustomerId) === Number(session.customer_id))
+    ? 'active'
+    : '';
   const station = session.flow === 'pickup' ? session.pickup_station : (session.return_station || session.target_station);
   const status = session.flow === 'pickup'
     ? 'Chờ nhận xe'
@@ -815,6 +998,33 @@ function gpsSessionChip(session) {
     <button class="gps-chip ${active}" type="button" data-gps-session="${escapeAttr(session.session_key)}">
       <strong>${escapeHtml(session.customer_name)}</strong>
       <span>${escapeHtml(session.bike_code)} · ${escapeHtml(bikeTypeShortLabel(session.type_name))} · ${escapeHtml(station)} · ${status}</span>
+    </button>
+  `;
+}
+
+function filteredGpsUsers() {
+  const query = state.gpsUserQuery.trim().toLowerCase();
+  const users = state.gpsUsers || [];
+  if (!query) return users;
+  return users.filter((user) => [
+    user.full_name,
+    user.email,
+    user.customer_type,
+    user.identity_status
+  ].some((value) => String(value || '').toLowerCase().includes(query)));
+}
+
+function gpsUserChip(user) {
+  const active = Number(state.gpsSelectedCustomerId) === Number(user.user_id) ? 'active' : '';
+  const workflow = Number(user.active_count || 0) > 0
+    ? `${user.active_count} lượt đang thuê`
+    : Number(user.pending_count || 0) > 0
+      ? `${user.pending_count} yêu cầu chờ`
+      : 'Chưa có phiên UC';
+  return `
+    <button class="gps-chip ${active}" type="button" data-gps-user="${user.user_id}">
+      <strong>${escapeHtml(user.full_name)}</strong>
+      <span>${escapeHtml(user.email)} · ${escapeHtml(user.customer_type === 'resident' ? 'Cư dân' : 'Khách thường')} · ${workflow}</span>
     </button>
   `;
 }
@@ -835,7 +1045,30 @@ function gpsSessionsForMode() {
 
 function selectedGpsSession() {
   const sessions = gpsSessionsForMode();
-  return sessions.find((session) => session.session_key === state.gpsSelectedSessionKey) || sessions[0] || null;
+  const byKey = sessions.find((session) => session.session_key === state.gpsSelectedSessionKey);
+  if (byKey) return byKey;
+  const byUser = sessions.find((session) => Number(session.customer_id) === Number(state.gpsSelectedCustomerId));
+  if (byUser) return byUser;
+  return state.gpsSelectedCustomerId ? null : sessions[0] || null;
+}
+
+function selectedGpsUser() {
+  const id = Number(state.gpsSelectedCustomerId || selectedGpsSession()?.customer_id || 0);
+  return state.gpsUsers.find((user) => Number(user.user_id) === id) || null;
+}
+
+function selectedGpsCustomerId() {
+  return Number(state.gpsSelectedCustomerId || selectedGpsSession()?.customer_id || 0) || null;
+}
+
+function selectedGpsUserPosition() {
+  const user = selectedGpsUser();
+  const position = user?.position;
+  if (!position) return null;
+  const lat = Number(position.lat);
+  const lng = Number(position.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
 }
 
 function selectedGpsTargetStation() {
@@ -1032,7 +1265,9 @@ function stationSearchControls() {
     ...LOCATION_PRESETS.map((preset) => ({
     value: preset.id,
     label: locationShortLabel(preset),
-    detail: preset.mode === 'gps' ? 'Định vị quanh Ecopark Center' : preset.label.replace(/^Nhập tay - /, ''),
+    detail: preset.mode === 'gps'
+      ? (state.gpsDemoPosition ? 'Đồng bộ từ /gd' : 'Dùng vị trí GPS demo')
+      : preset.label.replace(/^Nhập tay - /, ''),
     icon: preset.mode === 'gps' ? 'locate-fixed' : 'map-pinned'
     })),
     ...savedLocationOption
@@ -1046,7 +1281,7 @@ function stationSearchControls() {
   return `
     <div class="search-workflow" aria-label="Điều kiện tìm bãi">
       ${filterDropdown('type', 'Loại xe', typeOptions, String(state.selectedTypeId), 'data-type-filter')}
-      ${filterDropdown('location', 'Vị trí tìm kiếm', locationOptions, state.locationPresetId, 'data-location-preset')}
+      ${filterDropdown('location', 'Vị trí người dùng', locationOptions, state.locationPresetId, 'data-location-preset')}
       ${filterDropdown('range', 'Phạm vi', rangeOptions, String(state.stationRangeKm), 'data-station-range')}
     </div>
   `;
@@ -1150,6 +1385,19 @@ function operationsClockStrip() {
     <div class="ops-clock-strip">
       <span><img src="/vendor/icons/timer.svg" alt="">Giờ hệ thống: <strong>${formatFullTime(state.demoClock.currentTime)}</strong></span>
       <a class="ghost small" href="/gd"><img src="/vendor/icons/sliders-horizontal.svg" alt="">Mở /gd</a>
+    </div>
+  `;
+}
+
+function opsActionErrorView(area) {
+  if (!state.opsActionError || state.opsActionError.area !== area) return '';
+  return `
+    <div class="ops-action-error" role="alert">
+      <img src="/vendor/icons/circle-alert.svg" alt="">
+      <div>
+        <strong>${area === 'pickup' ? 'Chưa thể giao xe' : 'Chưa thể xuất vé'}</strong>
+        <span>${escapeHtml(state.opsActionError.message)}</span>
+      </div>
     </div>
   `;
 }
@@ -1317,7 +1565,17 @@ function currentLocation() {
   if (state.locationPresetId === 'last-known' && state.lastKnownLocation) {
     return { ...state.lastKnownLocation, id: 'last-known', mode: 'saved' };
   }
-  return LOCATION_PRESETS.find((preset) => preset.id === state.locationPresetId) || LOCATION_PRESETS[0];
+  if (state.locationPresetId === 'gps-demo') {
+    return gpsDemoLocation();
+  }
+  return LOCATION_PRESETS.find((preset) => preset.id === state.locationPresetId) || gpsDemoLocation();
+}
+
+function gpsDemoLocation() {
+  if (state.gpsDemoPosition) {
+    return { ...state.gpsDemoPosition, id: 'gps-demo', mode: 'gps', label: 'GPS hiện tại' };
+  }
+  return { ...LOCATION_PRESETS[0], label: 'GPS hiện tại' };
 }
 
 function locationPayload(location) {
@@ -1358,7 +1616,7 @@ function readLastKnownLocation() {
 }
 
 function rememberSearchLocation(location) {
-  if (!location || location.mode === 'saved') return;
+  if (!location || location.mode === 'saved' || location.mode === 'gps') return;
   const stored = {
     label: locationShortLabel(location),
     lat: Number(location.lat),
@@ -1395,7 +1653,7 @@ function stationMapView() {
   if (!state.stations.length) return emptyState('Chưa có bãi xe');
   const selected = currentLocation();
   const statusCopy = selected.mode === 'gps'
-    ? 'Định vị GPS đang bật'
+    ? (state.gpsDemoPosition ? 'GPS demo đang đồng bộ' : 'GPS demo mặc định')
     : selected.mode === 'saved'
       ? 'Đang dùng vị trí đã lưu'
       : 'Vị trí nhập tay';
@@ -1489,6 +1747,7 @@ function mountStationMap() {
       iconAnchor: [23, 16]
     })
   }).addTo(stationMapInstance);
+  stationUserMarker = user;
   bounds.push(user.getLatLng());
 
   state.stations.forEach((station) => {
@@ -1527,6 +1786,11 @@ function stationMapCenter() {
 }
 
 function disposeStationMap() {
+  if (stationUserTween) {
+    stationUserTween.kill();
+    stationUserTween = null;
+  }
+  stationUserMarker = null;
   if (!stationMapInstance) return;
   stationMapInstance.remove();
   stationMapInstance = null;
@@ -1599,7 +1863,7 @@ function mountGpsDemoMap() {
     }).addTo(gpsMapInstance);
   }
 
-  if (!selectedGpsSession()) {
+  if (!selectedGpsCustomerId()) {
     if (!state.gpsMapView) {
       gpsMapInstance.fitBounds(boundsForGpsDemo(roadLatLngs), { padding: [28, 28], maxZoom: 16 });
       rememberGpsMapView();
@@ -1612,7 +1876,7 @@ function mountGpsDemoMap() {
     draggable: true,
     icon: window.L.divIcon({
       className: 'bike-gps-pin',
-      html: '<span><img src="/vendor/icons/user-round.svg" alt=""></span><strong>GPS khách</strong>',
+      html: `<span><img src="/vendor/icons/user-round.svg" alt=""></span><strong>${escapeHtml(selectedGpsUser()?.full_name || 'GPS khách')}</strong>`,
       iconSize: [104, 36],
       iconAnchor: [18, 18]
     })
@@ -1629,6 +1893,7 @@ function mountGpsDemoMap() {
     const snapped = snapToRoad(latLng.lat, latLng.lng);
     state.gpsRoutePath = buildRoadRoute(state.gpsBikePosition, snapped);
     state.gpsBikePosition = snapped;
+    void persistGpsDemoPosition(snapped);
     notify('Đã đưa GPS người dùng về tuyến đường hợp lệ');
     render();
   });
@@ -1664,6 +1929,7 @@ function animateGpsMarkerAlongRoute(path) {
   const lastPoint = route[route.length - 1];
   if (route.length < 2 || prefersReducedMotion() || !gsap) {
     gpsBikeMarker.setLatLng([lastPoint.lat, lastPoint.lng]);
+    void queuePersistGpsDemoPosition(lastPoint);
     return;
   }
 
@@ -1686,22 +1952,38 @@ function animateGpsMarkerAlongRoute(path) {
           start.lat + (end.lat - start.lat) * segmentProgress,
           start.lng + (end.lng - start.lng) * segmentProgress
         ]);
-        return;
+        return {
+          lat: start.lat + (end.lat - start.lat) * segmentProgress,
+          lng: start.lng + (end.lng - start.lng) * segmentProgress
+        };
       }
       traveled += segmentDistance;
     }
     gpsBikeMarker.setLatLng([lastPoint.lat, lastPoint.lng]);
+    return lastPoint;
   };
 
   setMarkerProgress(0);
+  const customerId = selectedGpsCustomerId();
+  let lastPersistAt = 0;
+  const streamPoint = (point, force = false) => {
+    if (!point || !customerId) return;
+    const nowMs = performance.now();
+    if (!force && nowMs - lastPersistAt < GPS_DEMO_STREAM_INTERVAL_MS) return;
+    lastPersistAt = nowMs;
+    void queuePersistGpsDemoPosition(point, customerId);
+  };
   const progressTracker = { value: 0 };
   gpsRouteTween = gsap.to(progressTracker, {
     value: 1,
     duration: Math.min(3.2, Math.max(0.9, totalDistance / 180)),
     ease: 'none',
     overwrite: true,
-    onUpdate: () => setMarkerProgress(progressTracker.value),
-    onComplete: () => setMarkerProgress(1)
+    onUpdate: () => streamPoint(setMarkerProgress(progressTracker.value)),
+    onComplete: () => {
+      const finalPoint = setMarkerProgress(1);
+      streamPoint(finalPoint, true);
+    }
   });
 }
 
@@ -2211,7 +2493,7 @@ function replacementBikeSelect(request) {
 function activeRentalsTable() {
   if (!state.activeRentals.length) return emptyState('Không có xe đang thuê');
   return `
-    <div class="table-wrap">
+    <div class="table-wrap return-table-wrap">
       <table class="operations-table active-rentals-table">
         <colgroup>
           <col class="col-rental">
@@ -2236,7 +2518,7 @@ function activeRentalsTable() {
               <td data-label="Giờ trả"><input id="returned-at-${item.rental_id}" type="datetime-local" value="${toDatetimeLocal(defaultReturnTime(item))}" aria-label="Giờ trả RENT${item.rental_id}"></td>
               <td data-label="Tình trạng">${rentalConditionSelect(`condition-${item.rental_id}`)}</td>
               <td data-label="Ghi chú"><input id="condition-note-${item.rental_id}" value="Nhận xe tại bãi trả" aria-label="Ghi chú tình trạng RENT${item.rental_id}"></td>
-              <td class="actions-cell" data-label=""><button class="primary small" data-return="${item.rental_id}" ${item.return_confirmed_at ? '' : 'disabled'}><img src="/vendor/icons/receipt-text.svg" alt="">Xuất vé</button></td>
+              <td class="actions-cell" data-label=""><button class="primary small ${item.return_confirmed_at ? '' : 'is-soft-disabled'}" data-return="${item.rental_id}" data-return-ready="${item.return_confirmed_at ? 'true' : 'false'}" title="${item.return_confirmed_at ? 'Xuất vé' : 'Chờ khách xác nhận vị trí trả xe'}"><img src="/vendor/icons/receipt-text.svg" alt="">Xuất vé</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -2397,7 +2679,29 @@ function bindGpsDemoEvents() {
       state.gpsRoutePath = [];
       const session = gpsSessionsForMode()[0] || null;
       state.gpsSelectedSessionKey = session?.session_key || null;
+      state.gpsSelectedCustomerId = session?.customer_id || state.gpsSelectedCustomerId;
       state.gpsTargetStationId = session?.target_station_id || state.gpsTargetStationId;
+      state.gpsBikePosition = selectedGpsUserPosition() || state.gpsBikePosition;
+      render();
+    });
+  });
+  document.querySelector('#gps-user-query')?.addEventListener('input', (event) => {
+    state.gpsUserQuery = event.target.value;
+    render();
+    window.requestAnimationFrame(() => {
+      const field = document.querySelector('#gps-user-query');
+      field?.focus({ preventScroll: true });
+      field?.setSelectionRange(field.value.length, field.value.length);
+    });
+  });
+  document.querySelectorAll('[data-gps-user]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.gpsSelectedCustomerId = Number(button.dataset.gpsUser);
+      const session = gpsSessionsForMode().find((item) => Number(item.customer_id) === Number(state.gpsSelectedCustomerId));
+      state.gpsSelectedSessionKey = session?.session_key || null;
+      state.gpsTargetStationId = session?.target_station_id || state.gpsTargetStationId;
+      state.gpsRoutePath = [];
+      state.gpsBikePosition = selectedGpsUserPosition() || offsetFromStation(selectedGpsTargetStation(), 55);
       render();
     });
   });
@@ -2406,6 +2710,7 @@ function bindGpsDemoEvents() {
       state.gpsSelectedSessionKey = button.dataset.gpsSession;
       const session = selectedGpsSession();
       if (session) {
+        state.gpsSelectedCustomerId = session.customer_id;
         state.gpsTargetStationId = session.target_station_id;
       }
       setGpsBikeNearTarget(false);
@@ -2421,7 +2726,7 @@ function bindGpsDemoEvents() {
   });
   document.querySelectorAll('[data-gps-snap]').forEach((button) => {
     button.addEventListener('click', () => {
-      if (!selectedGpsSession()) return;
+      if (!selectedGpsCustomerId()) return;
       setGpsBikeNearTarget(button.dataset.gpsSnap === 'near');
       render();
     });
@@ -2647,6 +2952,7 @@ function resetWorkspaceState() {
   state.reportStationId = '';
   state.reportBikeId = '';
   state.lastTicket = null;
+  state.opsActionError = null;
 }
 
 function bindCustomSelectEvents() {
@@ -2720,7 +3026,7 @@ function bindCustomerEvents() {
       await runAction(async () => {
         await refreshData();
         render();
-      }, 'Đã cập nhật vị trí tìm kiếm');
+      }, 'Đã cập nhật vị trí người dùng');
     });
   });
   document.querySelectorAll('[data-station-range]').forEach((button) => {
@@ -2830,7 +3136,7 @@ function bindOpsEvents() {
   document.querySelectorAll('[data-handover]').forEach((button) => {
     button.addEventListener('click', async () => {
       const requestId = Number(button.dataset.handover);
-      await runAction(async () => {
+      await runOpsAction('pickup', async () => {
         await api('/api/staff/handover', {
           method: 'POST',
           body: {
@@ -2869,7 +3175,11 @@ function bindOpsEvents() {
   document.querySelectorAll('[data-return]').forEach((button) => {
     button.addEventListener('click', async () => {
       const rentalId = Number(button.dataset.return);
-      await runAction(async () => {
+      if (button.dataset.returnReady !== 'true') {
+        showOpsActionError('return', 'Khách cần xác nhận vị trí trả xe trong bán kính bãi trả trước khi nhân sự xuất vé.');
+        return;
+      }
+      await runOpsAction('return', async () => {
         const ticket = (await api('/api/staff/return', {
           method: 'POST',
           body: {
@@ -2883,8 +3193,8 @@ function bindOpsEvents() {
         state.lastTicket = ticket;
         await refreshData();
         render();
-        notify(`Vé TCK${ticket.ticket_id}: ${money(ticket.total_amount)}`);
-      });
+        return ticket;
+      }, (ticket) => `Vé TCK${ticket.ticket_id}: ${money(ticket.total_amount)}`);
     });
   });
 
@@ -3113,6 +3423,46 @@ async function runAction(action, message) {
   } catch (error) {
     notify(error.message, true);
   }
+}
+
+async function runOpsAction(area, action, message) {
+  state.opsActionError = null;
+  try {
+    const result = await action();
+    const nextMessage = typeof message === 'function' ? message(result) : message;
+    if (nextMessage) notify(nextMessage);
+    return result;
+  } catch (error) {
+    showOpsActionError(area, operationReason(area, error.message));
+    return null;
+  }
+}
+
+function showOpsActionError(area, message) {
+  state.opsActionError = { area, message };
+  render();
+  notify(message, true);
+}
+
+function operationReason(area, rawMessage = '') {
+  const message = String(rawMessage || '').trim();
+  const rules = [
+    [/Deposit amount must be exactly 200000/i, 'Tiền cọc phải đúng 200.000 đ.'],
+    [/Identity document does not match/i, 'Số giấy tờ không khớp hồ sơ khách hàng.'],
+    [/Pending rental request not found/i, 'Yêu cầu nhận xe không còn ở trạng thái chờ xử lý.'],
+    [/Rental request has expired/i, 'Yêu cầu nhận xe đã quá hạn giữ chỗ.'],
+    [/Bike cannot be handed over/i, 'Xe không còn sẵn sàng tại bãi nhận đã chọn. Hãy đổi sang xe khác.'],
+    [/Handover location must be within/i, 'GPS hiện tại của khách nằm ngoài bán kính phục vụ của bãi nhận. Hãy kéo user gần bãi trong /gd rồi giao xe lại.'],
+    [/Customer must confirm return/i, 'Khách cần xác nhận vị trí trả xe trong bán kính bãi trả trước khi nhân sự xuất vé.'],
+    [/Return station must match/i, 'Bãi trả đang chọn không khớp bãi khách đã xác nhận.'],
+    [/Return station must be active/i, 'Bãi trả không còn hoạt động.'],
+    [/Return location must be within/i, 'Vị trí khách xác nhận trả xe nằm ngoài bán kính phục vụ của bãi trả.'],
+    [/Staff can only process records/i, 'Tài khoản nhân sự chỉ được xử lý bãi được phân công.'],
+    [/Invalid time range|Invalid returned time|returnedAt/i, 'Thời gian trả xe không hợp lệ.']
+  ];
+  const match = rules.find(([pattern]) => pattern.test(message));
+  if (match) return match[1];
+  return message || (area === 'pickup' ? 'Không thể giao xe do điều kiện nhận xe chưa hợp lệ.' : 'Không thể xuất vé do điều kiện trả xe chưa hợp lệ.');
 }
 
 async function api(path, { method = 'GET', body } = {}) {

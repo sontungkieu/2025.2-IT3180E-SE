@@ -8,9 +8,17 @@ const { BASE_PRICES, LATE_FEE_PER_30_MINUTES, calculateTicket } = require('./pri
 const ROOT_DIR = path.resolve(__dirname, '..');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 const DEMO_CLOCK_OFFSET_KEY = 'demo_clock_offset_minutes';
+const GPS_DEMO_POSITION_KEY = 'gps_demo_position';
 const MAX_DEMO_CLOCK_OFFSET_MINUTES = 7 * 24 * 60;
 const MIN_DEMO_CLOCK_OFFSET_MINUTES = -24 * 60;
 const DEFAULT_STATION_RADIUS_METERS = 180;
+const DEFAULT_GPS_DEMO_POSITION = Object.freeze({
+  lat: 20.950889,
+  lng: 105.936712,
+  label: 'GPS hiện tại',
+  mode: 'gps',
+  updatedAt: null
+});
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -183,6 +191,23 @@ async function handleApi(ctx) {
     return;
   }
 
+  if (method === 'GET' && pathname === '/api/gps-demo/users') {
+    sendJson(res, 200, { users: getGpsDemoUsers(ctx.db) });
+    return;
+  }
+
+  if (method === 'GET' && pathname === '/api/gps-demo/position') {
+    const customerId = Number(requestUrl.searchParams.get('customerId') || 0) || null;
+    sendJson(res, 200, { position: getGpsDemoPosition(ctx.db, customerId) });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/gps-demo/position') {
+    const body = await readJson(req);
+    sendJson(res, 200, { position: setGpsDemoPosition(ctx.db, body) });
+    return;
+  }
+
   if (method === 'GET' && pathname === '/api/staff/pending-requests') {
     const user = requireRole(ctx, ['staff', 'admin']);
     sendJson(res, 200, { requests: getPendingRequests(ctx.db, user) });
@@ -330,6 +355,58 @@ function appNow(db) {
 
 function appDate(db) {
   return new Date(appNow(db));
+}
+
+function gpsDemoPositionKey(customerId = null) {
+  const id = Number(customerId || 0);
+  return id > 0 ? `${GPS_DEMO_POSITION_KEY}:${id}` : GPS_DEMO_POSITION_KEY;
+}
+
+function getGpsDemoPosition(db, customerId = null, fallback = null) {
+  const row = db.prepare('SELECT setting_value FROM app_settings WHERE setting_key = ?').get(gpsDemoPositionKey(customerId));
+  if (!row?.setting_value) {
+    return normalizeGpsDemoPosition(fallback || DEFAULT_GPS_DEMO_POSITION, customerId);
+  }
+  try {
+    return normalizeGpsDemoPosition(JSON.parse(row.setting_value), customerId);
+  } catch {
+    return normalizeGpsDemoPosition(fallback || DEFAULT_GPS_DEMO_POSITION, customerId);
+  }
+}
+
+function setGpsDemoPosition(db, body) {
+  const location = requiredCustomerLocation(body, 'GPS demo position');
+  const customerId = Number(body.customerId || body.customer_id || 0) || null;
+  const position = normalizeGpsDemoPosition({
+    ...body,
+    lat: location.lat,
+    lng: location.lng,
+    mode: 'gps',
+    label: requiredOptionalText(body.label, DEFAULT_GPS_DEMO_POSITION.label),
+    updatedAt: now()
+  }, customerId);
+  db.prepare(`
+    INSERT INTO app_settings (setting_key, setting_value)
+    VALUES (?, ?)
+    ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value
+  `).run(gpsDemoPositionKey(customerId), JSON.stringify(position));
+  return position;
+}
+
+function normalizeGpsDemoPosition(value, customerId = null) {
+  const lat = Number(value?.lat ?? value?.latitude);
+  const lng = Number(value?.lng ?? value?.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { ...DEFAULT_GPS_DEMO_POSITION, customerId: Number(customerId || 0) || null };
+  }
+  return {
+    customerId: Number(customerId || value?.customerId || value?.customer_id || 0) || null,
+    lat,
+    lng,
+    label: requiredOptionalText(value.label, DEFAULT_GPS_DEMO_POSITION.label),
+    mode: 'gps',
+    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : null
+  };
 }
 
 function registerCustomer(ctx, body) {
@@ -561,7 +638,6 @@ function createRentalRequest(db, user, body) {
   if (!BASE_PRICES.has(requestedDurationMinutes)) {
     throw httpError(400, 'Rental duration must be 60, 120 or 180 minutes');
   }
-  const pickupCheck = ensureLocationWithinStation(db, stationId, pickupLocation, 'Pickup');
 
   const profile = db.prepare('SELECT * FROM customer_profiles WHERE customer_id = ?').get(user.user_id);
   if (!user.email_verified_at) {
@@ -595,7 +671,7 @@ function createRentalRequest(db, user, body) {
   }
 
   const bike = db.prepare(`
-    SELECT b.*, s.station_status
+    SELECT b.*, s.station_status, s.latitude AS station_latitude, s.longitude AS station_longitude
     FROM bikes b
     JOIN stations s ON s.station_id = b.station_id
     WHERE b.bike_id = ?
@@ -603,6 +679,7 @@ function createRentalRequest(db, user, body) {
   if (!bike || bike.station_id !== stationId || bike.bike_status !== 'available' || bike.station_status !== 'active') {
     throw httpError(409, 'Selected bike is not available at this station');
   }
+  const pickupDistanceMeters = Math.round(distanceMeters(pickupLocation.lat, pickupLocation.lng, bike.station_latitude, bike.station_longitude));
 
   const pendingBikeRequest = db.prepare(`
     SELECT request_id FROM rental_requests
@@ -628,7 +705,7 @@ function createRentalRequest(db, user, body) {
     expiresAt,
     pickupLocation.lat,
     pickupLocation.lng,
-    pickupCheck.distanceMeters
+    pickupDistanceMeters
   ).lastInsertRowid);
   return getPendingRequest(db, requestId);
 }
@@ -744,17 +821,30 @@ function handoverBike(db, user, body) {
   if (request.bike_status !== 'available' || request.station_id !== request.pickup_station_id || request.station_status !== 'active') {
     throw httpError(409, 'Bike cannot be handed over from this station');
   }
-  ensureLocationWithinStation(
+  const handoverLocation = getGpsDemoPosition(db, request.customer_id, {
+    lat: request.pickup_latitude,
+    lng: request.pickup_longitude,
+    label: 'GPS hiện tại',
+    mode: 'gps'
+  });
+  const handoverCheck = ensureLocationWithinStation(
     db,
     request.pickup_station_id,
-    { lat: request.pickup_latitude, lng: request.pickup_longitude },
+    handoverLocation,
     'Handover'
   );
 
   const startedAt = currentDate.toISOString();
   try {
     db.exec('BEGIN IMMEDIATE');
-    db.prepare("UPDATE rental_requests SET request_status = 'converted' WHERE request_id = ?").run(requestId);
+    db.prepare(`
+      UPDATE rental_requests
+      SET request_status = 'converted',
+          pickup_latitude = ?,
+          pickup_longitude = ?,
+          pickup_distance_meters = ?
+      WHERE request_id = ?
+    `).run(handoverLocation.lat, handoverLocation.lng, handoverCheck.distanceMeters, requestId);
     const rentalId = Number(db.prepare(`
       INSERT INTO rentals
         (request_id, customer_id, bike_id, pickup_station_id, picked_up_by,
@@ -1142,6 +1232,40 @@ function getActiveRentals(db, user = null) {
   `).all(stationScope, stationScope, stationScope).map((item) => decorateRentalTiming(item, currentDate));
 }
 
+function getGpsDemoUsers(db) {
+  const users = db.prepare(`
+    SELECT
+      u.user_id,
+      u.full_name,
+      u.email,
+      u.role,
+      cp.customer_type,
+      cp.identity_status,
+      COALESCE(pending.pending_count, 0) AS pending_count,
+      COALESCE(active.active_count, 0) AS active_count
+    FROM users u
+    JOIN customer_profiles cp ON cp.customer_id = u.user_id
+    LEFT JOIN (
+      SELECT customer_id, COUNT(*) AS pending_count
+      FROM rental_requests
+      WHERE request_status = 'pending_pickup'
+      GROUP BY customer_id
+    ) pending ON pending.customer_id = u.user_id
+    LEFT JOIN (
+      SELECT customer_id, COUNT(*) AS active_count
+      FROM rentals
+      WHERE rental_status = 'in_progress'
+      GROUP BY customer_id
+    ) active ON active.customer_id = u.user_id
+    WHERE u.role = 'customer'
+    ORDER BY active.active_count DESC, pending.pending_count DESC, u.full_name ASC
+  `).all();
+  return users.map((user) => ({
+    ...user,
+    position: getGpsDemoPosition(db, user.user_id)
+  }));
+}
+
 function getGpsDemoSessions(db) {
   expirePendingRequests(db);
   const currentDate = appDate(db);
@@ -1166,6 +1290,8 @@ function getGpsDemoSessions(db) {
       ps.latitude AS target_latitude,
       ps.longitude AS target_longitude,
       ps.station_radius_meters AS target_radius_meters,
+      rr.pickup_latitude,
+      rr.pickup_longitude,
       rr.created_at AS started_at,
       rr.expires_at AS deadline_at,
       rr.pickup_distance_meters AS last_distance_meters,
@@ -1216,7 +1342,22 @@ function getGpsDemoSessions(db) {
     WHERE r.rental_status = 'in_progress'
     ORDER BY r.started_at ASC
   `).all().map((item) => decorateRentalTiming(item, currentDate));
-  return [...pickupSessions, ...returnSessions];
+  return [...pickupSessions, ...returnSessions].map((session) => decorateGpsDemoSession(db, session));
+}
+
+function decorateGpsDemoSession(db, session) {
+  const fallback = session.flow === 'pickup'
+    ? { lat: session.pickup_latitude, lng: session.pickup_longitude, label: 'GPS hiện tại', mode: 'gps' }
+    : { lat: session.target_latitude, lng: session.target_longitude, label: 'GPS hiện tại', mode: 'gps' };
+  const position = getGpsDemoPosition(db, session.customer_id, fallback);
+  const distance = distanceMeters(position.lat, position.lng, session.target_latitude, session.target_longitude);
+  return {
+    ...session,
+    user_latitude: position.lat,
+    user_longitude: position.lng,
+    user_position_updated_at: position.updatedAt,
+    last_distance_meters: Math.round(distance)
+  };
 }
 
 function getRental(db, rentalId) {
@@ -1699,6 +1840,11 @@ function requiredText(value, label) {
     throw httpError(400, `${label} is required`);
   }
   return normalized;
+}
+
+function requiredOptionalText(value, fallback) {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
 }
 
 function requiredEmail(value) {

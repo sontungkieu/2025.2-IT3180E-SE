@@ -303,12 +303,13 @@ test('blocked identities cannot submit rental requests', async () => {
   }
 });
 
-test('pickup and handover require customer location inside station radius', async () => {
+test('rental request can start anywhere but handover requires current GPS inside station radius', async () => {
   const fixture = await startTestServer();
   const customer = client(fixture.baseUrl);
   const admin = client(fixture.baseUrl);
+  const gd = client(fixture.baseUrl);
   try {
-    await customer.request('/api/auth/login', {
+    const login = await customer.request('/api/auth/login', {
       method: 'POST',
       body: { email: 'resident@ecopark.test', password: 'resident123' }
     });
@@ -320,21 +321,7 @@ test('pickup and handover require customer location inside station radius', asyn
         location: { lat: 20.9918, lng: 105.8784 }
       })
     });
-    assert.equal(outside.response.status, 403);
-    assert.match(outside.payload.error, /within/i);
-
-    const request = await customer.request('/api/rental-requests', {
-      method: 'POST',
-      body: rentalRequestBody({ stationId: 3, bikeId: 7 })
-    });
-    assert.equal(request.response.status, 201);
-    fixture.server.db.prepare(`
-      UPDATE rental_requests
-      SET pickup_latitude = 20.9918,
-          pickup_longitude = 105.8784,
-          pickup_distance_meters = 8000
-      WHERE request_id = ?
-    `).run(request.payload.request.request_id);
+    assert.equal(outside.response.status, 201);
 
     await admin.request('/api/auth/login', {
       method: 'POST',
@@ -343,7 +330,7 @@ test('pickup and handover require customer location inside station radius', asyn
     const handover = await admin.request('/api/staff/handover', {
       method: 'POST',
       body: {
-        requestId: request.payload.request.request_id,
+        requestId: outside.payload.request.request_id,
         identityDocumentType: 'CCCD',
         identityDocumentNumber: '001203000222',
         depositAmount: 200000,
@@ -352,6 +339,29 @@ test('pickup and handover require customer location inside station radius', asyn
     });
     assert.equal(handover.response.status, 403);
     assert.match(handover.payload.error, /Handover location/i);
+
+    const aquaBay = stationLocation(3);
+    const moved = await gd.request('/api/gps-demo/position', {
+      method: 'POST',
+      body: {
+        customerId: login.payload.user.user_id,
+        latitude: aquaBay.lat,
+        longitude: aquaBay.lng
+      }
+    });
+    assert.equal(moved.response.status, 200);
+
+    const handedOver = await admin.request('/api/staff/handover', {
+      method: 'POST',
+      body: {
+        requestId: outside.payload.request.request_id,
+        identityDocumentType: 'CCCD',
+        identityDocumentNumber: '001203000222',
+        depositAmount: 200000,
+        depositDocumentHeld: '001203000222'
+      }
+    });
+    assert.equal(handedOver.response.status, 201);
   } finally {
     await fixture.close();
   }
@@ -866,6 +876,48 @@ test('demo clock drives active rental countdown and default return penalties', a
     assert.equal(returned.payload.ticket.resident_discount_amount, 20000);
     assert.equal(returned.payload.ticket.late_fee, 60000);
     assert.equal(returned.payload.ticket.total_amount, 90000);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('gps demo position is shared between gd controls and customer search', async () => {
+  const fixture = await startTestServer();
+  const gd = client(fixture.baseUrl);
+  const customer = client(fixture.baseUrl);
+  try {
+    const initial = await customer.request('/api/gps-demo/position');
+    assert.equal(initial.response.status, 200);
+    assert.equal(initial.payload.position.mode, 'gps');
+
+    const aquaBay = stationLocation(3);
+    const users = await gd.request('/api/gps-demo/users');
+    assert.equal(users.response.status, 200);
+    const resident = users.payload.users.find((user) => user.email === 'resident@ecopark.test');
+    assert.ok(resident);
+
+    const updated = await gd.request('/api/gps-demo/position', {
+      method: 'POST',
+      body: {
+        customerId: resident.user_id,
+        latitude: aquaBay.lat,
+        longitude: aquaBay.lng,
+        label: 'GPS hiện tại'
+      }
+    });
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.payload.position.customerId, resident.user_id);
+    assert.equal(updated.payload.position.lat, aquaBay.lat);
+    assert.equal(updated.payload.position.lng, aquaBay.lng);
+
+    const seen = await customer.request(`/api/gps-demo/position?customerId=${resident.user_id}`);
+    assert.equal(seen.response.status, 200);
+    assert.equal(seen.payload.position.lat, aquaBay.lat);
+    assert.equal(seen.payload.position.lng, aquaBay.lng);
+
+    const stations = await customer.request(`/api/stations?lat=${seen.payload.position.lat}&lng=${seen.payload.position.lng}`);
+    assert.equal(stations.response.status, 200);
+    assert.equal(stations.payload.stations[0].station_id, 3);
   } finally {
     await fixture.close();
   }

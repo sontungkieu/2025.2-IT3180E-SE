@@ -108,11 +108,11 @@ Trong demo live, người dùng có thể chọn Sáng, Tối hoặc Hệ thốn
 
 Route `/gd` là phần hỗ trợ demo alternative flow.
 
-Màn này có bốn việc chính. Thứ nhất là chọn đúng session, tức customer đang có request hoặc đang thuê.
+Màn này có bốn việc chính. Thứ nhất là tìm và chọn đúng tài khoản khách; nếu khách đang có request hoặc đang thuê thì chọn kèm session tương ứng.
 
-Thứ hai là kéo GPS người dùng. Vị trí không nhảy kiểu giả lập thô, mà đi theo polyline đường để phục vụ demo geofence.
+Thứ hai là kéo GPS người dùng. Vị trí không nhảy kiểu giả lập thô, mà đi theo polyline đường; trong lúc marker chạy trên `/gd`, tab customer đăng nhập cùng tài khoản cũng nhận vị trí stream qua API và marker "Bạn" trên map chạy theo.
 
-Thứ ba là tua đồng hồ hệ thống để demo quá hạn và phụ thu trễ. Thứ tư là kiểm geofence: nhận xe và trả xe chỉ hợp lệ khi user ở gần bãi tương ứng.
+Thứ ba là tua đồng hồ hệ thống để demo quá hạn và phụ thu trễ. Thứ tư là kiểm bán kính bãi: customer có thể gửi request trước, nhưng giao xe và trả xe chỉ hợp lệ khi user ở gần bãi tương ứng.
 
 Nhờ đó khi cô yêu cầu demo các tình huống khác nhau, ví dụ "khách ở gần bãi A" hoặc "trả xe ở bãi B", nhóm có thể điều chỉnh nhanh ngay trong buổi trình bày.
 
@@ -142,11 +142,11 @@ Audit panel giúp truy vết khi staff hoặc admin đổi trạng thái xe, ví
 
 Phần evidence được nhóm trình bày theo những điểm có thể kiểm chứng nhanh, thay vì chỉ liệt kê chung chung.
 
-Backend API tests đang pass 21/21, bao phủ các nhánh quan trọng như geofence, handover, return ticket, report và audit log. Vì project là JavaScript/Node.js, nhóm dùng `node --test` thay vì pytest.
+Backend API tests đang pass 22/22, bao phủ các nhánh quan trọng như request tạo được ở ngoài bán kính nhưng giao xe bị chặn theo GPS hiện tại, xuất vé, báo cáo, audit log và GPS demo theo từng customer giữa `/gd` với màn khách hàng. Vì project là JavaScript/Node.js, nhóm dùng `node --test` thay vì pytest.
 
-UI smoke test kiểm tra nhiều viewport: desktop, staff-wide, staff-medium và mobile. Test này bắt các lỗi rất thực tế như tràn ngang, canvas Three.js blank, Leaflet marker lỗi hoặc console error.
+UI smoke test kiểm tra 5 cỡ màn hình đại diện: khách hàng desktop, khách hàng mobile, nhân sự màn rộng, nhân sự màn vừa và admin mobile. Test này bắt các lỗi rất thực tế như tràn ngang, canvas Three.js blank, Leaflet marker lỗi, dropdown custom lỗi hoặc console error.
 
-UC smoke test là điểm nổi bật nhất: nó đi qua flow demo thật từ `/gd`, customer request, staff handover, customer xác nhận bãi trả, staff xuất vé, sau đó kiểm tra dashboard, audit log và CSV export.
+UC smoke test là phần đáng nhắc nhất: nó đi qua flow demo thật từ `/gd`, chọn đúng user và kiểm marker customer chạy theo GPS stream, khách gửi yêu cầu, nhân sự giao xe, khách xác nhận bãi trả trong bán kính hợp lệ, nhân sự xuất vé, sau đó kiểm tra dashboard, audit log và CSV export.
 
 CI/CD được cấu hình bằng GitHub Actions. Workflow chạy static check tương đương lint nhẹ bằng `node --check`, chạy coverage, UI smoke, UC smoke và build Docker image để đảm bảo bản nộp có thể đóng gói.
 
@@ -154,11 +154,11 @@ CI/CD được cấu hình bằng GitHub Actions. Workflow chạy static check t
 
 Đến slide cuối, nhóm mở app và chạy 5 bước demo live trên trình duyệt.
 
-Bước 1: mở platform và tab `/gd`, kéo vị trí gần bãi nhận để mô phỏng customer đang ở khu vực đó; nếu cần diễn quá hạn thì tua đồng hồ +30 hoặc +60 phút.
+Bước 1: mở platform và tab `/gd`, chọn tài khoản customer cần diễn; có thể để user ở xa để chứng minh request vẫn tạo được, rồi kéo GPS để cả map `/gd` và map customer chạy theo trước khi staff giao xe. Nếu cần diễn quá hạn thì tua đồng hồ +30 hoặc +60 phút.
 
 Bước 2: đăng nhập bằng customer, vào màn tìm bãi, lọc phạm vi hoặc loại xe, chọn một xe đang rảnh và gửi rental request.
 
-Bước 3: chuyển sang staff hoặc admin, mở request đang chờ, xác nhận giấy tờ, nhập thông tin cọc 200 nghìn và bấm giao xe. Lúc này xe chuyển sang rented.
+Bước 3: trong `/gd` kéo GPS user vào bán kính bãi nhận, sau đó chuyển sang staff hoặc admin, mở request đang chờ, xác nhận giấy tờ, nhập thông tin cọc 200 nghìn và bấm giao xe. Lúc này xe chuyển sang rented.
 
 Bước 4: xử lý trả xe. Chọn bãi trả khác bãi nhận nếu cần, chọn tình trạng xe, kiểm tra phí thuê, giảm cư dân hoặc phụ thu trễ, sau đó xuất ticket.
 
