@@ -1,8 +1,8 @@
 # Ecopark Bicycle Parking
 
 [![CI](https://github.com/sontungkieu/2025.2-IT3180E-SE/actions/workflows/ci.yml/badge.svg)](https://github.com/sontungkieu/2025.2-IT3180E-SE/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen)
-![Coverage](https://img.shields.io/badge/backend%20coverage-78.9%25-yellowgreen)
+![Tests](https://img.shields.io/badge/tests-22%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/backend%20coverage-80.1%25-yellowgreen)
 ![Node](https://img.shields.io/badge/node-%3E%3D24-43853d)
 ![Docker](https://img.shields.io/badge/docker-CI%20build%20configured-0f7b55)
 
@@ -17,8 +17,8 @@ liệu bền vững.
 
 - Node.js 24 trở lên.
 - Docker nếu cần kiểm tra container/GCP image.
-- LaTeX `latexmk` nếu cần build lại `pdf/main.pdf` hoặc các bản tài liệu
-  app-style trong `pdf/`.
+- LaTeX chỉ cần khi làm việc trên nhánh `presentation`, nơi giữ report/slide
+  PDF và source LaTeX.
 
 ## Chạy ứng dụng
 
@@ -30,6 +30,16 @@ npm run dev
 
 Mở `http://127.0.0.1:4173`.
 
+## Giao diện
+
+| Customer desktop | Operations workspace |
+| --- | --- |
+| ![Customer rental workspace](docs/ui/customer_rent_desktop.png) | ![Operations workspace](docs/ui/operations_desktop.png) |
+
+| Customer mobile | GPS demo director |
+| --- | --- |
+| ![Customer mobile workspace](docs/ui/customer_mobile.png) | ![GPS demo director](docs/ui/gps_demo.png) |
+
 ## Kiểm thử và CI/CD
 
 ```bash
@@ -38,17 +48,13 @@ npm test
 npm run test:coverage
 npm run smoke:ui
 npm run smoke:uc
-npm run screenshots:uc001
-npm run diagrams:techstack
 npm run docker:build
 ```
 
 - `npm run test:coverage` dùng Node.js built-in test coverage. Mốc hiện tại:
-  line coverage backend `78.93%`, branch `69.31%`, functions `80.58%`.
-- `npm run screenshots:uc001` sinh bộ ảnh UC001/alternative flow 1 vào
-  `pdf/assets/uc001_flow/` để đưa vào report.
-- `npm run diagrams:techstack` render lại hình tech stack có logo trong
-  `pdf/assets/techstack/` để dùng chung cho report và slide.
+  line coverage backend `80.15%`, branch `71.31%`, functions `84.68%`.
+- Ảnh UI dùng trong README được giữ ở `docs/ui/`. Report, slide và các asset
+  LaTeX/PDF đầy đủ được giữ trên nhánh `presentation`.
 - `.github/workflows/ci.yml` tự động chạy static check, backend coverage test,
   smoke UI, smoke UC và build Docker image trên mọi push/PR. Bước deploy GCP thật
   vẫn để cấu hình riêng bằng secrets/project của nhóm.
@@ -89,8 +95,10 @@ gcloud run deploy ecopark-bicycle-parking \
   thuê-trả xe; report mô tả target triển khai GCP Cloud Run/Compute Engine.
 - `scripts/`: smoke test giao diện bằng Playwright.
 - `test/`: test nghiệp vụ backend bằng `node --test`.
-- `docs/`: tài liệu nguồn như use-case diagram và brief 3D scene cho agent ngoài.
-- `pdf/`: tài liệu LaTeX, bản report/slide hiện tại và bản app-style song song.
+- `docs/`: tài liệu nguồn, use-case diagram, brief 3D scene và ảnh UI nhẹ cho
+  README.
+- Nhánh `presentation`: giữ tài liệu LaTeX, report PDF, slide PDF và asset trình
+  bày đầy đủ.
 
 ## Tài khoản demo
 
@@ -240,46 +248,14 @@ khách xác nhận vị trí trong bán kính bãi staff được phân công, x
 log và tải báo cáo CSV. Luồng trả khác bãi vẫn được backend/UI hỗ trợ khi
 Admin/Operator xử lý toàn hệ thống.
 
-## Tài liệu PDF
+## Tài liệu trình bày
 
-Các bản chính hiện tại vẫn giữ nguyên ở `pdf/main.pdf`, `pdf/slides.pdf` và
-`pdf/slide.pdf`. Nếu cần bản trình bày có visual style gần app hơn, dùng các file
-song song `pdf/main_app_style.pdf`, `pdf/slides_app_style.pdf` và
-`pdf/slide_app_style.pdf`.
-
-Khi cập nhật tài liệu chính trong `pdf/`, build theo đúng quy trình:
+Nhánh `main` tập trung vào app, test và tài liệu nhẹ nên không giữ thư mục
+`pdf/`. Report/slide LaTeX, PDF đã build và asset trình bày đầy đủ được giữ trên
+nhánh `presentation`.
 
 ```bash
-cd pdf
-latexmk -pdf main.tex
-latexmk -c main.tex
-find . -maxdepth 1 -type f \( \
-  -name "*.aux" -o -name "*.log" -o -name "*.out" -o -name "*.toc" -o \
-  -name "*.fls" -o -name "*.fdb_latexmk" -o -name "*.synctex.gz" -o \
-  -name "*.nav" -o -name "*.snm" -o -name "*.vrb" -o \
-  -name "*.bbl" -o -name "*.blg" \
-\) -delete
-```
-
-Nếu chỉnh logo hoặc bố cục hình tech stack, render lại asset trước khi build PDF:
-
-```bash
-npm run diagrams:techstack
-```
-
-Với bản app-style, build tương tự nhưng dùng source song song:
-
-```bash
-cd pdf
-latexmk -pdf main_app_style.tex
-latexmk -pdf slides_app_style.tex
-cp slides_app_style.pdf slide_app_style.pdf
-latexmk -c main_app_style.tex
-latexmk -c slides_app_style.tex
-find . -maxdepth 1 -type f \( \
-  -name "*.aux" -o -name "*.log" -o -name "*.out" -o -name "*.toc" -o \
-  -name "*.fls" -o -name "*.fdb_latexmk" -o -name "*.synctex.gz" -o \
-  -name "*.nav" -o -name "*.snm" -o -name "*.vrb" -o \
-  -name "*.bbl" -o -name "*.blg" \
-\) -delete
+git fetch origin
+git switch presentation
+ls pdf/
 ```

@@ -1,5 +1,14 @@
 # Milestones
 
+## 2026-06-25 - Presentation branch split and README UI gallery
+
+- Published the `presentation` branch to keep the LaTeX/PDF report, slide deck
+  and presentation assets separate from the app-focused `main` branch.
+- Added tracked UI screenshots under `docs/ui/` and linked representative
+  customer, operations, mobile and `/gd` screens directly from `README.md`.
+- Prepared `main` to remove the heavy `pdf/` tree while keeping lightweight app
+  documentation and links to the presentation branch.
+
 ## 2026-06-23 - User-level GPS and handover geofence
 
 - Changed rental request creation so customers can send a pending pickup request
