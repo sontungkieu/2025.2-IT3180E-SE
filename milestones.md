@@ -1,5 +1,34 @@
 # Milestones
 
+## 2026-06-30 - Customer GPS source simplification
+
+- Removed the customer-facing location preset dropdown from the rental workflow
+  because `/gd` is now the single demo control for moving user GPS.
+- Kept customer station search bound to the live `GPS hiện tại` coordinate and
+  left only bike type and range controls in the customer rental filter row.
+- Updated UC smoke coverage so the no-nearby-station alternative flow moves the
+  customer through the GPS demo API instead of selecting a manual customer preset.
+- Reordered the staff/admin rail and operations panels so menu items follow the
+  actual scroll order and the active item tracks the section currently in view.
+- Tightened the total-vs-late-fee chart grid so date labels sit close to their
+  paired bars instead of leaving a wide empty gap on desktop.
+- Raised the mobile bottom rail above open dropdown panels and capped dropdown
+  menu height so the navigation/status bar remains visible while selecting.
+- Constrained open mobile dropdown menus against the fixed bottom rail and moved
+  mobile toast notifications above the rail so the customer status/navigation
+  bar stays visible immediately after login.
+- Made customer rail selection stay active when clicking `Lượt thuê` or another
+  same-row panel, while keeping scroll-based active tracking for manual scrolls.
+- Moved customer mobile toast notifications to the top of the viewport so login
+  and action messages do not compete with the bottom command rail.
+- Filtered station availability counts by selected bike type, reduced customer
+  search range options to 200 m, 500 m and 1 km, removed redundant filter labels
+  above the dropdowns and simplified the GPS sync chip copy.
+- Aligned the selected-station bike list heading with the top of the customer
+  map so the two rental columns start on the same visual baseline.
+- Matched the customer bike-type filter width to the map column by sharing the
+  same desktop grid tracks as the rental map/bike columns.
+
 ## 2026-06-25 - Presentation branch split and README UI gallery
 
 - Published the `presentation` branch to keep the LaTeX/PDF report, slide deck

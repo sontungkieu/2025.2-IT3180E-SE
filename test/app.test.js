@@ -513,6 +513,32 @@ test('bike availability excludes held pending requests', async () => {
   }
 });
 
+test('station availability counts can be filtered by bike type', async () => {
+  const fixture = await startTestServer();
+  const api = client(fixture.baseUrl);
+  try {
+    const stations = await api.request('/api/stations?lat=20.950889&lng=105.936712&typeId=3');
+    assert.equal(stations.response.status, 200);
+    const greenBay = stations.payload.stations.find((station) => station.station_id === 1);
+    const springPark = stations.payload.stations.find((station) => station.station_id === 2);
+    const swanLake = stations.payload.stations.find((station) => station.station_id === 3);
+    assert.deepEqual(
+      {
+        greenBay: [greenBay.available_bikes, greenBay.total_bikes],
+        springPark: [springPark.available_bikes, springPark.total_bikes],
+        swanLake: [swanLake.available_bikes, swanLake.total_bikes]
+      },
+      {
+        greenBay: [0, 0],
+        springPark: [0, 1],
+        swanLake: [1, 1]
+      }
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('customer can cancel pending request and release held bike', async () => {
   const fixture = await startTestServer();
   const api = client(fixture.baseUrl);

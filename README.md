@@ -113,8 +113,8 @@ gcloud run deploy ecopark-bicycle-parking \
 ## Chức năng chính
 
 - Khách hàng tạo tài khoản, đăng nhập, xác minh email bằng mã demo-local, bổ
-  sung thẻ cư dân, tìm bãi gần nhất theo GPS demo, vị trí đã lưu hoặc vị trí
-  nhập tay, lọc loại xe, chọn xe rảnh, gửi yêu cầu thuê và hủy yêu cầu khi chưa
+  sung thẻ cư dân, tìm bãi gần nhất theo GPS hiện tại đồng bộ từ `/gd`, lọc loại
+  xe, chọn xe rảnh, gửi yêu cầu thuê và hủy yêu cầu khi chưa
   nhận xe. Khi gửi yêu cầu thuê, API lưu tọa độ khách nhưng không chặn request
   chỉ vì khách chưa đứng sát bãi; bước giao xe mới kiểm tra GPS hiện tại của
   khách phải nằm trong bán kính phục vụ của bãi nhận. API đăng ký kiểm tra họ tên, số điện thoại Việt Nam, CCCD/CMND 9 hoặc
@@ -132,12 +132,14 @@ gcloud run deploy ecopark-bicycle-parking \
   mobile.
 - Workspace khách hàng gom vị trí, bãi gần nhất, bản đồ, xe rảnh và nút thuê vào
   cùng vùng `Thuê xe`; các vùng `Lượt thuê` và `Tài khoản` tách riêng để màn đầu
-  không bị rối như bảng quản trị. Bộ lọc `Vị trí người dùng` cho phép chọn GPS
-  live từ `/gd`, vị trí nhập tay hoặc vị trí đã lưu để diễn cả happy path và
-  alternative flow mất GPS/ngoài phạm vi. Trạng thái GPS/vị trí nhập tay được đặt như
-  chip overlay trong bản đồ thay vì một cảnh báo riêng bên ngoài bộ lọc. Thẻ xe
-  rảnh dùng bố cục ngang, giữ minh họa loại xe nhưng gom thông tin và nút thuê
-  vào cùng một cụm để giảm khoảng trống.
+  không bị rối như bảng quản trị. Customer UI không còn dropdown chọn vị trí giả
+  lập; mọi thay đổi vị trí demo nằm ở `/gd`, còn màn khách chỉ hiển thị vị trí
+  hiện tại và danh sách bãi theo GPS đang đồng bộ. Bộ lọc bãi dùng loại xe và
+  phạm vi `200 m`/`500 m`/`1 km`; khi chọn loại xe, số xe trên từng thẻ bãi được
+  tính theo đúng loại đang lọc. Trạng thái GPS được đặt như chip overlay trong
+  bản đồ thay vì một cảnh báo riêng bên ngoài bộ lọc. Thẻ xe rảnh dùng bố cục
+  ngang, giữ minh họa loại xe nhưng gom thông tin và nút thuê vào cùng một cụm
+  để giảm khoảng trống.
 - Màn hình khách hàng có bản đồ thật bằng Leaflet/OpenStreetMap, hiển thị vị trí
   người dùng demo và marker các bãi xe; khi tab `/gd` kéo GPS người dùng, vị trí
   `Bạn` và khoảng cách bãi trên tab khách hàng tự đồng bộ qua API demo dùng
@@ -241,7 +243,7 @@ bằng Playwright trước khi chốt thay đổi giao diện.
 
 Smoke test UC chạy pipeline giao diện chính: mở demo director `/gd` ở context riêng,
 kiểm tra người chỉnh GPS vẫn kéo/snap marker người dùng được trong kịch bản tải tối đa 2
-customer và 2 admin đăng nhập đồng thời, cư dân tìm bãi theo GPS/nhập tay, gửi rồi
+customer và 2 admin đăng nhập đồng thời, cư dân tìm bãi theo GPS đồng bộ từ `/gd`, gửi rồi
 hủy yêu cầu thuê, gửi lại yêu cầu, staff giao xe sau khi nhận cọc/giấy tờ, thử
 bấm xuất vé trước khi khách xác nhận để kiểm lý do bị chặn, nhận trả xe sau khi
 khách xác nhận vị trí trong bán kính bãi staff được phân công, xuất ticket, kiểm tra dashboard chart/audit

@@ -1,11 +1,12 @@
 import { mountScene } from '/scene.js?v=20260623-gps-stream-3';
 
-const LOCATION_PRESETS = [
-  { id: 'gps-demo', label: 'GPS hiện tại - Spring Park Gate', mode: 'gps', lat: 20.950889, lng: 105.936712 },
-  { id: 'manual-green-bay', label: 'Nhập tay - Green Bay', mode: 'manual', lat: 20.9536, lng: 105.9329 },
-  { id: 'manual-aqua-bay', label: 'Nhập tay - Aqua Bay', mode: 'manual', lat: 20.9468, lng: 105.9327 },
-  { id: 'manual-outside', label: 'Nhập tay - ngoài phạm vi', mode: 'manual', lat: 20.9918, lng: 105.8784 }
-];
+const DEFAULT_GPS_DEMO_LOCATION = Object.freeze({
+  id: 'gps-demo',
+  label: 'GPS hiện tại - Spring Park Gate',
+  mode: 'gps',
+  lat: 20.950889,
+  lng: 105.936712
+});
 
 const RENT_DURATION_OPTIONS = [
   { value: '60', label: '1 giờ - 50k', detail: 'Chuyến ngắn quanh Ecopark' },
@@ -101,7 +102,7 @@ const state = {
   selectedStationId: null,
   selectedTypeId: '',
   locationPresetId: 'gps-demo',
-  stationRangeKm: 3,
+  stationRangeKm: 1,
   stationBikes: [],
   history: { pendingRequests: [], activeRentals: [], completedRentals: [], archivedRequests: [] },
   pendingRequests: [],
@@ -147,9 +148,13 @@ let motionContext = null;
 let currentView = null;
 let toastTween = null;
 let customSelectEventsBound = false;
+let railScrollHandler = null;
+let railPreferredTargetId = null;
+let railIntentEventsBound = false;
 let customerGpsSyncTimer = null;
 let customerGpsSyncBusy = false;
 let customerGpsLastDataRefreshAt = 0;
+let customerGpsDataRefreshTimer = null;
 let gpsDemoPersistQueue = Promise.resolve();
 
 applyThemePreference();
@@ -268,7 +273,12 @@ async function refreshData() {
   const searchLocation = currentLocation();
   rememberSearchLocation(searchLocation);
   state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
-  const stationResults = (await api(`/api/stations?lat=${searchLocation.lat}&lng=${searchLocation.lng}`)).stations;
+  const stationParams = new URLSearchParams({
+    lat: String(searchLocation.lat),
+    lng: String(searchLocation.lng)
+  });
+  if (state.selectedTypeId) stationParams.set('typeId', state.selectedTypeId);
+  const stationResults = (await api(`/api/stations?${stationParams}`)).stations;
   state.stations = state.user?.role === 'customer'
     ? stationResults.filter((station) => Number(station.distance_km || 0) <= state.stationRangeKm)
     : stationResults;
@@ -448,13 +458,7 @@ function syncCustomerGpsPolling(view) {
       const next = await refreshGpsDemoPosition({ silent: true });
       if (gpsPositionChanged(previous, next)) {
         moveStationUserMarker(next);
-        const nowMs = Date.now();
-        if (nowMs - customerGpsLastDataRefreshAt >= CUSTOMER_GPS_DATA_REFRESH_INTERVAL_MS) {
-          customerGpsLastDataRefreshAt = nowMs;
-          state.selectedStationId = null;
-          await refreshData();
-          render();
-        }
+        scheduleCustomerGpsDataRefresh();
       }
     } finally {
       customerGpsSyncBusy = false;
@@ -462,10 +466,31 @@ function syncCustomerGpsPolling(view) {
   }, CUSTOMER_GPS_SYNC_INTERVAL_MS);
 }
 
+function scheduleCustomerGpsDataRefresh() {
+  const elapsedMs = Date.now() - customerGpsLastDataRefreshAt;
+  const delayMs = Math.max(0, CUSTOMER_GPS_DATA_REFRESH_INTERVAL_MS - elapsedMs);
+  if (customerGpsDataRefreshTimer) {
+    window.clearTimeout(customerGpsDataRefreshTimer);
+    customerGpsDataRefreshTimer = null;
+  }
+  customerGpsDataRefreshTimer = window.setTimeout(async () => {
+    customerGpsDataRefreshTimer = null;
+    if (currentView !== 'customer' || state.locationPresetId !== 'gps-demo') return;
+    customerGpsLastDataRefreshAt = Date.now();
+    state.selectedStationId = null;
+    await refreshData();
+    render();
+  }, delayMs);
+}
+
 function stopCustomerGpsSync() {
   if (customerGpsSyncTimer) {
     window.clearInterval(customerGpsSyncTimer);
     customerGpsSyncTimer = null;
+  }
+  if (customerGpsDataRefreshTimer) {
+    window.clearTimeout(customerGpsDataRefreshTimer);
+    customerGpsDataRefreshTimer = null;
   }
   customerGpsSyncBusy = false;
 }
@@ -622,7 +647,7 @@ function shellView() {
         <nav class="rail-nav">
           ${isCustomer
             ? `${railItem('bike', 'Thuê xe', true, 'workspace-rent')}${railItem('receipt-text', 'Lượt thuê', false, 'workspace-rentals')}${railItem('id-card', 'Tài khoản', false, 'workspace-account')}`
-            : `${railItem('layout-dashboard', 'Vận hành', true, 'workspace-overview')}${railItem('clipboard-check', 'Nhận xe', false, 'workspace-pickup')}${railItem('receipt-text', 'Trả xe', false, 'workspace-return')}${railItem('bar-chart-3', 'Báo cáo', false, 'workspace-reports')}`}
+            : `${railItem('clipboard-check', 'Nhận xe', true, 'workspace-pickup')}${railItem('route', 'Pipeline trả', false, 'workspace-return-pipeline')}${railItem('receipt-text', 'Danh sách trả', false, 'workspace-return-list')}${railItem('bike', 'Đội xe', false, 'workspace-fleet')}${railItem('bar-chart-3', 'Báo cáo', false, 'workspace-reports')}${railItem('history', 'Nhật ký', false, 'workspace-audit')}`}
           <button id="mobile-refresh" class="rail-item rail-mobile-action" type="button" title="Làm mới" aria-label="Làm mới dữ liệu"><img src="/vendor/icons/refresh-cw.svg" alt=""><span>Làm mới</span></button>
           <button class="rail-item rail-mobile-action" type="button" data-theme-toggle title="Chế độ màu" aria-label="Chế độ màu"><img src="/vendor/icons/${themeOptionMeta().icon}.svg" alt=""><span>Giao diện</span></button>
           <button id="mobile-logout" class="rail-item rail-mobile-action" type="button" title="Đăng xuất" aria-label="Đăng xuất"><img src="/vendor/icons/log-out.svg" alt=""><span>Đăng xuất</span></button>
@@ -755,14 +780,6 @@ function customerView() {
 function operationsView() {
   return `
     <main class="content-grid ops-grid">
-      <section class="panel report-panel" id="workspace-reports">
-        <div class="section-heading">
-          <h2>Báo cáo & CSV</h2>
-          <button id="export-report" class="secondary small" type="button"><img src="/vendor/icons/file-down.svg" alt="">Xuất CSV theo bộ lọc</button>
-        </div>
-        ${reportFilters()}
-        ${reportView()}
-      </section>
       <section class="panel pending-panel" id="workspace-pickup">
         <div class="section-heading">
           <h2>Yêu cầu nhận xe</h2>
@@ -771,7 +788,7 @@ function operationsView() {
         ${opsActionErrorView('pickup')}
         ${pendingRequestsTable()}
       </section>
-      <section class="panel return-pipeline-panel" id="workspace-return">
+      <section class="panel return-pipeline-panel" id="workspace-return-pipeline">
         <div class="section-heading">
           <h2>Pipeline trả xe</h2>
           <span>${state.activeRentals.length} lượt đang chạy</span>
@@ -779,7 +796,7 @@ function operationsView() {
         ${operationsClockStrip()}
         ${returnPipelineView()}
       </section>
-      <section class="panel active-panel">
+      <section class="panel active-panel" id="workspace-return-list">
         <div class="section-heading">
           <h2>Danh sách trả xe</h2>
           <span>${state.activeRentals.length} lượt</span>
@@ -788,7 +805,7 @@ function operationsView() {
         ${activeRentalsTable()}
       </section>
       ${state.lastTicket ? ticketPanel() : ''}
-      <section class="panel fleet-panel">
+      <section class="panel fleet-panel" id="workspace-fleet">
         <div class="section-heading">
           <h2>Đội xe</h2>
           <span>${state.fleet.length} xe</span>
@@ -796,7 +813,15 @@ function operationsView() {
         ${fleetControls()}
         ${fleetTable()}
       </section>
-      <section class="panel audit-panel">
+      <section class="panel report-panel" id="workspace-reports">
+        <div class="section-heading">
+          <h2>Báo cáo & CSV</h2>
+          <button id="export-report" class="secondary small" type="button"><img src="/vendor/icons/file-down.svg" alt="">Xuất CSV theo bộ lọc</button>
+        </div>
+        ${reportFilters()}
+        ${reportView()}
+      </section>
+      <section class="panel audit-panel" id="workspace-audit">
         <div class="section-heading">
           <h2>Nhật ký trạng thái xe</h2>
           <span>${state.auditLogs.length} cập nhật gần nhất</span>
@@ -1253,35 +1278,14 @@ function stationSearchControls() {
       icon: 'bike'
     }))
   ];
-  const savedLocationOption = state.lastKnownLocation
-    ? [{
-        value: 'last-known',
-        label: 'Vị trí đã lưu',
-        detail: state.lastKnownLocation.label || 'Dùng khi GPS/map không phản hồi',
-        icon: 'history'
-      }]
-    : [];
-  const locationOptions = [
-    ...LOCATION_PRESETS.map((preset) => ({
-    value: preset.id,
-    label: locationShortLabel(preset),
-    detail: preset.mode === 'gps'
-      ? (state.gpsDemoPosition ? 'Đồng bộ từ /gd' : 'Dùng vị trí GPS demo')
-      : preset.label.replace(/^Nhập tay - /, ''),
-    icon: preset.mode === 'gps' ? 'locate-fixed' : 'map-pinned'
-    })),
-    ...savedLocationOption
+  const rangeOptions = [
+    { value: '0.2', label: '200 m', detail: 'Chỉ bãi sát vị trí GPS', icon: 'ruler' },
+    { value: '0.5', label: '500 m', detail: 'Phù hợp các bãi gần nhau', icon: 'ruler' },
+    { value: '1', label: '1 km', detail: 'Mở rộng toàn khu gần nhất', icon: 'ruler' }
   ];
-  const rangeOptions = [1, 3, 5, 10].map((range) => ({
-    value: String(range),
-    label: `${range} km`,
-    detail: range <= 3 ? 'Ưu tiên bãi gần nhất' : 'Mở rộng khu vực tìm kiếm',
-    icon: 'ruler'
-  }));
   return `
     <div class="search-workflow" aria-label="Điều kiện tìm bãi">
       ${filterDropdown('type', 'Loại xe', typeOptions, String(state.selectedTypeId), 'data-type-filter')}
-      ${filterDropdown('location', 'Vị trí người dùng', locationOptions, state.locationPresetId, 'data-location-preset')}
       ${filterDropdown('range', 'Phạm vi', rangeOptions, String(state.stationRangeKm), 'data-station-range')}
     </div>
   `;
@@ -1292,9 +1296,8 @@ function filterDropdown(name, label, options, selectedValue, dataAttribute) {
   const menuId = `filter-${name}-menu`;
   return `
     <div class="control-group select-group select-group-${name}">
-      <span class="control-label">${escapeHtml(label)}</span>
       <div class="pretty-select" data-select-root>
-        <button class="pretty-select-trigger" type="button" data-select-trigger="${escapeAttr(name)}" aria-expanded="false" aria-controls="${menuId}">
+        <button class="pretty-select-trigger" type="button" data-select-trigger="${escapeAttr(name)}" aria-label="${escapeAttr(`${label}: ${selected.label}`)}" aria-expanded="false" aria-controls="${menuId}">
           <span class="select-leading"><img src="/vendor/icons/${selected.icon}.svg" alt=""></span>
           <span class="select-value">
             <strong>${escapeHtml(selected.label)}</strong>
@@ -1562,20 +1565,14 @@ function ticketPanel() {
 }
 
 function currentLocation() {
-  if (state.locationPresetId === 'last-known' && state.lastKnownLocation) {
-    return { ...state.lastKnownLocation, id: 'last-known', mode: 'saved' };
-  }
-  if (state.locationPresetId === 'gps-demo') {
-    return gpsDemoLocation();
-  }
-  return LOCATION_PRESETS.find((preset) => preset.id === state.locationPresetId) || gpsDemoLocation();
+  return gpsDemoLocation();
 }
 
 function gpsDemoLocation() {
   if (state.gpsDemoPosition) {
     return { ...state.gpsDemoPosition, id: 'gps-demo', mode: 'gps', label: 'GPS hiện tại' };
   }
-  return { ...LOCATION_PRESETS[0], label: 'GPS hiện tại' };
+  return { ...DEFAULT_GPS_DEMO_LOCATION, label: 'GPS hiện tại' };
 }
 
 function locationPayload(location) {
@@ -1590,9 +1587,6 @@ function locationPayload(location) {
 function locationShortLabel(preset) {
   return ({
     'gps-demo': 'GPS hiện tại',
-    'manual-green-bay': 'Green Bay',
-    'manual-aqua-bay': 'Aqua Bay',
-    'manual-outside': 'Ngoài phạm vi',
     'last-known': 'Vị trí đã lưu'
   })[preset.id] || preset.label;
 }
@@ -1638,13 +1632,24 @@ function bikeTypeShortLabel(typeName) {
   return typeName;
 }
 
+function selectedBikeTypeLabel() {
+  const type = state.bikeTypes.find((item) => String(item.bike_type_id) === String(state.selectedTypeId));
+  return type ? bikeTypeShortLabel(type.type_name) : '';
+}
+
+function stationAvailabilityLabel(station, { includeType = false } = {}) {
+  const count = `${Number(station.available_bikes || 0)}/${Number(station.total_bikes || 0)} xe rảnh`;
+  const typeLabel = includeType && state.selectedTypeId ? selectedBikeTypeLabel() : '';
+  return typeLabel ? `${typeLabel} · ${count}` : count;
+}
+
 function stationCard(station) {
   const active = station.station_id === state.selectedStationId ? 'active' : '';
   return `
     <button class="station-card ${active}" type="button" data-station="${station.station_id}">
       <span class="station-title">${escapeHtml(station.station_name)}</span>
       <span>${escapeHtml(station.address)}</span>
-      <span class="station-meta">${station.distance_km ?? '-'} km · ${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh</span>
+      <span class="station-meta">${station.distance_km ?? '-'} km · ${escapeHtml(stationAvailabilityLabel(station, { includeType: true }))}</span>
     </button>
   `;
 }
@@ -1653,7 +1658,7 @@ function stationMapView() {
   if (!state.stations.length) return emptyState('Chưa có bãi xe');
   const selected = currentLocation();
   const statusCopy = selected.mode === 'gps'
-    ? (state.gpsDemoPosition ? 'GPS demo đang đồng bộ' : 'GPS demo mặc định')
+    ? (state.gpsDemoPosition ? 'GPS đang đồng bộ' : 'GPS mặc định')
     : selected.mode === 'saved'
       ? 'Đang dùng vị trí đã lưu'
       : 'Vị trí nhập tay';
@@ -1713,7 +1718,7 @@ function mapPin(station, x, y) {
       <span class="pin-dot"></span>
       <span class="pin-label">
         <strong>${escapeHtml(station.station_name)}</strong>
-        <small>${station.available_bikes || 0} xe rảnh</small>
+        <small>${escapeHtml(stationAvailabilityLabel(station))}</small>
       </span>
     </button>
   `;
@@ -1763,7 +1768,7 @@ function mountStationMap() {
     marker.bindPopup(`
       <strong>${escapeHtml(station.station_name)}</strong><br>
       ${escapeHtml(station.address)}<br>
-      ${station.available_bikes || 0}/${station.total_bikes || 0} xe rảnh
+      ${escapeHtml(stationAvailabilityLabel(station, { includeType: true }))}
     `);
     marker.on('click', () => selectStation(station.station_id));
     bounds.push(marker.getLatLng());
@@ -2933,16 +2938,83 @@ function bindAppEvents() {
 }
 
 function bindRailEvents() {
+  if (railScrollHandler) {
+    window.removeEventListener('scroll', railScrollHandler);
+    railScrollHandler = null;
+  }
   document.querySelectorAll('[data-rail-target]').forEach((button) => {
     button.addEventListener('click', () => {
       const target = document.querySelector(`#${button.dataset.railTarget}`);
       if (!target) return;
+      railPreferredTargetId = button.dataset.railTarget;
+      setActiveRailTarget(railPreferredTargetId);
       target.scrollIntoView({
         block: 'start',
         behavior: prefersReducedMotion() ? 'auto' : 'smooth'
       });
     });
   });
+  if (!railIntentEventsBound) {
+    railIntentEventsBound = true;
+    window.addEventListener('wheel', clearRailPreferredTarget, { passive: true });
+    window.addEventListener('touchstart', clearRailPreferredTarget, { passive: true });
+    window.addEventListener('keydown', (event) => {
+      if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) {
+        clearRailPreferredTarget();
+      }
+    });
+  }
+  railScrollHandler = () => updateActiveRailItem();
+  window.addEventListener('scroll', railScrollHandler, { passive: true });
+  updateActiveRailItem();
+}
+
+function updateActiveRailItem() {
+  const items = [...document.querySelectorAll('[data-rail-target]')];
+  if (!items.length) return;
+  const viewportTop = 96;
+  const viewportBottom = window.innerHeight;
+  const sections = items
+    .map((item) => {
+      const target = document.querySelector(`#${item.dataset.railTarget}`);
+      const rect = target?.getBoundingClientRect();
+      const visibleHeight = rect
+        ? Math.max(0, Math.min(rect.bottom, viewportBottom) - Math.max(rect.top, viewportTop))
+        : 0;
+      return { item, target, rect, visibleHeight };
+    })
+    .filter(({ target }) => target);
+  if (!sections.length) return;
+
+  const preferred = sections.find(({ item, visibleHeight }) => item.dataset.railTarget === railPreferredTargetId && visibleHeight > 4);
+  if (preferred) {
+    setActiveRailTarget(preferred.item.dataset.railTarget);
+    return;
+  }
+  if (railPreferredTargetId) railPreferredTargetId = null;
+
+  const active = sections.reduce((best, section) => {
+    if (!best || section.visibleHeight > best.visibleHeight) return section;
+    if (section.visibleHeight === best.visibleHeight && section.rect.top < best.rect.top) return section;
+    return best;
+  }, null) || sections[0];
+  setActiveRailTarget(active.item.dataset.railTarget);
+}
+
+function setActiveRailTarget(targetId) {
+  document.querySelectorAll('[data-rail-target]').forEach((item) => {
+    const isActive = item.dataset.railTarget === targetId;
+    item.classList.toggle('active', isActive);
+    if (isActive) {
+      item.setAttribute('aria-current', 'page');
+    } else {
+      item.removeAttribute('aria-current');
+    }
+  });
+}
+
+function clearRailPreferredTarget() {
+  railPreferredTargetId = null;
 }
 
 function resetWorkspaceState() {
@@ -2960,9 +3032,11 @@ function bindCustomSelectEvents() {
     trigger.addEventListener('click', () => {
       const root = trigger.closest('[data-select-root]');
       const isOpen = root.classList.contains('open');
+      const shouldOpen = !isOpen;
       closeCustomSelects(root);
-      root.classList.toggle('open', !isOpen);
-      trigger.setAttribute('aria-expanded', String(!isOpen));
+      root.classList.toggle('open', shouldOpen);
+      trigger.setAttribute('aria-expanded', String(shouldOpen));
+      if (shouldOpen) updateCustomSelectMenuBounds(root);
     });
   });
 
@@ -2975,6 +3049,28 @@ function bindCustomSelectEvents() {
   });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeCustomSelects();
+  });
+  window.addEventListener('resize', () => {
+    document.querySelectorAll('[data-select-root].open').forEach(updateCustomSelectMenuBounds);
+  });
+}
+
+function updateCustomSelectMenuBounds(root) {
+  const menu = root?.querySelector('.pretty-select-menu');
+  if (!menu) return;
+  menu.style.removeProperty('--select-menu-max-height');
+  if (!window.matchMedia('(max-width: 760px)').matches) return;
+
+  window.requestAnimationFrame(() => {
+    const rail = document.querySelector('.command-rail');
+    const railRect = rail?.getBoundingClientRect();
+    const railIsFixed = rail && getComputedStyle(rail).position === 'fixed';
+    const bottomLimit = railRect && railIsFixed ? railRect.top - 10 : window.innerHeight - 12;
+    const menuTop = menu.getBoundingClientRect().top;
+    const availableHeight = Math.floor(bottomLimit - menuTop);
+    if (availableHeight > 80) {
+      menu.style.setProperty('--select-menu-max-height', `${availableHeight}px`);
+    }
   });
 }
 
@@ -3009,6 +3105,7 @@ function closeCustomSelects(exceptRoot = null) {
   document.querySelectorAll('[data-select-root].open').forEach((root) => {
     if (exceptRoot && root === exceptRoot) return;
     root.classList.remove('open');
+    root.querySelector('.pretty-select-menu')?.style.removeProperty('--select-menu-max-height');
     root.querySelector('[data-select-trigger]')?.setAttribute('aria-expanded', 'false');
   });
 }
@@ -3018,16 +3115,6 @@ function bindCustomerEvents() {
   bindRentDurationDropdowns();
   document.querySelectorAll('[data-station]').forEach((button) => {
     button.addEventListener('click', () => selectStation(Number(button.dataset.station)));
-  });
-  document.querySelectorAll('[data-location-preset]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      state.locationPresetId = button.dataset.locationPreset;
-      state.selectedStationId = null;
-      await runAction(async () => {
-        await refreshData();
-        render();
-      }, 'Đã cập nhật vị trí người dùng');
-    });
   });
   document.querySelectorAll('[data-station-range]').forEach((button) => {
     button.addEventListener('click', async () => {
@@ -3042,8 +3129,9 @@ function bindCustomerEvents() {
   document.querySelectorAll('[data-type-filter]').forEach((button) => {
     button.addEventListener('click', async () => {
       state.selectedTypeId = button.dataset.typeFilter;
+      state.selectedStationId = null;
       await runAction(async () => {
-        await loadStationBikes();
+        await refreshData();
         render();
       });
     });

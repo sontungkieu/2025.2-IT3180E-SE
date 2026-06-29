@@ -1028,6 +1028,7 @@ function getStations(db, searchParams) {
   const currentTime = appNow(db);
   const lat = Number(searchParams.get('lat'));
   const lng = Number(searchParams.get('lng'));
+  const typeId = Number(searchParams.get('typeId') || 0);
   const rows = db.prepare(`
     SELECT
       s.*,
@@ -1044,9 +1045,10 @@ function getStations(db, searchParams) {
       SUM(CASE WHEN b.bike_status = 'broken' THEN 1 ELSE 0 END) AS broken_bikes
     FROM stations s
     LEFT JOIN bikes b ON b.station_id = s.station_id
+      AND (? = 0 OR b.bike_type_id = ?)
     GROUP BY s.station_id
     ORDER BY s.station_name
-  `).all(currentTime);
+  `).all(currentTime, typeId, typeId);
   return rows.map((row) => ({
     ...row,
     distance_km: Number.isFinite(lat) && Number.isFinite(lng)
