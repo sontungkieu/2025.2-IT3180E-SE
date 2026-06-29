@@ -32,9 +32,10 @@ async function main() {
     await page.waitForSelector('.station-map');
     assert.ok(await page.locator('.user-map-pin, .map-user-dot').first().isVisible(), 'user GPS marker is missing');
 
-    await chooseDropdownOption(page, 'location', '[data-location-preset="manual-outside"]');
+    await setCustomerGps(page, 'resident@ecopark.test', { latitude: 20.9918, longitude: 105.8784 });
     await page.waitForSelector('text=Không có bãi xe trong phạm vi đã chọn');
-    await chooseDropdownOption(page, 'location', '[data-location-preset="gps-demo"]');
+    const springStation = await stationCoordinates(page, 'Spring Park Gate');
+    await setCustomerGps(page, 'resident@ecopark.test', springStation);
     await selectStationByName(page, 'Spring Park Gate');
     await page.waitForSelector('[data-rent]:not([disabled])');
 
@@ -54,7 +55,6 @@ async function main() {
     await setCustomerGps(page, 'resident@ecopark.test', { latitude: 20.9918, longitude: 105.8784 });
     await requestRow().locator('[data-handover]').click();
     await page.waitForSelector('text=GPS hiện tại của khách nằm ngoài bán kính');
-    const springStation = await stationCoordinates(page, 'Spring Park Gate');
     await setCustomerGps(page, 'resident@ecopark.test', springStation);
     await requestRow().locator('[data-handover]').click();
     await page.waitForSelector('.active-rentals-table');

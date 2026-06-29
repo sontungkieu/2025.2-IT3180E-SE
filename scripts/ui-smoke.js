@@ -57,11 +57,15 @@ async function verifyViewport(browser, baseUrl, viewport) {
   await page.waitForSelector('.dashboard-hero');
   await page.waitForTimeout(500);
   const appCanvas = await canvasStats(page);
-  const mapStats = viewport.demo.includes('customer@') ? await stationMapStats(page) : null;
+  const isCustomerViewport = viewport.demo.includes('customer@');
+  const mapStats = isCustomerViewport ? await stationMapStats(page) : null;
   const isOperationsViewport = /(?:admin|staff)@/.test(viewport.demo);
   if (isOperationsViewport) {
     await selectWeeklyReport(page);
   }
+  const customerFilterState = isCustomerViewport ? await customerFilterStats(page) : null;
+  const mobileRailStats = viewport.name === 'customer-mobile' ? await mobileDropdownRailStats(page) : null;
+  const customerRailStats = isCustomerViewport ? await customerRailSelectionStats(page) : null;
   const opsTableStats = isOperationsViewport ? await operationsTableStats(page) : null;
   const noBodyOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
 
@@ -74,6 +78,55 @@ async function verifyViewport(browser, baseUrl, viewport) {
     assert.equal(mapStats.mapReady, true, `${viewport.name} station map did not initialize`);
     assert.equal(mapStats.leafletMounted, true, `${viewport.name} Leaflet map did not mount`);
     assert.equal(mapStats.mapOverflow, false, `${viewport.name} station map content overflows`);
+  }
+  if (customerFilterState) {
+    assert.equal(
+      customerFilterState.springParkMetaIncludesTypeCount,
+      true,
+      `${viewport.name} station card does not show type-specific counts: ${JSON.stringify(customerFilterState)}`
+    );
+    assert.deepEqual(
+      customerFilterState.rangeLabels,
+      ['200 m', '500 m', '1 km'],
+      `${viewport.name} customer range options are not scaled for nearby stations`
+    );
+    assert.equal(customerFilterState.visibleControlLabelCount, 0, `${viewport.name} customer filter labels should not render above dropdowns`);
+    assert.equal(customerFilterState.gpsCopyUsesDemoWord, false, `${viewport.name} customer map GPS copy still includes demo wording`);
+  }
+  if (customerRailStats) {
+    assert.equal(
+      customerRailStats.rentalsActive,
+      true,
+      `${viewport.name} rental history rail item did not become active: ${JSON.stringify(customerRailStats)}`
+    );
+    assert.equal(
+      customerRailStats.rentActive,
+      false,
+      `${viewport.name} rent rail item stayed active after selecting rental history: ${JSON.stringify(customerRailStats)}`
+    );
+  }
+  if (mobileRailStats) {
+    assert.equal(mobileRailStats.railVisible, true, `${viewport.name} bottom rail is not visible`);
+    assert.equal(
+      mobileRailStats.railTopmost,
+      true,
+      `${viewport.name} bottom rail is covered while dropdown is open: ${JSON.stringify(mobileRailStats)}`
+    );
+    assert.equal(
+      mobileRailStats.menuClearOfRail,
+      true,
+      `${viewport.name} dropdown menu overlaps the bottom rail: ${JSON.stringify(mobileRailStats)}`
+    );
+    assert.equal(
+      mobileRailStats.toastClearOfRail,
+      true,
+      `${viewport.name} toast overlaps the bottom rail: ${JSON.stringify(mobileRailStats)}`
+    );
+    assert.equal(
+      mobileRailStats.toastTopAnchored,
+      true,
+      `${viewport.name} toast is not anchored near the top on mobile: ${JSON.stringify(mobileRailStats)}`
+    );
   }
   if (opsTableStats) {
     assert.equal(opsTableStats.tableCount >= 3, true, `${viewport.name} operations tables are missing`);
@@ -100,6 +153,84 @@ async function selectWeeklyReport(page) {
   await page.waitForFunction(() => document.querySelector('.report-filter-period .pretty-select')?.classList.contains('open'));
   await page.click('[data-report-filter="period"][data-report-value="week"]');
   await page.waitForFunction(() => document.querySelector('.export-state')?.textContent.includes('Theo tuần'));
+}
+
+async function mobileDropdownRailStats(page) {
+  await page.click('[data-select-trigger="type"]');
+  await page.waitForFunction(() => document.querySelector('.select-group-type .pretty-select')?.classList.contains('open'));
+  await page.waitForTimeout(100);
+  const stats = await page.evaluate(() => {
+    const rail = document.querySelector('.command-rail');
+    const menu = document.querySelector('.select-group-type .pretty-select-menu');
+    const toast = document.querySelector('.toast');
+    const railRect = rail?.getBoundingClientRect();
+    const menuRect = menu?.getBoundingClientRect();
+    const toastRect = toast?.getBoundingClientRect();
+    const point = railRect
+      ? { x: Math.round((railRect.left + railRect.right) / 2), y: Math.round((railRect.top + railRect.bottom) / 2) }
+      : { x: Math.round(window.innerWidth / 2), y: window.innerHeight - 36 };
+    const topElement = document.elementFromPoint(point.x, point.y);
+    const railVisible = Boolean(rail && getComputedStyle(rail).display !== 'none' && getComputedStyle(rail).visibility !== 'hidden');
+    const railTopmost = Boolean(topElement?.closest('.command-rail'));
+    const menuClearOfRail = Boolean(!railRect || !menuRect || menuRect.bottom <= railRect.top - 4);
+    const toastShown = toast?.classList.contains('show') || false;
+    const toastClearOfRail = Boolean(!toastShown || !railRect || !toastRect || toastRect.bottom <= railRect.top - 4 || toastRect.top >= railRect.bottom + 4);
+    const toastTopAnchored = Boolean(!toastShown || !toastRect || toastRect.top <= 64);
+    return {
+      railVisible,
+      railTopmost,
+      menuClearOfRail,
+      toastClearOfRail,
+      toastTopAnchored,
+      railRect: railRect ? { top: railRect.top, bottom: railRect.bottom } : null,
+      menuRect: menuRect ? { top: menuRect.top, bottom: menuRect.bottom } : null,
+      toastRect: toastRect ? { top: toastRect.top, bottom: toastRect.bottom } : null,
+      toastShown,
+      topElementClass: topElement?.className ? String(topElement.className) : topElement?.tagName || null,
+      point
+    };
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('.select-group-type .pretty-select')?.classList.contains('open'));
+  return stats;
+}
+
+async function customerFilterStats(page) {
+  await page.click('[data-select-trigger="type"]');
+  await page.waitForSelector('[data-type-filter="3"]:visible');
+  await page.click('[data-type-filter="3"]');
+  await page.waitForFunction(() => {
+    const springPark = [...document.querySelectorAll('.station-card')].find((card) => card.textContent.includes('Spring Park Gate'));
+    return springPark?.textContent.includes('Child-seat · 0/1 xe rảnh');
+  });
+  return page.evaluate(() => {
+    const springPark = [...document.querySelectorAll('.station-card')].find((card) => card.textContent.includes('Spring Park Gate'));
+    const rangeLabels = [...document.querySelectorAll('[data-station-range] .select-option-copy strong')].map((node) => node.textContent.trim());
+    const gpsCopy = document.querySelector('.map-status-chip')?.textContent || '';
+    return {
+      springParkText: springPark?.textContent.replace(/\s+/g, ' ').trim() || '',
+      springParkMetaIncludesTypeCount: springPark?.textContent.includes('Child-seat · 0/1 xe rảnh') || false,
+      rangeLabels,
+      visibleControlLabelCount: document.querySelectorAll('.search-workflow .control-label').length,
+      gpsCopyUsesDemoWord: /\bdemo\b/i.test(gpsCopy)
+    };
+  });
+}
+
+async function customerRailSelectionStats(page) {
+  await page.click('[data-rail-target="workspace-rentals"]');
+  await page.waitForFunction(() => document.querySelector('[data-rail-target="workspace-rentals"]')?.classList.contains('active'));
+  return page.evaluate(() => {
+    const rent = document.querySelector('[data-rail-target="workspace-rent"]');
+    const rentals = document.querySelector('[data-rail-target="workspace-rentals"]');
+    const rentalsRect = document.querySelector('#workspace-rentals')?.getBoundingClientRect();
+    return {
+      rentActive: rent?.classList.contains('active') || false,
+      rentalsActive: rentals?.classList.contains('active') || false,
+      rentalsCurrent: rentals?.getAttribute('aria-current') || null,
+      rentalsRect: rentalsRect ? { top: rentalsRect.top, bottom: rentalsRect.bottom } : null
+    };
+  });
 }
 
 async function operationsTableStats(page) {
