@@ -1,4 +1,4 @@
-import { mountScene } from '/scene.js?v=20260623-gps-stream-3';
+import { mountScene } from '/scene.js?v=20260630-wheel-clearance-scene';
 
 const DEFAULT_GPS_DEMO_LOCATION = Object.freeze({
   id: 'gps-demo',

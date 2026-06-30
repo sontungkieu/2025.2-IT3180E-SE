@@ -1,5 +1,22 @@
 # Milestones
 
+## 2026-06-30 - 3D scene nature polish
+
+- Brightened the Three.js scene palette with warmer meadow/path tones, lighter
+  road markings, livelier tree greens and stronger daylight.
+- Replaced the rectangular lake slab with an organic lakeside shape plus shore,
+  walking paths, reeds and small flower clusters for a more natural Ecopark feel.
+- Added a green/solar canopy treatment and a service pad for overflow bikes so
+  parked bikes no longer sit in the active bike lane.
+- Moved the child figure and pedestrian loop onto lakeside/plaza paths instead
+  of water or road surfaces, fixing several illogical spatial details.
+- Recentered the Three.js camera on the scene X axis and tightened responsive
+  frustums so the road/base render straight and fill wide hero frames.
+- Rebuilt the low-poly bicycles with upright wheel planes, spokes and triangular
+  frame tubes so wheels no longer read as lying flat or detached from the bike.
+- Raised bike ride heights separately for the lane and hub pad so tire bottoms
+  sit on the visible surface instead of sinking into the road mesh.
+
 ## 2026-06-30 - Customer GPS source simplification
 
 - Removed the customer-facing location preset dropdown from the rental workflow
