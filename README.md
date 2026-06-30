@@ -201,10 +201,17 @@ gcloud run deploy ecopark-bicycle-parking \
   Motion GSAP có hỗ trợ `prefers-reduced-motion`, scene Three.js low-poly mô
   phỏng Bike Hub isometric với đường nội khu, bike lane, canopy, dock/rack,
   status light và các xe City, Tandem, Child-seat khác hình dáng; bản scene mới
-  mở rộng hồ nước, bờ kè, dải cây xanh và hàng cây ven đường để khung 3D không
-  chỉ còn là mặt đường. Camera/frustum của scene tự fit theo tỉ lệ khung auth,
-  hero và mobile, không dùng CSS zoom thô; khi render lại cùng view, canvas được
-  giữ để tránh remount nhấp nháy. Scene có thêm xe chạy vòng theo hành lang
+  dùng palette sáng hơn, nền meadow, hồ nước bo hữu cơ, đường dạo ven hồ, mái
+  xanh/solar nhẹ, cụm hoa lau và hàng cây lệch nhịp để khung 3D có cảm giác
+  thiên nhiên hơn. Các chi tiết phi logic như trẻ em đứng trong hồ, xe đỗ trong
+  làn xe chạy và người đi bộ cắt qua road lane được đưa về đúng lối dạo/service
+  pad. Camera/frustum của scene tự fit theo tỉ lệ khung auth,
+  hero và mobile, căn camera theo trục ngang của road/base để khung 3D không bị
+  xoay chéo, tăng zoom theo tỉ lệ rộng để scene lấp khung tốt hơn và không dùng
+  CSS zoom thô; các xe dùng bánh đứng đúng mặt phẳng, nan hoa và khung tam giác
+  để tránh cảm giác bánh nằm sai trục, đồng thời đáy lốp được nâng theo mặt trên
+  của bike lane/service pad nên không còn lún vào đường. Khi render lại cùng
+  view, canvas được giữ để tránh remount nhấp nháy. Scene có thêm xe chạy vòng theo hành lang
   đường, người đi bộ/kiểm tra xe/em nhỏ vẫy tay và sway cây nhẹ để loop không bị
   tĩnh. Trên màn hình đăng nhập, scene được đóng như một dải preview bám theo
   cột nội dung thay vì một ảnh rời nằm lơ lửng.
