@@ -177,7 +177,11 @@ async function verifyConcurrentDemoSessions(browser, baseUrl) {
 
 async function loginDemo(page, email) {
   await page.click(`[data-demo-email="${email}"]`);
-  await page.waitForSelector('.dashboard-hero');
+  await page.waitForSelector('.dashboard-hero', { state: 'attached' });
+  await page.waitForFunction(async (expectedEmail) => {
+    const payload = await fetch('/api/session').then((response) => response.json());
+    return payload.user?.email === expectedEmail;
+  }, email);
 }
 
 async function chooseDropdownOption(page, name, optionSelector) {

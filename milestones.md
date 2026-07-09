@@ -11,6 +11,8 @@
   and UC-session metadata without overlapping the next account.
 - Added smoke coverage for medium operations scene pixel occupancy and mobile
   `/gd` chip overflow, and bumped the stylesheet cache key.
+- Stabilized concurrent UC login checks against GSAP entrance frames by waiting
+  for the workspace DOM and authenticated session instead of transient visibility.
 - Updated README and the 3D scene brief. PDF is N/A on `main`; the use-case
   drawio and planning files are N/A because actors, flows and roadmap are
   unchanged.
