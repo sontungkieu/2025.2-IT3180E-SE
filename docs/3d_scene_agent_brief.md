@@ -45,6 +45,7 @@ Giữ nguyên các điều kiện sau:
 - Phải render được trong các khung nhỏ:
   - auth preview rộng khoảng `760x220` hoặc `560x292` tùy viewport;
   - dashboard hero khoảng `430x226`;
+  - operations hero trung bình khoảng `852x192`;
   - mobile khoảng `346x142`.
 - Tôn trọng `prefers-reduced-motion`: vẫn render một frame tĩnh khi user bật
   reduced motion.

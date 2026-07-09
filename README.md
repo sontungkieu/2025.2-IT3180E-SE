@@ -217,11 +217,14 @@ gcloud run deploy ecopark-bicycle-parking \
   Camera/frustum tự fit theo auth, dashboard và mobile, giữ road/base nằm ngang
   nhưng hạ góc nhìn vừa đủ để thấy mặt bên, mái và bóng tiếp xúc. Xe dùng bánh
   đứng đúng mặt phẳng, nan hoa, khung tam giác và ride height theo từng mặt nền
-  nên không còn cảm giác bánh nằm sai trục hoặc lún vào đường. Khi render lại cùng
-  view, canvas được giữ để tránh remount nhấp nháy. Scene có thêm xe chạy vòng theo hành lang
-  đường, người đi bộ/kiểm tra xe/em nhỏ vẫy tay và sway cây nhẹ để loop không bị
-  tĩnh. Trên màn hình đăng nhập, scene được đóng như một dải preview bám theo
-  cột nội dung thay vì một ảnh rời nằm lơ lửng.
+  nên không còn cảm giác bánh nằm sai trục hoặc lún vào đường. Operations hero ở
+  dải `761-1365px` giữ chiều cao responsive để scene không co thành thumbnail;
+  khi render lại cùng view, canvas được giữ để tránh remount nhấp nháy. Scene có
+  thêm xe chạy vòng theo hành lang đường, người đi bộ/kiểm tra xe/em nhỏ vẫy tay
+  và sway cây nhẹ để loop không bị tĩnh. Trên màn hình đăng nhập, scene được đóng
+  như một dải preview bám theo cột nội dung thay vì một ảnh rời nằm lơ lửng.
+  Danh sách tài khoản `/gd` trên mobile tự tăng chiều cao chip để metadata nhiều
+  dòng không tràn sang tài khoản kế tiếp.
   Layout đã được kiểm tra lại trên desktop/mobile để tránh che chữ, tràn ngang
   và lệch bố cục.
 
@@ -247,11 +250,12 @@ npm run smoke:uc
 ```
 
 Smoke test UI mở desktop/tablet/mobile, gồm cả staff workspace rộng và trung
-bình, kiểm tra GSAP vendor đã load, scene Three.js có render pixel, bản đồ
-Leaflet có marker thật, report filters là custom dropdown, chart tiền trong báo
-cáo dùng cùng thang đo, bảng vận hành hẹp chuyển sang row-card, dashboard/table
-staff rộng không scroll ngang, không có console error và không có horizontal
-overflow ở cấp trang.
+bình cùng `/gd` mobile; kiểm tra GSAP vendor đã load, scene Three.js có render
+pixel và đủ độ phủ ở operations hero, metadata chip tài khoản không bị cắt, bản
+đồ Leaflet có marker thật, report filters là custom dropdown, chart tiền trong
+báo cáo dùng cùng thang đo, bảng vận hành hẹp chuyển sang row-card,
+dashboard/table staff rộng không scroll ngang, không có console error và không
+có horizontal overflow ở cấp trang.
 Khi cần rà thiết kế thủ công, có thể chụp lại các trạng thái auth/customer/admin
 bằng Playwright trước khi chốt thay đổi giao diện.
 

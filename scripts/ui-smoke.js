@@ -31,6 +31,7 @@ async function main() {
     for (const viewport of viewports) {
       await verifyViewport(browser, baseUrl, viewport);
     }
+    await verifyGpsDemoMobile(browser, baseUrl);
   } finally {
     await browser?.close();
     await new Promise((resolve) => server.close(resolve));
@@ -72,6 +73,12 @@ async function verifyViewport(browser, baseUrl, viewport) {
   assert.equal(gsapLoaded, true, `${viewport.name} GSAP did not load`);
   assert.ok(authCanvas.nonTransparent > 1000, `${viewport.name} auth canvas is blank`);
   assert.ok(appCanvas.nonTransparent > 1000, `${viewport.name} app canvas is blank`);
+  if (viewport.name === 'staff-medium') {
+    assert.ok(
+      appCanvas.occupiedWidthRatio >= 0.55,
+      `${viewport.name} scene is compressed into a thumbnail: ${JSON.stringify(appCanvas)}`
+    );
+  }
   if (mapStats) {
     assert.equal(mapStats.pinCount >= 3, true, `${viewport.name} station map is missing pins`);
     assert.equal(mapStats.realPinCount >= 3, true, `${viewport.name} real map markers are missing`);
@@ -145,6 +152,33 @@ async function verifyViewport(browser, baseUrl, viewport) {
   assert.equal(noBodyOverflow, true, `${viewport.name} has body-level horizontal overflow`);
   assert.deepEqual(errors, [], `${viewport.name} console errors`);
   console.log(`${viewport.name}: canvas and layout smoke passed`);
+  await page.close();
+}
+
+async function verifyGpsDemoMobile(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const errors = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto(`${baseUrl}/gd`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.gps-user-grid .gps-chip');
+  const stats = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('.gps-user-grid .gps-chip')];
+    return {
+      chipCount: chips.length,
+      overflowingChipCount: chips.filter((chip) => chip.scrollHeight > chip.clientHeight + 1).length,
+      bodyOverflow: document.documentElement.scrollWidth > window.innerWidth + 1
+    };
+  });
+
+  assert.ok(stats.chipCount >= 1, 'gps-mobile user account chips are missing');
+  assert.equal(stats.overflowingChipCount, 0, `gps-mobile account metadata is clipped: ${JSON.stringify(stats)}`);
+  assert.equal(stats.bodyOverflow, false, 'gps-mobile has body-level horizontal overflow');
+  assert.deepEqual(errors, [], 'gps-mobile console errors');
+  console.log('gps-mobile: account chip layout smoke passed');
   await page.close();
 }
 
@@ -312,9 +346,20 @@ async function canvasStats(page) {
     context.drawImage(canvas, 0, 0);
     const data = context.getImageData(0, 0, sample.width, sample.height).data;
     let nonTransparent = 0;
-    for (let i = 0; i < data.length; i += 16) {
-      if (data[i + 3] > 8) nonTransparent += 1;
+    let minX = sample.width;
+    let maxX = -1;
+    for (let y = 0; y < sample.height; y += 2) {
+      for (let x = 0; x < sample.width; x += 2) {
+        const alpha = data[(y * sample.width + x) * 4 + 3];
+        if (alpha <= 8) continue;
+        nonTransparent += 1;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+      }
     }
-    return { width: sample.width, height: sample.height, nonTransparent };
+    const occupiedWidthRatio = maxX >= minX
+      ? (maxX - minX + 2) / sample.width
+      : 0;
+    return { width: sample.width, height: sample.height, nonTransparent, occupiedWidthRatio };
   });
 }

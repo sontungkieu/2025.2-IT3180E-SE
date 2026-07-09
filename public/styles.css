@@ -3705,11 +3705,6 @@ td {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .view-operations .hero-scene {
-    height: 118px;
-    min-height: 118px;
-  }
-
   .view-operations .report-dashboard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3806,6 +3801,13 @@ td {
 
   .view-operations .row-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1365px) {
+  .view-operations .hero-scene {
+    height: clamp(172px, 16vw, 208px);
+    min-height: 172px;
   }
 }
 
@@ -3995,6 +3997,10 @@ td {
     order: -1;
     min-height: 142px;
     height: 142px;
+  }
+
+  .gps-user-grid .gps-chip {
+    min-height: 72px;
   }
 
   .dashboard-hero .eyebrow {

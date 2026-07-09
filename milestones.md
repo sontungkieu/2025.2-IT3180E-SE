@@ -1,5 +1,20 @@
 # Milestones
 
+## 2026-07-10 - Responsive UI glitch audit
+
+- Audited auth, customer, staff/admin and `/gd` screens with live Playwright
+  screenshots plus DOM checks for console errors, clipping and body overflow.
+- Replaced the fixed 118 px operations scene strip at medium widths with a
+  responsive 172-208 px frame so the 3D world no longer collapses into a small
+  centered thumbnail.
+- Expanded `/gd` mobile account chips to contain wrapped email, customer type
+  and UC-session metadata without overlapping the next account.
+- Added smoke coverage for medium operations scene pixel occupancy and mobile
+  `/gd` chip overflow, and bumped the stylesheet cache key.
+- Updated README and the 3D scene brief. PDF is N/A on `main`; the use-case
+  drawio and planning files are N/A because actors, flows and roadmap are
+  unchanged.
+
 ## 2026-07-10 - 3D mobility garden redesign
 
 - Preserved matched `430x226` before/after dashboard renders under `docs/ui/`
