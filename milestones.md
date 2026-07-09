@@ -1,5 +1,24 @@
 # Milestones
 
+## 2026-07-10 - 3D mobility garden redesign
+
+- Preserved matched `430x226` before/after dashboard renders under `docs/ui/`
+  so scene changes can be reviewed against the previous production state.
+- Tightened the world footprint and responsive orthographic frustums so the hub,
+  bicycles and lake occupy the compact hero instead of shrinking inside broad
+  empty ground bands.
+- Rebuilt the hub as a larger green-roof and solar canopy with glass backing,
+  compact racks, readable signage and all docked bicycles inside its footprint.
+- Replaced repetitive tree rows with varied tree and shrub clusters, refined the
+  organic lake with offset ripples and lily pads, and added subtle contact shadows
+  so the scene reads as a brighter Ecopark mobility garden with more depth.
+- Kept the road horizontal while lowering the camera angle, corrected service-pad
+  bike placement and retained surface-specific wheel clearance for static and
+  moving bicycles.
+- Updated README scene documentation and the external 3D brief. PDF is N/A on
+  `main`; the use-case drawio is unchanged because this is decorative presentation
+  work and does not alter actors, flows or UC001-UC005 scope.
+
 ## 2026-06-30 - 3D scene nature polish
 
 - Brightened the Three.js scene palette with warmer meadow/path tones, lighter

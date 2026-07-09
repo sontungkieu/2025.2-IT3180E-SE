@@ -14,8 +14,9 @@ loại xe khác nhau, người chuyển động và một xe đạp chạy loop 
 ## Source cần chỉnh
 
 - File chính: `public/scene.js`
-- Không cần chỉnh `public/app.js`, CSS, backend hoặc test nếu chỉ cải thiện
-  phối cảnh scene.
+- Nếu thay đổi scene đã cache, cập nhật cache key import trong `public/app.js`
+  và cache key script tương ứng trong `public/index.html`; không cần đổi CSS,
+  backend hoặc test nếu chỉ cải thiện phối cảnh scene.
 - Có thể dùng file này làm context cho Claude/agent ngoài và yêu cầu họ trả về
   patch hoặc toàn bộ nội dung `public/scene.js`.
 
@@ -42,9 +43,9 @@ Giữ nguyên các điều kiện sau:
   thì tự tạo bằng `CanvasTexture`.
 - Không đổi class canvas `.park-scene-canvas`.
 - Phải render được trong các khung nhỏ:
-  - auth hero khoảng `600x320`, hiện CSS còn scale canvas lên trong auth;
+  - auth preview rộng khoảng `760x220` hoặc `560x292` tùy viewport;
   - dashboard hero khoảng `430x226`;
-  - mobile khoảng `334x220`.
+  - mobile khoảng `346x142`.
 - Tôn trọng `prefers-reduced-motion`: vẫn render một frame tĩnh khi user bật
   reduced motion.
 - Cleanup phải dispose geometry/material/texture và remove listener/RAF.
@@ -56,13 +57,13 @@ Giữ nguyên các điều kiện sau:
 - Palette `C` và `makeMats(store)`.
 - `DisposeStore` để track geometry/material/texture.
 - World:
-  - ground box khoảng `32 x 20`;
-  - road chạy theo trục X, đặt quanh `z = 1.8`;
-  - bike lane quanh `z = 0.7`;
-  - grass strip ở giữa road và lake;
-  - lake lớn quanh `x = 8.0`, `z = -5.5`;
-  - hub/canopy quanh `x = -1.5`, `z = -2.1`;
-  - trees quanh road/lake/far side.
+  - ground box gọn khoảng `26 x 16`;
+  - road chạy theo trục X, đặt quanh `z = 2.0`;
+  - bike lane quanh `z = 0.75`;
+  - hub/canopy lớn quanh `x = -2.2`, `z = -1.85`, toàn bộ rack và xe đỗ nằm
+    trong footprint của mái;
+  - lake hữu cơ quanh `x = 7.3`, `z = -5.15`, có bờ, lily pad và ripple lệch;
+  - trees/shrubs gom thành cụm khác scale quanh hub, lake và mép road.
 - Bike models:
   - `addCityBike`;
   - `addTandemBike`;
@@ -74,11 +75,11 @@ Giữ nguyên các điều kiện sau:
   - person A đi loop quanh plaza;
   - person B đứng kiểm tra xe;
   - child C vẫy tay gần hồ.
-- Camera hiện tại:
+- Camera hiện tại giữ road nằm ngang nhưng hạ góc nhìn để tăng chiều sâu:
   ```js
   const cam = new THREE.OrthographicCamera(...);
-  cam.position.set(0, 18, 18);
-  cam.lookAt(2, 0, -2.0);
+  cam.position.set(2, 15.5, 22);
+  cam.lookAt(2, 0.35, -1.75);
   ```
 - Animation hiện tại:
   - moving bike chạy dọc lane theo sin/cos, loop 16s;

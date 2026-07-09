@@ -10,26 +10,32 @@ import * as THREE from '/vendor/three.module.js';
 
 /* ─────────────────────────── PALETTE ─────────────────────────── */
 const C = {
-  plaza:      0xf2ead6,
-  path:       0xefe4c8,
-  shore:      0xd8cfa8,
-  meadow:     0xd9f1c9,
-  road:       0x66717e,
-  lane:       0x78b98a,
-  kerb:       0xd7ded1,
-  grass:      0x75b85f,
-  grassLight: 0xa9d879,
-  reed:       0xb8a94f,
-  flowerA:    0xffc9d6,
-  flowerB:    0xffffff,
-  treeTop:    0x4c9a43,
-  treeTopDark: 0x2f7539,
-  treeTrunk:  0x7d5b39,
-  water:      0x62c8dc,
-  rack:       0x9fb0bd,
-  rackBase:   0x6f8794,
-  roof:       0x3f8a73,
-  signBg:     0x155442,
+  plaza:      0xf2ead8,
+  path:       0xf7efd9,
+  shore:      0xd9cfa9,
+  meadow:     0xe6f5da,
+  road:       0x5e6b73,
+  lane:       0x5fb582,
+  kerb:       0xe4e9df,
+  grass:      0x70b85a,
+  grassLight: 0xa9d979,
+  shrub:      0x3f8c4d,
+  reed:       0x9da34a,
+  flowerA:    0xf59cab,
+  flowerB:    0xfff7dc,
+  flowerC:    0x8ac7e8,
+  treeTop:    0x4fa34c,
+  treeTopDark: 0x287244,
+  treeTopLight: 0x78bf58,
+  treeTrunk:  0x805b3b,
+  water:      0x64c9dd,
+  rack:       0xa7b9bd,
+  rackBase:   0x71888c,
+  roof:       0x2d8068,
+  roofEdge:   0x185c4e,
+  solar:      0x24536a,
+  glass:      0x9bd8de,
+  signBg:     0x0f5945,
   bollard:    0xd1d8d2,
   bollardTop: 0xffd84a,
   statusOn:   0x38e778,
@@ -46,8 +52,8 @@ const C = {
   personC:    0xffc247,   // yellow jacket (child)
   skin:       0xf3c88b,
   pants:      0x34495e,
-  ambientLight: 0xf2ffe9,
-  sunLight:   0xfff2c8,
+  ambientLight: 0xf4fff1,
+  sunLight:   0xfff1c9,
 };
 
 /* ─────────────────────────── MODULE-LEVEL STATE ─────────────────
@@ -95,15 +101,20 @@ function makeMats(store) {
     kerb:       lam(C.kerb),
     grass:      lam(C.grass),
     grassLight: lam(C.grassLight),
+    shrub:      lam(C.shrub),
     reed:       lam(C.reed),
     flowerA:    lam(C.flowerA),
     flowerB:    lam(C.flowerB),
+    flowerC:    lam(C.flowerC),
     treeTop:    lam(C.treeTop),
     treeTopDark: lam(C.treeTopDark),
+    treeTopLight: lam(C.treeTopLight),
     treeTrunk:  lam(C.treeTrunk),
     rack:       lam(C.rack),
     rackBase:   lam(C.rackBase),
     roof:       lam(C.roof),
+    roofEdge:   lam(C.roofEdge),
+    solar:      lam(C.solar, { roughness: 0.34, metalness: 0.18 }),
     signBg:     lam(C.signBg),
     bollard:    lam(C.bollard),
     bollardTop: lam(C.bollardTop),
@@ -127,6 +138,26 @@ function makeMats(store) {
       metalness: 0.0,
       emissive: 0x123d4a,
       emissiveIntensity: 0.08,
+    })),
+    glass: store.mat(new THREE.MeshStandardMaterial({
+      color: C.glass,
+      transparent: true,
+      opacity: 0.42,
+      roughness: 0.18,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+    })),
+    waterRipple: store.mat(new THREE.MeshBasicMaterial({
+      color: 0xdaf8ff,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    })),
+    contactShadow: store.mat(new THREE.MeshBasicMaterial({
+      color: 0x244b37,
+      transparent: true,
+      opacity: 0.13,
+      depthWrite: false,
     })),
     statusOn:  basic(C.statusOn),
     statusOff: basic(C.statusOff),
@@ -192,57 +223,59 @@ function addFlat(scene, store, mat, x, y, z, geo) {
   return mesh;
 }
 
+function addContactShadow(scene, store, mat, x, z, radiusX, radiusZ = radiusX) {
+  const shadow = mkMesh(store.geo(new THREE.CircleGeometry(1, 24)), mat);
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.scale.set(radiusX, radiusZ, 1);
+  shadow.castShadow = false;
+  shadow.receiveShadow = false;
+  at(shadow, x, 0.105, z);
+  scene.add(shadow);
+}
+
 /* ─────────────────────────── WORLD BUILDERS ─────────────────────── */
 
 function addGround(scene, mats, store) {
-  // Soft meadow base, large enough to keep compact hero frames from reading as a grey slab.
-  const g = mkMesh(store.geo(box(32, 0.15, 20)), mats.meadow);
-  at(g, 2, -0.075, 0);
+  const g = mkMesh(store.geo(box(26, 0.2, 16)), mats.meadow);
+  at(g, 2, -0.1, -0.4);
   scene.add(g);
 }
 
 function addRoad(scene, mats, store) {
-  // Main road — runs along X axis (left-right in scene space)
-  const road = mkMesh(store.geo(box(32, 0.16, 3.2)), mats.road);
-  at(road, 2, 0, 1.8);
+  const road = mkMesh(store.geo(box(26, 0.16, 3.25)), mats.road);
+  at(road, 2, 0, 2.0);
   scene.add(road);
 
-  // Bike lane stripe (near side of road)
-  const bikelane = mkMesh(store.geo(box(32, 0.17, 0.85)), mats.lane);
-  at(bikelane, 2, 0, 0.7);
+  const bikelane = mkMesh(store.geo(box(26, 0.17, 0.92)), mats.lane);
+  at(bikelane, 2, 0, 0.75);
   scene.add(bikelane);
 
-  // Kerbs
-  for (const sz of [-0.5, 3.1]) {
-    const kerb = mkMesh(store.geo(box(32, 0.22, 0.18)), mats.kerb);
+  for (const sz of [-0.56, 3.32]) {
+    const kerb = mkMesh(store.geo(box(26, 0.24, 0.2)), mats.kerb);
     at(kerb, 2, 0, sz);
     scene.add(kerb);
   }
 
-  // Dashed centre line
-  for (let x = -13; x < 18; x += 2.4) {
-    const dash = mkMesh(store.geo(box(1.4, 0.17, 0.06)), mats.dashLine);
-    at(dash, x, 0.01, 1.8);
+  for (let x = -10.5; x < 15; x += 2.6) {
+    const dash = mkMesh(store.geo(box(1.45, 0.17, 0.065)), mats.dashLine);
+    at(dash, x, 0.01, 2.0);
     scene.add(dash);
   }
 
-  // Short white lane markers help the bike lane read clearly in small heroes.
-  for (let x = -12; x < 17; x += 3.2) {
-    const mark = mkMesh(store.geo(box(1.8, 0.18, 0.08)), mats.laneMark);
-    at(mark, x, 0.02, 0.7);
+  for (let x = -10.5; x < 15; x += 3.4) {
+    const mark = mkMesh(store.geo(box(1.9, 0.18, 0.075)), mats.laneMark);
+    at(mark, x, 0.02, 0.75);
     scene.add(mark);
   }
 }
 
 function addGrass(scene, mats, store) {
-  // Wide grass strip between road and lake
-  const g1 = mkMesh(store.geo(box(32, 0.16, 8.5)), mats.grass);
-  at(g1, 2, 0, -5.75);
+  const g1 = mkMesh(store.geo(box(26, 0.16, 7.5)), mats.grass);
+  at(g1, 2, 0, -4.35);
   scene.add(g1);
 
-  // Narrow grass strip on far side of road
-  const g2 = mkMesh(store.geo(box(32, 0.16, 2.8)), mats.grassLight);
-  at(g2, 2, 0, 6.4);
+  const g2 = mkMesh(store.geo(box(26, 0.16, 2.2)), mats.grassLight);
+  at(g2, 2, 0, 5.45);
   scene.add(g2);
 }
 
@@ -253,11 +286,11 @@ function addPath(scene, mats, store, x, z, w, d, ry = 0) {
 }
 
 function addParkPaths(scene, mats, store) {
-  addPath(scene, mats, store, 2.8, -2.45, 18.6, 0.55);
-  addPath(scene, mats, store, 7.6, -8.72, 8.8, 0.42);
-  addPath(scene, mats, store, 12.45, -5.8, 0.46, 4.6);
-  addPath(scene, mats, store, -5.9, -1.9, 3.6, 0.48, -0.18);
-  addPath(scene, mats, store, 4.9, -1.05, 3.4, 1.65);
+  addPath(scene, mats, store, 2.0, -2.15, 18.0, 0.62);
+  addPath(scene, mats, store, 7.0, -7.55, 6.8, 0.48);
+  addPath(scene, mats, store, 10.9, -5.05, 0.5, 4.4);
+  addPath(scene, mats, store, -6.7, -2.0, 2.8, 0.52, -0.12);
+  addPath(scene, mats, store, 3.1, -0.95, 3.3, 1.5);
 }
 
 function addFlower(scene, mats, store, x, z, mat, scale = 1) {
@@ -270,15 +303,15 @@ function addFlower(scene, mats, store, x, z, mat, scale = 1) {
 
 function addPlanting(scene, mats, store) {
   const flowers = [
-    [-8.2, -2.75, 'flowerA'], [-7.55, -2.62, 'flowerB'], [-6.9, -2.82, 'flowerA'],
-    [2.8, -2.75, 'flowerB'], [3.35, -2.58, 'flowerA'], [4.0, -2.75, 'flowerB'],
-    [10.6, -2.7, 'flowerA'], [11.2, -2.58, 'flowerB'],
+    [-7.6, -2.7, 'flowerA'], [-7.25, -2.55, 'flowerB'], [-6.9, -2.72, 'flowerC'],
+    [1.9, -2.72, 'flowerB'], [2.25, -2.56, 'flowerA'], [2.6, -2.72, 'flowerC'],
+    [9.7, -2.65, 'flowerA'], [10.1, -2.55, 'flowerB'],
   ];
   for (const [x, z, matName] of flowers) addFlower(scene, mats, store, x, z, mats[matName], 1.0);
 
   const reeds = [
-    [4.35, -4.0], [4.25, -6.9], [11.65, -4.3], [10.8, -8.0],
-    [6.1, -8.25], [7.7, -3.15], [9.6, -3.08],
+    [4.25, -3.65], [4.05, -6.25], [10.15, -4.0], [9.55, -6.85],
+    [5.55, -7.05], [7.1, -3.05], [8.8, -3.0],
   ];
   for (const [x, z] of reeds) {
     for (let i = 0; i < 3; i++) {
@@ -290,15 +323,47 @@ function addPlanting(scene, mats, store) {
   }
 }
 
-function addPond(scene, mats, store) {
-  // Organic lake shape — avoids the old hard rectangular pool.
-  addFlat(scene, store, mats.shore, 8.0, 0.112, -5.6, organicLakeGeometry(1.08));
-  const pond = addFlat(scene, store, mats.water, 8.0, 0.13, -5.6, organicLakeGeometry(0.96));
+function addShrub(scene, mats, store, x, z, scale = 1) {
+  const group = new THREE.Group();
+  const placements = [
+    [-0.28, 0.02, 0.34, 'shrub'],
+    [0.18, -0.06, 0.42, 'treeTopDark'],
+    [0.38, 0.10, 0.30, 'treeTopLight'],
+  ];
+  for (const [dx, dz, radius, matName] of placements) {
+    const crown = mkMesh(store.geo(sph(radius * scale, 7, 5)), mats[matName]);
+    at(crown, x + dx * scale, radius * 0.7 * scale, z + dz * scale);
+    group.add(crown);
+  }
+  scene.add(group);
+}
 
-  // Floating lily pad decorations (small flat circles on water)
-  for (const [px, pz] of [[6.5,-4.8],[9.2,-6.3],[11.0,-4.5],[7.0,-6.8]]) {
-    const lily = mkMesh(store.geo(cyl(0.18, 0.18, 0.04, 8)), mats.grass);
-    at(lily, px, 0.12, pz);
+function addShrubs(scene, mats, store) {
+  const clusters = [
+    [-8.3, -3.25, 0.8], [-7.2, -3.45, 0.72],
+    [1.8, -3.45, 0.74], [2.8, -3.35, 0.82],
+    [3.5, -6.8, 0.9], [10.5, -6.6, 0.78],
+    [-7.8, 4.9, 0.72], [10.5, 4.95, 0.82],
+  ];
+  for (const [x, z, scale] of clusters) addShrub(scene, mats, store, x, z, scale);
+}
+
+function addPond(scene, mats, store) {
+  addFlat(scene, store, mats.shore, 7.3, 0.112, -5.15, organicLakeGeometry(0.93));
+  const pond = addFlat(scene, store, mats.water, 7.3, 0.132, -5.15, organicLakeGeometry(0.83));
+
+  for (const [x, z, radius, scaleX] of [[6.35, -4.75, 0.42, 1.35], [8.7, -5.72, 0.3, 1.5]]) {
+    const ripple = mkMesh(store.geo(torus(radius, 0.018, 5, 32)), mats.waterRipple);
+    ripple.rotation.x = Math.PI / 2;
+    ripple.scale.x = scaleX;
+    at(ripple, x, 0.148, z);
+    ripple.castShadow = false;
+    scene.add(ripple);
+  }
+
+  for (const [px, pz, scale] of [[6.2,-4.7,1],[8.7,-5.9,0.8],[9.6,-4.45,0.9],[6.6,-6.2,0.75]]) {
+    const lily = mkMesh(store.geo(cyl(0.18 * scale, 0.18 * scale, 0.035, 10)), mats.grass);
+    at(lily, px, 0.145, pz);
     scene.add(lily);
   }
 
@@ -307,43 +372,38 @@ function addPond(scene, mats, store) {
 
 function addTree(scene, mats, store, x, z, scale = 1.0) {
   const trunkH = 1.2 * scale;
-  const canopyR = 0.95 * scale;
+  const canopyR = 0.86 * scale;
   const trunk = mkMesh(store.geo(cyl(0.14 * scale, 0.18 * scale, trunkH, 7)), mats.treeTrunk);
   at(trunk, x, trunkH * 0.5, z);
-  // Layered canopy for fuller look
-  const canopy1 = mkMesh(store.geo(sph(canopyR, 8, 7)), mats.treeTop);
-  at(canopy1, x, trunkH + canopyR * 0.7, z);
-  const canopy2 = mkMesh(store.geo(sph(canopyR * 0.72, 7, 6)), mats.treeTopDark);
-  at(canopy2, x + 0.15 * scale, trunkH + canopyR * 1.1, z - 0.1 * scale);
-  scene.add(trunk, canopy1, canopy2);
-  return canopy1; // primary for sway
+  addContactShadow(scene, store, mats.contactShadow, x + 0.18 * scale, z + 0.12 * scale, 0.78 * scale, 0.42 * scale);
+  const canopy1 = mkMesh(store.geo(sph(canopyR, 9, 7)), mats.treeTop);
+  at(canopy1, x, trunkH + canopyR * 0.62, z);
+  const canopy2 = mkMesh(store.geo(sph(canopyR * 0.68, 8, 6)), mats.treeTopDark);
+  at(canopy2, x + 0.18 * scale, trunkH + canopyR * 1.05, z - 0.08 * scale);
+  const canopy3 = mkMesh(store.geo(sph(canopyR * 0.52, 7, 6)), mats.treeTopLight);
+  at(canopy3, x - 0.28 * scale, trunkH + canopyR * 0.9, z + 0.08 * scale);
+  scene.add(trunk, canopy1, canopy2, canopy3);
+  return canopy1;
 }
 
 function addTrees(scene, mats, store) {
-  // Trees along the park path, staggered so they look planted rather than stamped.
   const roadside = [
-    [-10.2, -4.35], [-7.7, -4.85], [-5.2, -4.25], [-2.8, -4.72],
-    [-0.4, -4.28], [2.0, -4.78],
+    [-8.4, -4.4, 0.9], [-7.0, -5.0, 1.08], [-5.5, -4.25, 0.82],
+    [0.8, -4.25, 0.82], [2.15, -4.75, 1.02],
   ];
-  // Large feature trees around/beside the lake
   const lakeTrees = [
-    [3.85, -4.3, 1.28],   // left bank, outside water
-    [3.65, -7.2, 1.18],
-    [12.28, -4.45, 1.36],
-    [12.25, -7.45, 1.28],
-    [8.0, -9.35, 1.22],
-    [10.0, -9.05, 1.12],
-    [6.0, -9.08, 1.12],
+    [3.45, -4.55, 1.22], [3.6, -6.55, 1.05],
+    [10.75, -4.25, 1.28], [10.45, -6.4, 1.12],
+    [7.0, -7.6, 1.18], [8.65, -7.35, 0.96],
   ];
-  // Trees on far side of road (bottom of scene)
   const farside = [
-    [-10, 6.2, 1.0], [-7.1, 6.45, 1.05], [-4.1, 6.05, 0.96],
-    [0.1, 6.35, 1.0], [3.3, 6.0, 0.98],
+    [-8.8, 5.35, 0.86], [-6.7, 5.65, 1.03], [-3.7, 5.4, 0.82],
+    [9.2, 5.4, 0.88], [11.0, 5.7, 1.02],
   ];
 
   const canopies = [];
-  for (const [x, z] of roadside) {
-    canopies.push(addTree(scene, mats, store, x, z, 0.95));
+  for (const [x, z, sc] of roadside) {
+    canopies.push(addTree(scene, mats, store, x, z, sc));
   }
   for (const [x, z, sc] of lakeTrees) {
     canopies.push(addTree(scene, mats, store, x, z, sc));
@@ -370,50 +430,65 @@ function addBollards(scene, mats, store) {
 /* ─────────────────────── BIKE HUB STATION ─────────────────────── */
 
 function addRack(scene, mats, store, cx, cz, statusMat) {
-  const base = mkMesh(store.geo(box(1.4, 0.1, 0.5)), mats.rackBase);
+  const base = mkMesh(store.geo(box(0.82, 0.1, 0.46)), mats.rackBase);
   at(base, cx, 0.05, cz);
   scene.add(base);
 
-  for (const dx of [-0.5, 0.5]) {
-    const post = mkMesh(store.geo(cyl(0.055, 0.055, 0.72, 6)), mats.rack);
-    at(post, cx + dx, 0.46, cz);
+  for (const dx of [-0.28, 0.28]) {
+    const post = mkMesh(store.geo(cyl(0.048, 0.048, 0.58, 7)), mats.rack);
+    at(post, cx + dx, 0.39, cz);
     scene.add(post);
   }
 
-  const bar = mkMesh(store.geo(box(1.1, 0.07, 0.07)), mats.rack);
-  at(bar, cx, 0.845, cz);
+  const bar = mkMesh(store.geo(box(0.58, 0.07, 0.07)), mats.rack);
+  at(bar, cx, 0.68, cz);
   scene.add(bar);
 
   const led = mkMesh(store.geo(sph(0.065, 5, 5)), statusMat);
-  at(led, cx, 0.92, cz);
+  at(led, cx, 0.76, cz);
   scene.add(led);
   return led;
 }
 
 function addHubCanopy(scene, mats, store) {
-  const roof = mkMesh(store.geo(box(6.5, 0.14, 2.8)), mats.roof);
-  at(roof, -1.5, 2.4, -2.1);
+  const hubX = -2.2;
+  const hubZ = -1.85;
+
+  const pad = mkMesh(store.geo(box(9.2, 0.2, 3.35)), mats.plaza);
+  at(pad, hubX, 0.1, hubZ);
+  scene.add(pad);
+
+  const roof = mkMesh(store.geo(box(8.6, 0.16, 2.9)), mats.roof);
+  at(roof, hubX, 2.58, hubZ);
   scene.add(roof);
 
-  const roofGarden = mkMesh(store.geo(box(6.0, 0.08, 2.28)), mats.grassLight);
-  at(roofGarden, -1.5, 2.53, -2.1);
+  const roofEdge = mkMesh(store.geo(box(8.8, 0.28, 0.16)), mats.roofEdge);
+  at(roofEdge, hubX, 2.52, -0.38);
+  scene.add(roofEdge);
+
+  const roofGarden = mkMesh(store.geo(box(8.05, 0.08, 2.34)), mats.grassLight);
+  at(roofGarden, hubX, 2.70, hubZ);
   scene.add(roofGarden);
 
-  for (const sx of [-2.7, -1.4, -0.1, 1.2]) {
-    const panel = mkMesh(store.geo(box(0.9, 0.045, 0.52)), mats.signBg);
-    at(panel, sx, 2.60, -1.55);
-    panel.rotation.y = 0.04;
+  for (const sx of [-5.15, -3.15, -1.15, 0.85]) {
+    const panel = mkMesh(store.geo(box(1.58, 0.055, 0.76)), mats.solar);
+    at(panel, sx, 2.76, -1.62);
     scene.add(panel);
   }
 
-  for (const [dx, dz] of [[-2.8, -0.9], [2.8, -0.9], [-2.8, -3.3], [2.8, -3.3]]) {
-    const col = mkMesh(store.geo(cyl(0.08, 0.08, 2.3, 5)), mats.rack);
-    at(col, -1.5 + dx, 1.15, -2.1 + dz);
+  for (const [x, z] of [[-6.0, -0.62], [1.6, -0.62], [-6.0, -3.08], [1.6, -3.08]]) {
+    const col = mkMesh(store.geo(cyl(0.095, 0.095, 2.45, 8)), mats.rack);
+    at(col, x, 1.23, z);
     scene.add(col);
   }
 
-  const sign = mkMesh(store.geo(box(5.2, 0.55, 0.08)), mats.signBg);
-  at(sign, -1.5, 2.15, -3.56);
+  const glassWall = mkMesh(store.geo(box(7.25, 1.7, 0.055)), mats.glass);
+  at(glassWall, hubX, 1.18, -3.18);
+  glassWall.castShadow = false;
+  scene.add(glassWall);
+
+  const sign = mkMesh(store.geo(box(4.5, 0.52, 0.09)), mats.signBg);
+  at(sign, hubX, 2.1, -0.31);
   scene.add(sign);
 
   // Canvas sign text — no ctx.letterSpacing for cross-browser safety
@@ -427,21 +502,28 @@ function addHubCanopy(scene, mats, store) {
   ctx.fillStyle    = '#f0f8ff';
   ctx.textAlign    = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('ECOBIKE HUB  \u00B7  ECOPARK', 256, 32);
+  ctx.fillText('ECOBIKE  \u00B7  ECOPARK', 256, 32);
 
   const tex     = store.tex(new THREE.CanvasTexture(canvas));
   const textMat = store.mat(new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
-  const signTxt = mkMesh(store.geo(box(5.2, 0.55, 0.09)), textMat);
-  at(signTxt, -1.5, 2.15, -3.57);
+  const signTxt = mkMesh(store.geo(new THREE.PlaneGeometry(4.35, 0.44)), textMat);
+  signTxt.castShadow = false;
+  at(signTxt, hubX, 2.1, -0.255);
   scene.add(signTxt);
 
-  const pad = mkMesh(store.geo(box(7.0, 0.17, 3.8)), mats.kerb);
-  at(pad, -1.5, 0.085, -2.1);
-  scene.add(pad);
-
-  const servicePad = mkMesh(store.geo(box(3.5, 0.12, 1.7)), mats.path);
-  at(servicePad, 4.95, 0.11, -1.05);
+  const servicePad = mkMesh(store.geo(box(3.0, 0.13, 1.45)), mats.path);
+  at(servicePad, 3.05, 0.12, -1.02);
   scene.add(servicePad);
+
+  const wayfinding = mkMesh(store.geo(box(0.48, 1.45, 0.2)), mats.signBg);
+  at(wayfinding, 2.05, 0.82, -2.85);
+  scene.add(wayfinding);
+
+  for (const y of [0.78, 1.02, 1.26]) {
+    const stripe = mkMesh(store.geo(box(0.34, 0.055, 0.215)), mats.signText);
+    at(stripe, 2.05, y, -2.86);
+    scene.add(stripe);
+  }
 }
 
 function addHubStation(scene, mats, store) {
@@ -449,26 +531,23 @@ function addHubStation(scene, mats, store) {
 
   const leds = [];
   const rackCfgs = [
-    [-3.6, -1.8, 'statusOn'],
-    [-2.0, -1.8, 'statusOff'],
-    [-0.4, -1.8, 'statusOn'],
-    [ 1.2, -1.8, 'statusOff'],
-    [ 2.8, -1.8, 'statusOn'],
-    [ 4.4, -1.8, 'statusOff'],
+    [-5.35, -1.55, 'statusOn'],
+    [-4.10, -1.55, 'statusOff'],
+    [-2.85, -1.55, 'statusOn'],
+    [-1.60, -1.55, 'statusOff'],
+    [-0.35, -1.55, 'statusOn'],
+    [ 0.90, -1.55, 'statusOff'],
   ];
   for (const [x, z, status] of rackCfgs) {
     const led = addRack(scene, mats, store, x, z, mats[status]);
     leds.push({ led, isOn: status === 'statusOn' });
   }
 
-  // Small decorative bench near hub
-  for (const bx of [-5.5, -7.0]) {
-    const benchBase = mkMesh(store.geo(box(0.9, 0.12, 0.38)), mats.kerb);
-    at(benchBase, bx, 0.18, -0.8);
-    const benchSeat = mkMesh(store.geo(box(0.9, 0.07, 0.40)), mats.rackBase);
-    at(benchSeat, bx, 0.30, -0.8);
-    scene.add(benchBase, benchSeat);
-  }
+  const benchBase = mkMesh(store.geo(box(1.35, 0.12, 0.42)), mats.kerb);
+  at(benchBase, -7.15, 0.18, -1.0);
+  const benchSeat = mkMesh(store.geo(box(1.35, 0.08, 0.44)), mats.rackBase);
+  at(benchSeat, -7.15, 0.31, -1.0);
+  scene.add(benchBase, benchSeat);
 
   return leds;
 }
@@ -476,7 +555,9 @@ function addHubStation(scene, mats, store) {
 /* ─────────────────────────── BICYCLES ─────────────────────────── */
 
 const BIKE_LANE_RIDE_Y = 0.12;
-const BIKE_PAD_RIDE_Y = 0.21;
+const HUB_CITY_RIDE_Y = 0.236;
+const HUB_TANDEM_RIDE_Y = 0.247;
+const SERVICE_TANDEM_RIDE_Y = 0.231;
 
 function addBikeTube(root, store, mat, x1, y1, x2, y2, thickness = 0.055, z = 0.035) {
   const dx = x2 - x1;
@@ -634,14 +715,15 @@ function addChildBike(scene, mats, store, x, y, z, ry = 0) {
 }
 
 function addBikes(scene, mats, store) {
-  // Docked in racks
-  addCityBike(scene,   mats, store, -3.6, BIKE_PAD_RIDE_Y, -1.8, 0);
-  addTandemBike(scene, mats, store, -0.4, BIKE_PAD_RIDE_Y, -1.8, 0);
-  addChildBike(scene,  mats, store,  2.8, BIKE_PAD_RIDE_Y, -1.8, 0);
+  const city = addCityBike(scene, mats, store, -5.35, HUB_CITY_RIDE_Y, -1.55, 0);
+  const tandem = addTandemBike(scene, mats, store, -2.85, HUB_TANDEM_RIDE_Y, -1.55, 0);
+  const child = addChildBike(scene, mats, store, -0.35, HUB_CITY_RIDE_Y, -1.55, 0);
+  city.scale.setScalar(1.12);
+  tandem.scale.setScalar(1.12);
+  child.scale.setScalar(1.12);
 
-  // Overflow parking on the service pad, outside the live bike lane.
-  addTandemBike(scene, mats, store,  5.7, BIKE_PAD_RIDE_Y, -1.05, -Math.PI * 0.05);
-  addChildBike(scene,  mats, store,  4.35, BIKE_PAD_RIDE_Y, -1.25,  Math.PI * 0.10);
+  const overflow = addTandemBike(scene, mats, store, 3.25, SERVICE_TANDEM_RIDE_Y, -1.0, 0);
+  overflow.scale.setScalar(1.08);
 }
 
 /* ─────────────────────────── MOVING BIKE ─────────────────────── */
@@ -803,12 +885,12 @@ function addPedestrians(scene, mats, store) {
 
   /* ── Person A: walks a loop across the plaza ── */
   const pathA = makeClosedPath([
-    [-7.3, -2.25],
-    [-5.3, -2.85],
-    [-3.2, -2.55],
-    [-1.2, -3.05],
-    [-2.8, -3.62],
-    [-5.8, -3.28],
+    [-7.5, -2.2],
+    [-6.4, -2.75],
+    [-5.0, -2.4],
+    [-4.0, -2.85],
+    [-5.2, -3.2],
+    [-6.8, -3.0],
   ]);
 
   const pA = buildPerson(mats, store, mats.personA, 0.95);
@@ -830,13 +912,13 @@ function addPedestrians(scene, mats, store) {
 
   /* ── Person B: stands near rack, bobs and inspects ── */
   const pB = buildPerson(mats, store, mats.personB, 0.90);
-  at(pB.root, 3.5, 0, -1.6);
+  at(pB.root, 1.15, 0.16, -1.25);
   pB.root.rotation.y = -Math.PI * 0.35;
   scene.add(pB.root);
 
   updaters.push(function updatePersonB(elapsed) {
     // Subtle body bob and arm raise (checking bike)
-    pB.root.position.y = Math.sin(elapsed * 1.2) * 0.018;
+    pB.root.position.y = 0.16 + Math.sin(elapsed * 1.2) * 0.018;
     const inspect = 0.2 + 0.25 * Math.sin(elapsed * 0.7);
     pB.rightArm.rotation.x = -inspect;
     pB.leftArm.rotation.x  = -inspect * 0.3;
@@ -844,12 +926,12 @@ function addPedestrians(scene, mats, store) {
 
   /* ── Child C: small figure on the lakeside path, waves arm ── */
   const pC = buildPerson(mats, store, mats.personC, 0.65);
-  at(pC.root, 6.2, 0, -2.55);
+  at(pC.root, 4.55, 0.08, -2.35);
   scene.add(pC.root);
 
   updaters.push(function updatePersonC(elapsed) {
     // Wave + little jump-bob
-    pC.root.position.y = Math.max(0, Math.sin(elapsed * 3.1) * 0.07);
+    pC.root.position.y = 0.08 + Math.max(0, Math.sin(elapsed * 3.1) * 0.07);
     pC.rightArm.rotation.x = -0.5 - 0.7 * Math.abs(Math.sin(elapsed * 2.8));
     pC.leftArm.rotation.x  = 0.2 * Math.sin(elapsed * 1.4);
     pC.root.rotation.y = Math.PI * 0.15 + 0.18 * Math.sin(elapsed * 0.5);
@@ -860,28 +942,30 @@ function addPedestrians(scene, mats, store) {
 
 /* ─────────────────────────── LIGHTING ─────────────────────────── */
 function addLighting(scene) {
-  scene.add(new THREE.HemisphereLight(0xf6fff0, 0x8cb57e, 1.6));
-  scene.add(new THREE.AmbientLight(C.ambientLight, 0.55));
+  scene.add(new THREE.HemisphereLight(0xf8fff4, 0x71956d, 1.15));
+  scene.add(new THREE.AmbientLight(C.ambientLight, 0.28));
 
-  const sun = new THREE.DirectionalLight(C.sunLight, 2.35);
-  sun.position.set(2, 18, 13);   // from same side as camera → consistent shadows
+  const sun = new THREE.DirectionalLight(C.sunLight, 2.85);
+  sun.position.set(-9, 20, 12);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { near: 0.5, far: 80, left: -20, right: 20, top: 20, bottom: -20 });
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.025;
+  Object.assign(sun.shadow.camera, { near: 0.5, far: 70, left: -16, right: 16, top: 15, bottom: -15 });
   scene.add(sun);
 
-  const fill = new THREE.DirectionalLight(0xd8f5ff, 0.62);
-  fill.position.set(-8, 9, -5);
+  const fill = new THREE.DirectionalLight(0xcdeeff, 0.38);
+  fill.position.set(10, 8, -8);
   scene.add(fill);
 }
 
 /* ─────────────────────────── CAMERA ─────────────────────────── */
 function responsiveFrustum(aspect) {
-  if (aspect > 2.8) return 6.2;
-  if (aspect > 2.2) return 6.8;
-  if (aspect > 1.7) return 7.6;
-  if (aspect > 1.2) return 9.0;
-  return 10.5;
+  if (aspect > 2.8) return 4.8;
+  if (aspect > 2.2) return 5.0;
+  if (aspect > 1.7) return 5.45;
+  if (aspect > 1.2) return 6.1;
+  return 6.8;
 }
 
 function makeCamera(w, h) {
@@ -892,9 +976,8 @@ function makeCamera(w, h) {
     frustum, -frustum,
     0.1, 200
   );
-  // Keep the camera centered on X so the road/base aligns with the frame axes.
-  cam.position.set(2, 17, 19);
-  cam.lookAt(2, 0, -1.4);
+  cam.position.set(2, 15.5, 22);
+  cam.lookAt(2, 0.35, -1.75);
   return cam;
 }
 
@@ -920,7 +1003,7 @@ function makeResizeHandler(renderer, camera, container) {
 /* ─────────────────────────── ANIMATION HELPERS ─────────────────── */
 
 function animateBikeAlongLane(bike, elapsed, dt = 0) {
-  // Bike lane centre line is at z ≈ 0.7, road runs along X.
+  // Bike lane centre line is at z ≈ 0.75, road runs along X.
   // Loop: x from -11 to +11, then back (closed loop via path).
   const LOOP = 16.0; // seconds
   const t = (elapsed % LOOP) / LOOP;
@@ -932,7 +1015,7 @@ function animateBikeAlongLane(bike, elapsed, dt = 0) {
   const dx = -Math.sin(angle); // derivative for heading
 
   bike.position.x = x;
-  bike.position.z = 0.7;
+  bike.position.z = 0.75;
   bike.position.y = BIKE_LANE_RIDE_Y;
 
   // Face direction of travel
@@ -1021,6 +1104,7 @@ export function mountScene(target) {
   const pond     = addPond(scene, mats, store);
   const canopies = addTrees(scene, mats, store);
   addPlanting(scene, mats, store);
+  addShrubs(scene, mats, store);
   addBollards(scene, mats, store);
   const leds     = addHubStation(scene, mats, store);
   addBikes(scene, mats, store);

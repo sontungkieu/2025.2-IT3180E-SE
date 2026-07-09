@@ -1,7 +1,7 @@
 # Ecopark Bicycle Parking
 
 [![CI](https://github.com/sontungkieu/2025.2-IT3180E-SE/actions/workflows/ci.yml/badge.svg)](https://github.com/sontungkieu/2025.2-IT3180E-SE/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/tests-22%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-23%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/backend%20coverage-80.1%25-yellowgreen)
 ![Node](https://img.shields.io/badge/node-%3E%3D24-43853d)
 ![Docker](https://img.shields.io/badge/docker-CI%20build%20configured-0f7b55)
@@ -39,6 +39,15 @@ Mở `http://127.0.0.1:4173`.
 | Customer mobile | GPS demo director |
 | --- | --- |
 | ![Customer mobile workspace](docs/ui/customer_mobile.png) | ![GPS demo director](docs/ui/gps_demo.png) |
+
+### So sánh scene 3D
+
+Hai ảnh dưới đây được chụp ở cùng viewport dashboard `430x226` và cùng trạng
+thái reduced-motion để đối chiếu trực tiếp bố cục trước/sau.
+
+| Trước khi dựng lại | Mobility garden mới |
+| --- | --- |
+| ![Scene 3D trước khi dựng lại](docs/ui/scene_3d_before.png) | ![Scene 3D mobility garden sau khi dựng lại](docs/ui/scene_3d_after.png) |
 
 ## Kiểm thử và CI/CD
 
@@ -199,18 +208,16 @@ gcloud run deploy ecopark-bicycle-parking \
   dropdown thời lượng trong bề ngang viewport, đồng thời rút rail tối thành dock
   icon-only nổi ở đáy màn hình, có cả refresh/theme/logout.
   Motion GSAP có hỗ trợ `prefers-reduced-motion`, scene Three.js low-poly mô
-  phỏng Bike Hub isometric với đường nội khu, bike lane, canopy, dock/rack,
-  status light và các xe City, Tandem, Child-seat khác hình dáng; bản scene mới
-  dùng palette sáng hơn, nền meadow, hồ nước bo hữu cơ, đường dạo ven hồ, mái
-  xanh/solar nhẹ, cụm hoa lau và hàng cây lệch nhịp để khung 3D có cảm giác
-  thiên nhiên hơn. Các chi tiết phi logic như trẻ em đứng trong hồ, xe đỗ trong
-  làn xe chạy và người đi bộ cắt qua road lane được đưa về đúng lối dạo/service
-  pad. Camera/frustum của scene tự fit theo tỉ lệ khung auth,
-  hero và mobile, căn camera theo trục ngang của road/base để khung 3D không bị
-  xoay chéo, tăng zoom theo tỉ lệ rộng để scene lấp khung tốt hơn và không dùng
-  CSS zoom thô; các xe dùng bánh đứng đúng mặt phẳng, nan hoa và khung tam giác
-  để tránh cảm giác bánh nằm sai trục, đồng thời đáy lốp được nâng theo mặt trên
-  của bike lane/service pad nên không còn lún vào đường. Khi render lại cùng
+  phỏng một mobility garden với đường nội khu, bike lane, hồ, cụm cây/bụi, mái
+  xanh/solar, dock/rack và các xe City, Tandem, Child-seat khác hình dáng. Bản
+  dựng hiện tại thu hẹp vùng thế giới để hub và xe rõ hơn trong hero nhỏ, gom
+  toàn bộ rack/xe vào đúng footprint dưới mái, đặt xe tràn trên service pad và
+  giữ người đi bộ/trẻ em trên lối dạo. Hồ dùng bờ hữu cơ, lily pad và ripple lệch
+  nhịp; cây được gom thành cụm có scale khác nhau thay cho các hàng lặp đều.
+  Camera/frustum tự fit theo auth, dashboard và mobile, giữ road/base nằm ngang
+  nhưng hạ góc nhìn vừa đủ để thấy mặt bên, mái và bóng tiếp xúc. Xe dùng bánh
+  đứng đúng mặt phẳng, nan hoa, khung tam giác và ride height theo từng mặt nền
+  nên không còn cảm giác bánh nằm sai trục hoặc lún vào đường. Khi render lại cùng
   view, canvas được giữ để tránh remount nhấp nháy. Scene có thêm xe chạy vòng theo hành lang
   đường, người đi bộ/kiểm tra xe/em nhỏ vẫy tay và sway cây nhẹ để loop không bị
   tĩnh. Trên màn hình đăng nhập, scene được đóng như một dải preview bám theo

@@ -1,4 +1,4 @@
-import { mountScene } from '/scene.js?v=20260630-wheel-clearance-scene';
+import { mountScene } from '/scene.js?v=20260710-mobility-garden';
 
 const DEFAULT_GPS_DEMO_LOCATION = Object.freeze({
   id: 'gps-demo',
