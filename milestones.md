@@ -458,6 +458,21 @@
 
 ## Notes
 
+- 2026-07-15 presentation evidence refresh: recaptured the current `main` UI at
+  fixed desktop/mobile viewports, replaced stale 3D/auth, customer, operations,
+  dark-mode, `/gd` and UC001 screenshots in the report and slide assets, and
+  replaced fragile long-page trims with dedicated mobile/operations captures.
+- 2026-07-15 presentation branch isolation: converted `presentation` to a
+  documentation-only working tree by removing stale application runtime, tests,
+  Node dependencies, Docker files and CI config. Screenshot generation now
+  explicitly uses the current `main` branch as its source of truth.
+- README: reviewed; no update required because this task only refreshes existing
+  presentation evidence and does not change runtime behavior or commands.
+- Mindmap/drawio: reviewed; no update required because screenshots do not change
+  actors, use-case scope or interactions.
+- Active plan: reviewed; no update required because the report submission scope
+  and next steps are unchanged.
+
 - Mindmap/drawio: `docs/BikeSharing_UseCase_Diagrams.drawio` was reviewed; no
   update required because the implementation follows the existing UC001-UC005
   scope without changing use-case semantics.
