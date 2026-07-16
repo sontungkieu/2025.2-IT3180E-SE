@@ -44,7 +44,7 @@ UC004 là trả xe và xuất vé. Hệ thống hỗ trợ trả khác bãi, tí
 
 UC005 là quản lý vận hành. Admin có quản lý bãi/xe, cập nhật trạng thái kèm lý do, xem report charts, audit log và export CSV.
 
-## Slide 5 - Kiến trúc GCP
+## Slide 5 - Kiến trúc triển khai EcoBike
 
 Kiến trúc của hệ thống gồm browser UI cho ba nhóm vai trò: Customer, Staff và Admin.
 
@@ -142,7 +142,9 @@ Audit panel giúp truy vết khi staff hoặc admin đổi trạng thái xe, ví
 
 Phần evidence được nhóm trình bày theo những điểm có thể kiểm chứng nhanh, thay vì chỉ liệt kê chung chung.
 
-Backend API tests đang pass 22/22, bao phủ các nhánh quan trọng như request tạo được ở ngoài bán kính nhưng giao xe bị chặn theo GPS hiện tại, xuất vé, báo cáo, audit log và GPS demo theo từng customer giữa `/gd` với màn khách hàng. Vì project là JavaScript/Node.js, nhóm dùng `node --test` thay vì pytest.
+Backend API tests đang pass 24/24, bao phủ các nhánh quan trọng như request tạo được ở ngoài bán kính nhưng giao xe bị chặn theo GPS hiện tại, xuất vé, báo cáo, audit log, đủ staff demo theo ba bãi và GPS demo theo từng customer giữa `/gd` với màn khách hàng. Vì project là JavaScript/Node.js, nhóm dùng `node --test` thay vì pytest.
+
+Coverage hiện tại đạt 80,67% theo dòng lệnh, 71,46% theo nhánh và 84,92% theo hàm. Ba chỉ số này được đo bằng coverage tích hợp của Node.js và hiển thị thành ba ô riêng trên slide.
 
 UI smoke test kiểm tra 5 cỡ màn hình đại diện: khách hàng desktop, khách hàng mobile, nhân sự màn rộng, nhân sự màn vừa và admin mobile. Test này bắt các lỗi rất thực tế như tràn ngang, canvas Three.js blank, Leaflet marker lỗi, dropdown custom lỗi hoặc console error.
 

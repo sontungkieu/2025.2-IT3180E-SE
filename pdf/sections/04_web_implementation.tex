@@ -90,17 +90,26 @@ và nút gửi yêu cầu vào cùng vùng \textit{Thuê xe}. Các vùng \textit
 và \textit{Tài khoản} được tách xuống dưới/ra rail điều hướng để màn đầu không
 giống bảng quản trị thu nhỏ. Trạng thái GPS hoặc vị trí nhập tay được hiển thị
 như chip overlay trong bản đồ, vì đây là ngữ cảnh của bản đồ thay vì một cảnh báo
-riêng bên ngoài bộ lọc.
+riêng bên ngoài bộ lọc. Trong vùng \textit{Lượt thuê}, mỗi lượt đang thuê hiển
+thị đồng hồ đếm ngược HH:MM:SS theo demo clock; khi quá giờ trả dự kiến, dòng
+này chuyển sang trạng thái quá hạn kèm phụ thu tạm tính. Ngay dưới danh sách
+lượt thuê, giao diện ghi rõ phụ thu trả muộn là 30.000 đồng cho mỗi block 30
+phút bắt đầu, phần lẻ được làm tròn lên; ưu đãi cư dân 40\% chỉ áp dụng cho phí
+thuê cơ bản, không giảm phần phụ thu.
 
 \subsection{Interface evidence}
 Các hình dưới đây là screenshot trực tiếp từ platform hiện tại, dùng để chứng
 minh UI đã có màn đăng nhập/đăng ký, workspace khách hàng trên desktop/mobile,
 workspace vận hành và màn GPS hỗ trợ demo use case.
+Màn đăng nhập dùng một nút xác nhận duy nhất; các dòng account demo chỉ điền
+nhanh email/mật khẩu và không tự tạo session. Danh sách hiển thị đủ staff theo
+ba bãi, đồng thời giữ account khách vừa đăng ký trong phiên trình duyệt để thuận
+tiện lặp lại kịch bản trình bày.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth,height=0.40\textheight,keepaspectratio]{auth_desktop.png}
-\caption{Màn đăng nhập/đăng ký và 3D Bike Hub preview}
+\caption{Màn đăng nhập với danh sách điền nhanh theo vai trò và 3D Bike Hub preview}
 \end{figure}
 
 \subsection{UC001 screen evidence}
@@ -290,8 +299,8 @@ Frontend shell & \texttt{public/app.js}, \texttt{public/styles.css} & Render aut
 API server & \texttt{server/app.js} & HTTP router, session cookie, role guard, static/vendor serving và các endpoint nghiệp vụ. \\
 Database & \texttt{server/db.js} & SQLite schema, seed data, demo accounts, foreign keys và WAL mode; khi deploy GCP, file DB được đặt trên persistent disk. \\
 Pricing & \texttt{server/pricing.js}, \texttt{server/app.js} & Tính phí cơ bản, phụ thu trễ và giảm giá cư dân theo policy đề bài; guard ticket-time yêu cầu customer\_type resident, cờ discount hợp lệ và resident card verified. \\
-Backend tests & \texttt{test/app.test.js} & Test đăng ký, availability, resident discount guard, tạo request ngoài bán kính nhưng chặn handover theo GPS hiện tại, geofence return, handover, return ticket, reports và concurrent sessions. \\
-Browser smoke tests & \texttt{scripts/ui-smoke.js}, \texttt{scripts/uc-flow-smoke.js} & Kiểm tra render UI, map/scene, overflow, console error, tab customer nhận marker GPS stream từ \texttt{/gd} và pipeline UC bằng Playwright. \\
+Backend tests & \texttt{test/app.test.js} & Test đăng ký, availability, resident discount guard, đủ staff demo theo từng bãi và backfill database cũ, tạo request ngoài bán kính nhưng chặn handover theo GPS hiện tại, geofence return, handover, return ticket, reports và concurrent sessions. \\
+Browser smoke tests & \texttt{scripts/ui-smoke.js}, \texttt{scripts/uc-flow-smoke.js} & Kiểm tra render UI, account quick-fill không tự đăng nhập, account mới xuất hiện lại sau logout, map/scene, overflow, console error, tab customer nhận marker GPS stream từ \texttt{/gd} và pipeline UC bằng Playwright. \\
 \bottomrule
 \end{longtable}
 
@@ -374,6 +383,9 @@ hai tài khoản admin và một context \texttt{/gd}, bảo đảm các phiên 
 nhau. Seed demo cung cấp:
 \begin{itemize}
   \item hai tài khoản khách: \texttt{customer@ecopark.test} và \texttt{resident@ecopark.test};
+  \item ba tài khoản staff theo phạm vi bãi: \texttt{staff@ecopark.test} tại Spring Park Gate,
+  \texttt{staff.greenbay@ecopark.test} tại Green Bay Marina và
+  \texttt{staff.swanlake@ecopark.test} tại Swan Lake Plaza;
   \item hai tài khoản admin: \texttt{admin@ecopark.test} và \texttt{admin2@ecopark.test}.
 \end{itemize}
 
@@ -408,10 +420,10 @@ Repo cung cấp các lệnh vận hành chính:
 \toprule
 \textbf{Test layer} & \textbf{Coverage} & \textbf{Evidence/command} \\
 \midrule
-Backend API tests & Đăng ký, validation input, password policy, nâng cấp hash SHA-256 cũ sang PBKDF2, email verification, reset password, duplicate email/phone/CCCD, blocked identity, resident pending, stale resident-discount flag for visitor, held-bike availability, tạo request ngoài bán kính nhưng chặn handover theo GPS hiện tại, cancel request, exchange bike, staff station scope, geofence return, handover, capacity guard, return pricing, GPS demo theo từng customer, reports, audit logs, concurrent sessions. & \texttt{npm test} \\
-Backend coverage & Coverage hiện tại theo Node.js built-in coverage: line 78.93\%, branch 69.31\%, functions 80.58\%. & \texttt{npm run test:coverage} \\
-UI smoke tests & Auth/customer/admin trên 5 cỡ màn hình đại diện, GSAP load, Three.js canvas pixel, Leaflet marker, custom report dropdown, scale tiền của chart báo cáo, bảng vận hành rộng không scroll ngang, bảng vận hành hẹp dạng row-card, console error và horizontal overflow. & \texttt{npm run smoke:ui} \\
-UC smoke tests & GPS context riêng, 2 customer + 2 admin sessions, chọn user trong \texttt{/gd} và kiểm marker customer map chạy theo, request/cancel/request again, staff handover, nhánh bấm xuất vé trước khi khách xác nhận để kiểm lý do bị chặn, customer confirm return, return ticket, chart dashboard, audit log và CSV report export. & \texttt{npm run smoke:uc} \\
+Backend API tests & 24/24 test pass: đăng ký, validation input, password policy, nâng cấp hash SHA-256 cũ sang PBKDF2, email verification, reset password, duplicate email/phone/CCCD, blocked identity, resident pending, stale resident-discount flag for visitor, held-bike availability, đủ staff demo theo ba bãi và backfill account vận hành, tạo request ngoài bán kính nhưng chặn handover theo GPS hiện tại, cancel request, exchange bike, staff station scope, geofence return, handover, capacity guard, return pricing, GPS demo theo từng customer, reports, audit logs, concurrent sessions. & \texttt{npm test} \\
+Backend coverage & Coverage hiện tại theo Node.js built-in coverage: line 80.67\%, branch 71.46\%, functions 84.92\%. & \texttt{npm run test:coverage} \\
+UI smoke tests & Auth/customer/admin trên 5 cỡ màn hình đại diện, đủ 7 account seed trong danh sách điền nhanh, quick-fill không tự đăng nhập, account mới được giữ sau logout, GSAP load, Three.js canvas pixel, Leaflet marker, custom report dropdown, scale tiền của chart báo cáo, bảng vận hành rộng không scroll ngang, bảng vận hành hẹp dạng row-card, console error và horizontal overflow. & \texttt{npm run smoke:ui} \\
+UC smoke tests & GPS context riêng, 2 customer + 2 admin sessions, chọn user trong \texttt{/gd} và kiểm marker customer map chạy theo, request/cancel/request again, staff handover, kiểm countdown lượt thuê active tick theo giây, nhánh bấm xuất vé trước khi khách xác nhận để kiểm lý do bị chặn, customer confirm return, return ticket, chart dashboard, audit log và CSV report export. & \texttt{npm run smoke:uc} \\
 Screenshot evidence & Bộ ảnh UC001 basic flow và alternative flow 1 được sinh từ chính app bằng Playwright. & \texttt{npm run screenshots:uc001} \\
 CI/CD automation & GitHub Actions chạy static check, coverage, UI smoke, UC smoke và build Docker image deployable trên push/PR. & \texttt{.github/workflows/ci.yml} \\
 Manual visual review & Screenshot auth, customer rental flow, operations workspace, mobile dock và GPS route. & Ảnh trong report UI section. \\
@@ -423,7 +435,8 @@ sách mật khẩu, nâng cấp hash cũ sang PBKDF2, xác minh email trước k
 reset mật khẩu demo-local, chặn CCCD/CMND bị khóa, thẻ cư dân pending thuê như
 khách thường, loại xe đã giữ chỗ ra khỏi danh sách xe sẵn sàng, hủy yêu cầu
 thuê và giải phóng xe, đổi xe trước handover, staff chỉ thấy/xử lý request đúng
-bãi, chuyển yêu cầu thuê thành rental, chặn giảm sức chứa bãi dưới số xe hiện
+bãi, seed và backfill đủ một staff cho mỗi bãi, chuyển yêu cầu thuê thành rental,
+chặn giảm sức chứa bãi dưới số xe hiện
 có, tính vé trả xe có giảm giá cư dân/phụ thu trễ, sinh audit log trạng thái xe,
 tổng hợp báo cáo và bốn phiên đăng nhập độc lập cho hai khách hàng cùng hai
 admin.

@@ -1,0 +1,8 @@
+cái ui này phải follow các UC design sẵn (có thể thêm chức năng nhưng không thể thiếu), kích hoạt được flow chính và alternative flow
+làm lại phần 3D
+thêm pipeline vào test (mượn, đi, trả, hiện gps người dùng)
+chưa có pipeline trả xe và và operator nhận xe
+thay vì 2d như hiện tại khá đơn điệu thì có thể nhiều màu sắc hơn, 1 chút 3d hơn
+nên handle được người dùng và admin truy cập cùng lúc (để cô request, mình approve, support ít nhất 2 user và 2 admin vào cùng lúc)
+nói chung là follow các uc đã có 
+build 1 bản fancy hơn

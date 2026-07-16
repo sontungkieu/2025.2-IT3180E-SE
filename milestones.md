@@ -1,5 +1,35 @@
 # Milestones
 
+## 2026-07-16 - Customer late-fee disclosure
+
+- Documented the active customer rental HH:MM:SS countdown that follows the
+  server demo clock and switches to estimated late-fee text after the planned
+  end time.
+- Documented the customer rental-history note for the VND 30,000 per started
+  30-minute late block and the base-fee-only resident discount rule.
+- Updated and rebuilt the formal report with UC smoke coverage for countdown
+  ticking. Slides and use-case diagrams are N/A because the pricing policy,
+  actors and presentation flow are unchanged.
+
+## 2026-07-16 - Presentation artifact consolidation
+
+- Kept `pdf/main.tex/pdf` as the formal report and
+  `pdf/slides_app_style.tex/pdf` as the single customized 15-slide deck.
+- Removed the app-style report, obsolete formal and English slide decks, and
+  compatibility PDF copies to avoid ambiguous submission artifacts.
+- Classified `presentation_script.md` as the current live-demo script and kept
+  `slide_script.tex/pdf` only as the detailed UC001--UC005 reference script.
+- Added `pdf/slides_app_style_en.tex/pdf` as a one-to-one English edition of the
+  customized 15-slide deck and synchronized verified backend evidence to 24/24.
+- Refreshed the formal report with the compact quick-fill login screenshot,
+  three station-scoped staff accounts, 24/24 backend results and current
+  80.67/71.46/84.92 line/branch/function coverage evidence.
+- Rebalanced slide 14 into seven equal-size centered evidence cards and exposed
+  line, branch and function coverage as separate presentation metrics.
+- Regenerated localized Vietnamese and English GCP architecture images with
+  EcoBike branding and the current `ecobike.ccat.io.vn` endpoint; the formal
+  report and each slide 5 now use their language-matched asset.
+
 ## 2026-06-23 - User-level GPS and handover geofence
 
 - Changed rental request creation so customers can send a pending pickup request

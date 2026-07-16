@@ -56,5 +56,10 @@ presentation for Ecopark Bicycle Parking.
 - Replace the old 30+ slide use-case deck with a presentation deck focused on the
   story of the product, architecture, implementation and demo path.
 - Keep the deck concise enough for group presentation.
-- Build `pdf/slides.pdf`; also provide `pdf/slide.pdf` as a compatibility copy
-  for the name used in the submission request.
+- Keep `pdf/main.pdf` as the formal report, `pdf/slides_app_style.pdf` as the
+  customized Vietnamese presentation deck, and
+  `pdf/slides_app_style_en.pdf` as its one-to-one English edition. Remove the
+  app-style report, old formal and 31-slide English decks, and compatibility
+  PDF copies.
+- Use `pdf/presentation_script.md` for the live 15-slide presentation. Retain
+  `pdf/slide_script.tex/pdf` only as a detailed UC001--UC005 reference.

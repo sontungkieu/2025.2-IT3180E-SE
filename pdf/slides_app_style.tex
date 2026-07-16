@@ -145,7 +145,7 @@ UC005 & Quản lý vận hành & CRUD bãi/xe, status reason, report charts, aud
 \end{tabular}
 \end{frame}
 
-\begin{frame}{Kiến Trúc GCP}
+\begin{frame}{Kiến trúc triển khai EcoBike}
 \centering
 \includegraphics[width=\textwidth,height=0.86\textheight,keepaspectratio]{techstack/tech_stack_architecture.png}
 \end{frame}
@@ -354,43 +354,61 @@ Admin/Report & Staff/Admin & \texttt{/api/admin/bikes}, \texttt{/api/admin/repor
 \end{frame}
 
 \begin{frame}{Testing Và Evidence}
-\small
+\centering
 \begin{tikzpicture}[
-  card/.style={draw=EbpBorder,rounded corners=3pt,fill=white,text width=4.85cm,minimum width=5.35cm,minimum height=1.52cm,align=left,inner xsep=9pt,inner ysep=8pt},
-  badge/.style={font=\Large\bfseries,text=EbpGreen},
-  label/.style={font=\scriptsize\bfseries,text=Ink},
-  note/.style={font=\scriptsize,text=EbpMuted}
+  card/.style={draw=EbpBorder,rounded corners=3pt,fill=white,minimum width=3.10cm,minimum height=1.66cm,align=left,inner xsep=6pt,inner ysep=5pt}
 ]
-\node[card] (api) at (0,1.58) {
-  \begin{minipage}{4.42cm}\raggedright
-  {\Large\bfseries\color{EbpGreen}22/22}\\[0.45mm]
-  {\scriptsize\bfseries Backend API tests}\\[0.25mm]
-  {\scriptsize Bán kính bãi, giao xe, vé, báo cáo, audit}
+\node[card] (api) at (-5.05,1.82) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpGreen}24/24}\\[0.2mm]
+  {\scriptsize\bfseries Backend API tests}\\[0.1mm]
+  {\tiny Staff theo bãi + luồng thuê}
   \end{minipage}
 };
-\node[card] (ui) at (6.0,1.58) {
-  \begin{minipage}{4.42cm}\raggedright
-  {\Large\bfseries\color{EbpTeal}5 cỡ màn hình}\\[0.45mm]
-  {\scriptsize\bfseries UI smoke}\\[0.25mm]
-  {\scriptsize Khách desktop/mobile, nhân sự, admin}
+\node[card] (ui) at (-1.68,1.82) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpTeal}5}\\[0.2mm]
+  {\scriptsize\bfseries UI viewports}\\[0.1mm]
+  {\tiny Khách, staff, admin}
   \end{minipage}
 };
-\node[card] (uc) at (0,-0.72) {
-  \begin{minipage}{4.42cm}\raggedright
-  {\Large\bfseries\color{EbpAmber}UC smoke}\\[0.45mm]
-  {\scriptsize\bfseries End-to-end demo path}\\[0.25mm]
-  {\scriptsize /gd, customer map sync, handover, return, CSV}
+\node[card] (uc) at (1.68,1.82) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpAmber}UC}\\[0.2mm]
+  {\scriptsize\bfseries End-to-end smoke}\\[0.1mm]
+  {\tiny /gd, handover, return, CSV}
   \end{minipage}
 };
-\node[card] (ci) at (6.0,-0.72) {
-  \begin{minipage}{4.42cm}\raggedright
-  {\Large\bfseries\color{EbpGreen}CI/CD}\\[0.45mm]
-  {\scriptsize\bfseries GitHub Actions}\\[0.25mm]
-  {\scriptsize node --check, coverage, smoke, Docker}
+\node[card] (ci) at (5.05,1.82) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpGreen}CI/CD}\\[0.2mm]
+  {\scriptsize\bfseries GitHub Actions}\\[0.1mm]
+  {\tiny Check, coverage, smoke, Docker}
+  \end{minipage}
+};
+\node[card] (line) at (-3.37,-0.10) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpGreen}80.67\%}\\[0.2mm]
+  {\scriptsize\bfseries Line coverage}\\[0.1mm]
+  {\tiny Node.js built-in coverage}
+  \end{minipage}
+};
+\node[card] (branch) at (0,-0.10) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpTeal}71.46\%}\\[0.2mm]
+  {\scriptsize\bfseries Branch coverage}\\[0.1mm]
+  {\tiny Node.js built-in coverage}
+  \end{minipage}
+};
+\node[card] (function) at (3.37,-0.10) {
+  \begin{minipage}[t][1.22cm][t]{2.62cm}\raggedright
+  {\large\bfseries\color{EbpAmber}84.92\%}\\[0.2mm]
+  {\scriptsize\bfseries Function coverage}\\[0.1mm]
+  {\tiny Node.js built-in coverage}
   \end{minipage}
 };
 \end{tikzpicture}
-\vspace{0.26cm}
+\vspace{0.16cm}
 \begin{center}
 \begin{tikzpicture}
 \node[draw=EbpBorder,rounded corners=3pt,fill=SoftGreen,text width=0.88\textwidth,inner sep=7pt,align=left] {
