@@ -22,10 +22,21 @@ const REPORT_PERIOD_OPTIONS = [
 
 const THEME_STORAGE_KEY = 'ecopark-theme';
 const THEME_OPTIONS = ['light', 'dark', 'system'];
+const DEMO_ACCOUNTS = Object.freeze([
+  { email: 'customer@ecopark.test', password: 'customer123', label: 'Khách thường' },
+  { email: 'resident@ecopark.test', password: 'resident123', label: 'Cư dân Ecopark' },
+  { email: 'staff@ecopark.test', password: 'staff123', label: 'Nhân sự · Spring Park Gate' },
+  { email: 'staff.greenbay@ecopark.test', password: 'greenbay123', label: 'Nhân sự · Green Bay Marina' },
+  { email: 'staff.swanlake@ecopark.test', password: 'swanlake123', label: 'Nhân sự · Swan Lake Plaza' },
+  { email: 'admin@ecopark.test', password: 'admin123', label: 'Admin / Operator' },
+  { email: 'admin2@ecopark.test', password: 'admin2123', label: 'Admin dự phòng' }
+]);
 const systemThemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const CUSTOMER_GPS_SYNC_INTERVAL_MS = 700;
 const CUSTOMER_GPS_DATA_REFRESH_INTERVAL_MS = 1800;
 const GPS_DEMO_STREAM_INTERVAL_MS = 420;
+const RENTAL_COUNTDOWN_INTERVAL_MS = 1000;
+const LATE_FEE_BLOCK_SECONDS = 30 * 60;
 
 const GPS_DEMO_ROAD = [
   { lat: 20.953894, lng: 105.933030 },
@@ -120,6 +131,7 @@ const state = {
   lastEmailVerificationCode: '',
   lastPasswordResetCode: '',
   lastPasswordResetEmail: '',
+  recentDemoAccounts: [],
   lastKnownLocation: readLastKnownLocation(),
   gpsDemoPosition: null,
   gpsUsers: [],
@@ -155,6 +167,8 @@ let customerGpsSyncTimer = null;
 let customerGpsSyncBusy = false;
 let customerGpsLastDataRefreshAt = 0;
 let customerGpsDataRefreshTimer = null;
+let rentalCountdownTimer = null;
+let demoClockClientSyncedAtMs = Date.now();
 let gpsDemoPersistQueue = Promise.resolve();
 
 applyThemePreference();
@@ -190,6 +204,12 @@ function bindSystemThemePreference() {
   systemThemeQuery.addEventListener('change', () => {
     if (state.themePreference === 'system') applyThemePreference();
   });
+}
+
+function setDemoClock(clock) {
+  state.demoClock = clock;
+  demoClockClientSyncedAtMs = Date.now();
+  return clock;
 }
 
 function resolvedTheme() {
@@ -290,7 +310,7 @@ async function refreshData() {
   }
 
   if (!state.user) return;
-  state.demoClock = await api('/api/demo-clock');
+  setDemoClock(await api('/api/demo-clock'));
 
   if (state.user.role === 'customer') {
     state.history = { pendingRequests: [], activeRentals: [], completedRentals: [], archivedRequests: [], ...await api('/api/customer/history') };
@@ -309,7 +329,7 @@ async function refreshData() {
 
 async function refreshGpsDemoData() {
   if (state.user) {
-    state.demoClock = await api('/api/demo-clock');
+    setDemoClock(await api('/api/demo-clock'));
   }
   await refreshGpsDemoPosition({ silent: true });
   state.bikeTypes = (await api('/api/bike-types')).bikeTypes;
@@ -466,6 +486,21 @@ function syncCustomerGpsPolling(view) {
   }, CUSTOMER_GPS_SYNC_INTERVAL_MS);
 }
 
+function syncRentalCountdown(view) {
+  stopRentalCountdown();
+  if (view !== 'customer' || !state.user || state.user.role !== 'customer') return;
+  updateRentalCountdownNodes();
+  if (!document.querySelector('[data-rental-countdown]')) return;
+  rentalCountdownTimer = window.setInterval(updateRentalCountdownNodes, RENTAL_COUNTDOWN_INTERVAL_MS);
+}
+
+function stopRentalCountdown() {
+  if (rentalCountdownTimer) {
+    window.clearInterval(rentalCountdownTimer);
+    rentalCountdownTimer = null;
+  }
+}
+
 function scheduleCustomerGpsDataRefresh() {
   const elapsedMs = Date.now() - customerGpsLastDataRefreshAt;
   const delayMs = Math.max(0, CUSTOMER_GPS_DATA_REFRESH_INTERVAL_MS - elapsedMs);
@@ -510,6 +545,7 @@ function render() {
   disposeGpsDemoMap();
   if (isGpsDemoRoute()) {
     stopCustomerGpsSync();
+    stopRentalCountdown();
     const nextView = 'gps-demo';
     const isViewSwitch = currentView !== nextView;
     currentView = nextView;
@@ -529,6 +565,7 @@ function render() {
 
   if (!state.user) {
     stopCustomerGpsSync();
+    stopRentalCountdown();
     app.innerHTML = authView();
     resetScrollOnViewSwitch(isViewSwitch);
     bindAuthEvents();
@@ -544,8 +581,10 @@ function render() {
   if (state.user.role === 'customer') {
     mountStationMap();
     syncCustomerGpsPolling(nextView);
+    syncRentalCountdown(nextView);
   } else {
     stopCustomerGpsSync();
+    stopRentalCountdown();
   }
   runPageMotion(nextView, isViewSwitch);
 }
@@ -593,12 +632,9 @@ function authView() {
           ${passwordField({ value: 'customer123', autocomplete: 'current-password', attributes: 'required' })}
           <button class="primary" type="submit"><img src="/vendor/icons/log-in.svg" alt="">Đăng nhập</button>
         </form>
-        <div class="demo-grid">
-          ${demoButton('customer@ecopark.test', 'customer123', 'Khách thường', 'Tạo yêu cầu thuê')}
-          ${demoButton('resident@ecopark.test', 'resident123', 'Cư dân', 'Áp dụng ưu đãi')}
-          ${demoButton('staff@ecopark.test', 'staff123', 'Nhân sự bãi', 'Duyệt nhận/trả xe')}
-          ${demoButton('admin@ecopark.test', 'admin123', 'Admin', 'Báo cáo và đội xe')}
-          ${demoButton('admin2@ecopark.test', 'admin2123', 'Admin dự phòng', 'Ca vận hành song song')}
+        <p class="demo-quick-label">Điền nhanh tài khoản demo</p>
+        <div class="demo-grid" aria-label="Danh sách tài khoản điền nhanh">
+          ${availableDemoAccounts().map((account) => demoButton(account)).join('')}
         </div>
         <hr>
         <form id="register-form" class="form-grid compact">
@@ -740,6 +776,7 @@ function customerView() {
           <span>${state.history.pendingRequests.length + state.history.activeRentals.length + state.history.completedRentals.length} lượt</span>
         </div>
         ${customerActivity()}
+        ${rentalLateFeeNote()}
       </section>
       <section class="panel account-panel" id="workspace-account">
         <div class="section-heading">
@@ -2283,7 +2320,8 @@ function customerActivity() {
     <li class="activity-item rental-active">
       <div>
         <strong>${escapeHtml(item.bike_code)}</strong>
-        <span>${rentalTimingLabel(item)} · trả dự kiến ${formatTime(item.planned_end_at)} · cọc ${money(item.deposit_amount)}</span>
+        <span class="rental-countdown" data-rental-countdown data-planned-end-at="${escapeAttr(item.planned_end_at)}">${rentalCountdownText(item.planned_end_at)}</span>
+        <span>Trả dự kiến ${formatTime(item.planned_end_at)} · cọc ${money(item.deposit_amount)}</span>
         <span class="cell-subtext">${item.return_confirmed_at ? `Đã xác nhận trả tại ${escapeHtml(item.return_station || selectedStationName())}` : `Chưa xác nhận trả · bãi đang chọn: ${selectedStationName()}`}</span>
       </div>
       <button class="secondary small" type="button" data-confirm-return="${item.rental_id}">
@@ -2301,6 +2339,19 @@ function customerActivity() {
   return items ? `<ul class="activity-list">${items}</ul>` : emptyState('Chưa có lịch sử thuê');
 }
 
+function rentalLateFeeNote() {
+  const lateFee = state.demoClock?.lateFeePer30Minutes || 30000;
+  return `
+    <div class="rental-fee-note" role="note">
+      <img src="/vendor/icons/timer.svg" alt="">
+      <p>
+        <strong>Phụ thu trả muộn</strong>
+        <span>${money(lateFee)} cho mỗi 30 phút quá hạn; phần lẻ được làm tròn lên. Giảm cư dân 40% chỉ áp dụng cho phí thuê cơ bản.</span>
+      </p>
+    </div>
+  `;
+}
+
 function pickupDeadlineLabel(item) {
   const minutes = Number(item.pickup_deadline_minutes || 0);
   if (minutes <= 0) return `đã hết hạn lúc ${formatTime(item.expires_at)}`;
@@ -2312,6 +2363,55 @@ function rentalTimingLabel(item) {
   if (late > 0) return `Quá hạn ${late} phút · tạm tính phụ thu ${money(item.estimated_late_fee)}`;
   const remaining = Math.max(0, Number(item.remaining_minutes || 0));
   return `Còn ${remaining} phút`;
+}
+
+function demoClockNowMs() {
+  const clockMs = Date.parse(state.demoClock?.currentTime || '');
+  if (!Number.isFinite(clockMs)) return Date.now();
+  return clockMs + Math.max(0, Date.now() - demoClockClientSyncedAtMs);
+}
+
+function rentalCountdownInfo(plannedEndAt) {
+  const plannedEndMs = Date.parse(plannedEndAt || '');
+  if (!Number.isFinite(plannedEndMs)) {
+    return { overdue: false, seconds: 0, fee: 0 };
+  }
+  const deltaMs = plannedEndMs - demoClockNowMs();
+  if (deltaMs >= 0) {
+    return { overdue: false, seconds: Math.max(0, Math.ceil(deltaMs / 1000)), fee: 0 };
+  }
+  const seconds = Math.max(1, Math.floor(Math.abs(deltaMs) / 1000));
+  const lateFee = state.demoClock?.lateFeePer30Minutes || 30000;
+  return {
+    overdue: true,
+    seconds,
+    fee: Math.ceil(seconds / LATE_FEE_BLOCK_SECONDS) * lateFee
+  };
+}
+
+function rentalCountdownText(plannedEndAt) {
+  const info = rentalCountdownInfo(plannedEndAt);
+  const duration = formatCountdownDuration(info.seconds);
+  if (info.overdue) return `Quá hạn ${duration} · tạm tính phụ thu ${money(info.fee)}`;
+  return `Còn ${duration}`;
+}
+
+function updateRentalCountdownNodes() {
+  document.querySelectorAll('[data-rental-countdown]').forEach((node) => {
+    const info = rentalCountdownInfo(node.dataset.plannedEndAt);
+    node.textContent = info.overdue
+      ? `Quá hạn ${formatCountdownDuration(info.seconds)} · tạm tính phụ thu ${money(info.fee)}`
+      : `Còn ${formatCountdownDuration(info.seconds)}`;
+    node.classList.toggle('is-overdue', info.overdue);
+  });
+}
+
+function formatCountdownDuration(totalSeconds) {
+  const seconds = Math.max(0, Math.floor(Number(totalSeconds || 0)));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  return [hours, minutes, rest].map((part) => String(part).padStart(2, '0')).join(':');
 }
 
 function reportView() {
@@ -2659,10 +2759,10 @@ function bindGpsDemoEvents() {
     button.addEventListener('click', async () => {
       const advanceMinutes = Number(button.dataset.clockAdvance);
       await runAction(async () => {
-        state.demoClock = await api('/api/demo-clock', {
+        setDemoClock(await api('/api/demo-clock', {
           method: 'POST',
           body: { advanceMinutes }
-        });
+        }));
         await refreshGpsDemoDataWithLoading();
         render();
       }, `Đã tua giờ +${advanceMinutes} phút`);
@@ -2670,10 +2770,10 @@ function bindGpsDemoEvents() {
   });
   document.querySelector('[data-clock-reset]')?.addEventListener('click', async () => {
     await runAction(async () => {
-      state.demoClock = await api('/api/demo-clock', {
+      setDemoClock(await api('/api/demo-clock', {
         method: 'POST',
         body: { reset: true }
-      });
+      }));
       await refreshGpsDemoDataWithLoading();
       render();
     }, 'Đã đưa đồng hồ về giờ thật');
@@ -2785,6 +2885,11 @@ function bindAuthEvents() {
     const body = Object.fromEntries(new FormData(event.currentTarget));
     await runAction(async () => {
       const payload = await api('/api/auth/register', { method: 'POST', body });
+      rememberRecentDemoAccount({
+        email: payload.user.email,
+        password: body.password,
+        label: `Mới đăng ký · ${payload.user.full_name}`
+      });
       state.user = payload.user;
       state.lastEmailVerificationCode = payload.demoCode || '';
       resetWorkspaceState();
@@ -2815,16 +2920,15 @@ function bindAuthEvents() {
   });
 
   document.querySelectorAll('[data-demo-email]').forEach((button) => {
-    button.addEventListener('click', async () => {
-      await runAction(async () => {
-        state.user = (await api('/api/auth/login', {
-          method: 'POST',
-          body: { email: button.dataset.demoEmail, password: button.dataset.demoPassword }
-        })).user;
-        resetWorkspaceState();
-        await refreshData();
-        render();
-      });
+    button.addEventListener('click', () => {
+      const form = document.querySelector('#login-form');
+      const emailField = form?.querySelector('input[name="email"]');
+      const passwordInput = form?.querySelector('input[name="password"]');
+      if (!emailField || !passwordInput) return;
+      emailField.value = button.dataset.demoEmail || '';
+      passwordInput.value = button.dataset.demoPassword || '';
+      document.querySelectorAll('[data-demo-email]').forEach((item) => item.classList.toggle('active', item === button));
+      form.querySelector('button[type="submit"]')?.focus({ preventScroll: true });
     });
   });
 }
@@ -2986,7 +3090,7 @@ function updateActiveRailItem() {
     .filter(({ target }) => target);
   if (!sections.length) return;
 
-  const preferred = sections.find(({ item, visibleHeight }) => item.dataset.railTarget === railPreferredTargetId && visibleHeight > 4);
+  const preferred = sections.find(({ item }) => item.dataset.railTarget === railPreferredTargetId);
   if (preferred) {
     setActiveRailTarget(preferred.item.dataset.railTarget);
     return;
@@ -3566,8 +3670,30 @@ async function api(path, { method = 'GET', body } = {}) {
   return payload;
 }
 
-function demoButton(email, password, label, detail) {
-  return `<button class="demo-button" type="button" data-demo-email="${email}" data-demo-password="${password}">${label}<span>${detail}</span></button>`;
+function availableDemoAccounts() {
+  const recentEmails = new Set(state.recentDemoAccounts.map((account) => account.email.toLowerCase()));
+  return [
+    ...state.recentDemoAccounts,
+    ...DEMO_ACCOUNTS.filter((account) => !recentEmails.has(account.email.toLowerCase()))
+  ];
+}
+
+function rememberRecentDemoAccount(account) {
+  const email = String(account.email || '').trim().toLowerCase();
+  if (!email || !account.password) return;
+  state.recentDemoAccounts = [
+    { email, password: String(account.password), label: String(account.label || email) },
+    ...state.recentDemoAccounts.filter((item) => item.email.toLowerCase() !== email)
+  ].slice(0, 3);
+}
+
+function demoButton({ email, password, label }) {
+  return `
+    <button class="demo-button" type="button" data-demo-email="${escapeAttr(email)}" data-demo-password="${escapeAttr(password)}" title="Điền ${escapeAttr(email)} vào form đăng nhập">
+      <span class="demo-account-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(email)}</small></span>
+      <span class="demo-fill-hint">Điền</span>
+    </button>
+  `;
 }
 
 function metric(label, value, icon) {

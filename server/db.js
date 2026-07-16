@@ -354,6 +354,7 @@ function seedDatabase(db) {
     .run(adminBackup, 'ADM-002', 'admin', null);
   db.prepare('INSERT INTO staff (staff_id, staff_code, staff_role, station_id, active) VALUES (?, ?, ?, ?, 1)')
     .run(staffUser, 'STF-SPR-01', 'manager', 2);
+  ensureDemoStationStaff(db, createdAt);
 
   const profileInsert = db.prepare(`
     INSERT INTO customer_profiles
@@ -456,8 +457,75 @@ function ensureDemoAccounts(db) {
     INSERT OR IGNORE INTO staff (staff_id, staff_code, staff_role, station_id, active)
     VALUES (?, 'ADM-002', 'admin', NULL, 1)
   `).run(adminBackupId);
+  ensureDemoStationStaff(db, createdAt);
   ensureDemoCustomerPersonas(db, createdAt);
   normalizeResidentDiscountEligibility(db);
+}
+
+function ensureDemoStationStaff(db, createdAt) {
+  const accounts = [
+    {
+      fullName: 'Spring Park Staff',
+      email: 'staff@ecopark.test',
+      phone: '0900000002',
+      password: 'staff123',
+      staffCode: 'STF-SPR-01',
+      stationName: 'Spring Park Gate'
+    },
+    {
+      fullName: 'Green Bay Staff',
+      email: 'staff.greenbay@ecopark.test',
+      phone: '0900000006',
+      password: 'greenbay123',
+      staffCode: 'STF-GBM-01',
+      stationName: 'Green Bay Marina'
+    },
+    {
+      fullName: 'Swan Lake Staff',
+      email: 'staff.swanlake@ecopark.test',
+      phone: '0900000007',
+      password: 'swanlake123',
+      staffCode: 'STF-SLP-01',
+      stationName: 'Swan Lake Plaza'
+    }
+  ];
+  const findUser = db.prepare('SELECT user_id FROM users WHERE lower(email) = lower(?)');
+  const insertUser = db.prepare(`
+    INSERT INTO users (full_name, email, phone, password_hash, role, status, created_at, email_verified_at)
+    VALUES (?, ?, ?, ?, 'staff', 'active', ?, ?)
+  `);
+  const findStation = db.prepare('SELECT station_id FROM stations WHERE station_name = ?');
+  const activateUser = db.prepare(`
+    UPDATE users
+    SET role = 'staff', status = 'active', email_verified_at = COALESCE(email_verified_at, created_at, ?)
+    WHERE user_id = ?
+  `);
+  const insertStaff = db.prepare(`
+    INSERT OR IGNORE INTO staff (staff_id, staff_code, staff_role, station_id, active)
+    VALUES (?, ?, 'manager', ?, 1)
+  `);
+  const updateStaff = db.prepare(`
+    UPDATE staff
+    SET staff_code = ?, staff_role = 'manager', station_id = ?, active = 1
+    WHERE staff_id = ?
+  `);
+
+  accounts.forEach((account) => {
+    const station = findStation.get(account.stationName);
+    if (!station) return;
+    const existing = findUser.get(account.email);
+    const userId = existing?.user_id || insertUser.run(
+      account.fullName,
+      account.email,
+      account.phone,
+      hashPassword(account.password),
+      createdAt,
+      createdAt
+    ).lastInsertRowid;
+    activateUser.run(createdAt, userId);
+    insertStaff.run(userId, account.staffCode, station.station_id);
+    updateStaff.run(account.staffCode, station.station_id, userId);
+  });
 }
 
 function ensureDemoCustomerPersonas(db, createdAt) {

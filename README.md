@@ -61,7 +61,7 @@ npm run docker:build
 ```
 
 - `npm run test:coverage` dùng Node.js built-in test coverage. Mốc hiện tại:
-  line coverage backend `80.15%`, branch `71.31%`, functions `84.68%`.
+  line coverage backend `80.67%`, branch `71.46%`, functions `84.92%`.
 - Ảnh UI dùng trong README được giữ ở `docs/ui/`. Report, slide và các asset
   LaTeX/PDF đầy đủ được giữ trên nhánh `presentation`.
 - `.github/workflows/ci.yml` tự động chạy static check, backend coverage test,
@@ -115,7 +115,9 @@ gcloud run deploy ecopark-bicycle-parking \
 | --- | --- | --- |
 | Khách thường | `customer@ecopark.test` | `customer123` |
 | Cư dân Ecopark | `resident@ecopark.test` | `resident123` |
-| Nhân sự bãi xe | `staff@ecopark.test` | `staff123` |
+| Nhân sự Spring Park Gate | `staff@ecopark.test` | `staff123` |
+| Nhân sự Green Bay Marina | `staff.greenbay@ecopark.test` | `greenbay123` |
+| Nhân sự Swan Lake Plaza | `staff.swanlake@ecopark.test` | `swanlake123` |
 | Admin / Operator | `admin@ecopark.test` | `admin123` |
 | Admin dự phòng | `admin2@ecopark.test` | `admin2123` |
 
@@ -133,15 +135,21 @@ gcloud run deploy ecopark-bicycle-parking \
   dân pending/rejected chỉ làm mất ưu đãi 40% chứ không chặn thuê xe. Password
   mới dùng PBKDF2 salted, còn hash SHA-256 cũ vẫn đăng nhập được và được nâng
   cấp sau login.
-- Form đăng nhập có flow khôi phục mật khẩu bằng mã demo-local và form tạo tài
-  khoản có nút hiện/ẩn mật khẩu để người dùng kiểm tra trước khi gửi. Các bộ lọc tìm
+- Form đăng nhập có danh sách điền nhanh dạng dòng gọn cho toàn bộ account demo;
+  bấm một dòng chỉ điền email/mật khẩu, người dùng vẫn xác nhận bằng nút
+  `Đăng nhập` duy nhất. Account khách vừa tạo được thêm vào danh sách này trong
+  phiên trình duyệt hiện tại. Form cũng có flow khôi phục mật khẩu bằng mã
+  demo-local và nút hiện/ẩn mật khẩu để người dùng kiểm tra trước khi gửi. Các bộ lọc tìm
   bãi, dropdown loại khách trong form đăng ký, dropdown thời lượng thuê và các
   dropdown trong bảng staff/admin dùng custom dropdown HTML/CSS thay cho
   dropdown native để tránh popup thô và giữ layout ổn định trên desktop lẫn
   mobile.
 - Workspace khách hàng gom vị trí, bãi gần nhất, bản đồ, xe rảnh và nút thuê vào
   cùng vùng `Thuê xe`; các vùng `Lượt thuê` và `Tài khoản` tách riêng để màn đầu
-  không bị rối như bảng quản trị. Customer UI không còn dropdown chọn vị trí giả
+  không bị rối như bảng quản trị. Lượt đang thuê có đồng hồ đếm ngược theo giây
+  dựa trên demo clock; khi quá hạn, dòng này đổi sang tạm tính phụ thu. Ngay
+  dưới danh sách lượt thuê, UI ghi rõ phụ thu trả muộn `30.000đ/30 phút`, làm
+  tròn lên theo block 30 phút, và lưu ý giảm cư dân 40% chỉ áp dụng cho phí thuê cơ bản. Customer UI không còn dropdown chọn vị trí giả
   lập; mọi thay đổi vị trí demo nằm ở `/gd`, còn màn khách chỉ hiển thị vị trí
   hiện tại và danh sách bãi theo GPS đang đồng bộ. Bộ lọc bãi dùng loại xe và
   phạm vi `200 m`/`500 m`/`1 km`; khi chọn loại xe, số xe trên từng thẻ bãi được
@@ -167,7 +175,7 @@ gcloud run deploy ecopark-bicycle-parking \
   nhận bãi trả bằng vị trí hiện tại; backend chỉ chấp nhận nếu vị trí này nằm
   trong bán kính phục vụ của bãi trả. Hệ thống tính vé cuối cùng, chỉ áp dụng
   giảm 40% khi tài khoản là cư dân và thẻ cư dân đang verified, phụ thu 30k mỗi
-  30 phút trả muộn, ghi chú tình trạng xe và hiển thị lại phiếu vừa xuất. Nếu
+  30 phút trả muộn được làm tròn lên theo từng block, ghi chú tình trạng xe và hiển thị lại phiếu vừa xuất. Nếu
   nhân sự bấm xuất vé khi khách chưa xác nhận hoặc chọn bãi trả không khớp, UI
   hiện lý do ngay trong danh sách trả xe thay vì chỉ khóa nút im lặng. Màn vận
   hành có pipeline trả xe riêng để luôn thấy các bước nhận xe, khách xác nhận
@@ -197,7 +205,8 @@ gcloud run deploy ecopark-bicycle-parking \
   thích cũ. Khi dữ liệu demo đang tải lần đầu, `/gd` hiển thị skeleton thay vì
   một grid trắng.
 - Giao diện theo phong cách Civic Mobility Command Center: rail điều hướng tối
-  có thể cuộn tới từng vùng chức năng, workspace sáng, panel/form/table sắc cạnh,
+  có thể cuộn tới từng vùng chức năng và giữ sáng đúng mục vừa bấm trong suốt
+  chuyển động cuộn; workspace sáng, panel/form/table sắc cạnh,
   dropdown custom có menu nổi và trạng thái chọn rõ ràng, topbar floating sticky
   có gap mờ với viền viewport và mật độ thông tin phù hợp
   phần mềm vận hành. App hỗ trợ light/dark/system theme bằng design tokens,
@@ -237,7 +246,8 @@ npm test
 Test hiện bao phủ đăng ký tài khoản, password policy, nâng cấp hash cũ, xác minh
 email, reset mật khẩu demo-local, chống trùng email/phone/CCCD, chặn CCCD bị
 khóa, trạng thái resident pending thuê như khách thường, khách thường không được
-giảm cư dân dù dữ liệu cũ bật nhầm cờ giảm giá, staff scope theo bãi, đổi xe
+giảm cư dân dù dữ liệu cũ bật nhầm cờ giảm giá, đủ staff demo theo ba bãi và
+staff scope theo bãi, đổi xe
 trước handover, giao xe, trả xe, tính phí, thống kê, audit log trạng thái xe và
 phiên đăng nhập đồng thời.
 
@@ -251,7 +261,8 @@ npm run smoke:uc
 
 Smoke test UI mở desktop/tablet/mobile, gồm cả staff workspace rộng và trung
 bình cùng `/gd` mobile; kiểm tra GSAP vendor đã load, scene Three.js có render
-pixel và đủ độ phủ ở operations hero, metadata chip tài khoản không bị cắt, bản
+pixel và đủ độ phủ ở operations hero, danh sách account điền nhanh không tự
+đăng nhập và nhớ account vừa đăng ký trong phiên, metadata chip tài khoản không bị cắt, bản
 đồ Leaflet có marker thật, report filters là custom dropdown, chart tiền trong
 báo cáo dùng cùng thang đo, bảng vận hành hẹp chuyển sang row-card,
 dashboard/table staff rộng không scroll ngang, không có console error và không
@@ -272,7 +283,8 @@ Admin/Operator xử lý toàn hệ thống.
 
 Nhánh `main` tập trung vào app, test và tài liệu nhẹ nên không giữ thư mục
 `pdf/`. Report/slide LaTeX, PDF đã build và asset trình bày đầy đủ được giữ trên
-nhánh `presentation`.
+nhánh `presentation`. Source `scripts/render-tech-stack-diagram.js` duy trì hai
+asset kiến trúc riêng cho deck/report tiếng Việt và deck tiếng Anh.
 
 ```bash
 git fetch origin

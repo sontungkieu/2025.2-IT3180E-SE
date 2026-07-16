@@ -4,7 +4,35 @@ const { chromium } = require('playwright');
 
 const rootDir = path.resolve(__dirname, '..');
 const assetDir = path.join(rootDir, 'pdf', 'assets', 'techstack');
-const outputPath = path.join(assetDir, 'tech_stack_architecture.png');
+const isEnglish = process.argv.includes('--en');
+const outputPath = path.join(
+  assetDir,
+  isEnglish ? 'tech_stack_architecture_en.png' : 'tech_stack_architecture.png',
+);
+
+const copy = isEnglish
+  ? {
+      heading: 'EcoBike deployment architecture from users to data',
+      domainCaption: 'HTTPS demo endpoint via Cloudflare Tunnel',
+      userDevices: 'Customers, staff, admins, and the GPS tab access the same EcoBike platform.',
+      tunnel: 'Public HTTPS routing reaches the VM without exposing the app through an inbound firewall rule.',
+      vm: 'The live demo VM keeps the app and tunnel running through systemd or Docker restart policies.',
+      service: 'The container packages the static UI and HTTP API, bound internally to localhost:4173.',
+      runtime: 'The browser runs the vanilla JavaScript UI, motion, 3D scene, and interactive map.',
+      modules: 'Business modules handle authentication, requests, handover, return tickets, reports, and audit logs.',
+      data: 'SQLite/WAL persists demo data; Cloud SQL is the scale-up path.',
+    }
+  : {
+      heading: 'Kiến trúc triển khai EcoBike từ người dùng tới dữ liệu',
+      domainCaption: 'HTTPS demo endpoint qua Cloudflare Tunnel',
+      userDevices: 'Customer, Staff, Admin và tab GPS cùng truy cập nền tảng EcoBike.',
+      tunnel: 'Public HTTPS route vào VM mà không cần mở inbound firewall cho app.',
+      vm: 'VM thật chạy demo, giữ process app và tunnel bằng systemd/Docker restart.',
+      service: 'Container đóng gói static UI và HTTP API, bind nội bộ localhost:4173.',
+      runtime: 'Giao diện JavaScript thuần, motion, 3D scene và bản đồ chạy trong browser.',
+      modules: 'Các module nghiệp vụ xử lý auth, request, handover, return ticket, report và audit.',
+      data: 'SQLite/WAL lưu demo trên persistent path; Cloud SQL là hướng nâng cấp khi scale.',
+    };
 
 function logoDataUri(name) {
   const svg = fs.readFileSync(path.join(assetDir, `${name}.svg`), 'utf8');
@@ -272,26 +300,26 @@ const html = `<!doctype html>
   <main class="canvas">
     <header class="header">
       <div>
-        <p class="eyebrow">Deployment and runtime stack</p>
-        <h1>Luồng công nghệ kết nối từ người dùng tới dữ liệu</h1>
+        <p class="eyebrow">EcoBike deployment and runtime stack</p>
+        <h1>${copy.heading}</h1>
       </div>
       <div class="domain">
-        <strong>introSE.ccat.io.vn</strong>
-        <span>HTTPS demo endpoint qua Cloudflare Tunnel</span>
+        <strong>ecobike.ccat.io.vn</strong>
+        <span>${copy.domainCaption}</span>
       </div>
     </header>
     <div class="layers">
       ${card({
         step: '1',
         title: 'User devices',
-        subtitle: 'Customer, Staff, Admin và tab GPS demo cùng truy cập một platform.',
+        subtitle: copy.userDevices,
         logosHtml: '<span class="device-icons"><span class="device"></span><span class="device mobile"></span><span class="device"></span></span>',
         chips: ['Desktop', 'Mobile', '/gd demo'],
       })}
       ${card({
         step: '2',
         title: 'Cloudflare DNS + Tunnel',
-        subtitle: 'Public HTTPS route vào VM mà không cần mở inbound firewall cho app.',
+        subtitle: copy.tunnel,
         logosHtml: logo('cloudflare', 'Cloudflare'),
         chips: ['DNS', 'Tunnel', 'No inbound firewall'],
         tone: 'amber',
@@ -299,7 +327,7 @@ const html = `<!doctype html>
       ${card({
         step: '3',
         title: 'GCP Compute Engine free tier',
-        subtitle: 'VM thật chạy demo, giữ process app và tunnel bằng systemd/Docker restart.',
+        subtitle: copy.vm,
         logosHtml: logo('googlecloud', 'Google Cloud'),
         chips: ['Compute Engine', 'Ubuntu VM', 'Persistent disk'],
         tone: 'teal',
@@ -307,14 +335,14 @@ const html = `<!doctype html>
       ${card({
         step: '4',
         title: 'Dockerized Node.js service',
-        subtitle: 'Container đóng gói static UI và HTTP API, bind nội bộ localhost:4173.',
+        subtitle: copy.service,
         logosHtml: `${logo('docker', 'Docker')}${logo('node', 'Node.js')}`,
         chips: ['PORT 8080', 'Restart unless-stopped', 'Single image'],
       })}
       ${card({
         step: '5',
         title: 'App runtime',
-        subtitle: 'Giao diện JavaScript thuần, motion, 3D scene và bản đồ chạy trong browser.',
+        subtitle: copy.runtime,
         logosHtml: `${logo('js', 'JavaScript')}${logo('gsap', 'GSAP')}${logo('three', 'Three.js')}${logo('leaflet', 'Leaflet')}`,
         chips: ['Responsive UI', '3D hero', 'Map flow'],
         tone: 'teal',
@@ -322,21 +350,21 @@ const html = `<!doctype html>
       ${card({
         step: '6',
         title: 'Backend modules',
-        subtitle: 'Các module nghiệp vụ xử lý auth, request, handover, return ticket, report và audit.',
+        subtitle: copy.modules,
         logosHtml: logo('node', 'HTTP API'),
         chips: ['Auth', 'Rental', 'Handover', 'Ticket', 'Report', 'Audit'],
       })}
       ${card({
         step: '7',
         title: 'Data layer',
-        subtitle: 'SQLite/WAL lưu demo trên persistent path; Cloud SQL là hướng nâng cấp khi scale.',
+        subtitle: copy.data,
         logosHtml: `${logo('sqlite', 'SQLite')}${logo('googlecloud', 'Future Cloud SQL')}`,
         chips: ['Users', 'Bikes', 'Rentals', 'Logs'],
         tone: 'amber',
       })}
     </div>
     <div class="footer">
-      <span><strong>EBP</strong> Ecopark Bicycle Parking Platform</span>
+      <span><strong>EcoBike</strong> Ecopark Bicycle Rental Platform</span>
       <span>Docker on GCP VM + Cloudflare Tunnel + SQLite persistent volume</span>
     </div>
   </main>

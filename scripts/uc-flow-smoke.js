@@ -65,6 +65,14 @@ async function main() {
     await logout(page);
     await loginDemo(page, 'resident@ecopark.test');
     await page.waitForSelector('[data-confirm-return]');
+    const countdown = page.locator('[data-rental-countdown]').first();
+    await countdown.waitFor();
+    const firstCountdown = (await countdown.innerText()).trim();
+    assert.match(firstCountdown, /^(Còn|Quá hạn) \d{2}:\d{2}:\d{2}/, 'customer active rental countdown is not formatted as HH:MM:SS');
+    await page.waitForFunction((previousText) => {
+      const node = document.querySelector('[data-rental-countdown]');
+      return node && node.textContent.trim() !== previousText;
+    }, firstCountdown, { timeout: 2500 });
     await page.locator('[data-confirm-return]').first().click();
     await page.waitForSelector('text=Đã xác nhận');
 
@@ -177,6 +185,7 @@ async function verifyConcurrentDemoSessions(browser, baseUrl) {
 
 async function loginDemo(page, email) {
   await page.click(`[data-demo-email="${email}"]`);
+  await page.click('#login-form button[type="submit"]');
   await page.waitForSelector('.dashboard-hero', { state: 'attached' });
   await page.waitForFunction(async (expectedEmail) => {
     const payload = await fetch('/api/session').then((response) => response.json());

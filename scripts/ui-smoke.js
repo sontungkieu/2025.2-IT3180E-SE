@@ -28,6 +28,7 @@ async function main() {
 
   try {
     browser = await chromium.launch();
+    await verifyAuthQuickFill(browser, baseUrl);
     for (const viewport of viewports) {
       await verifyViewport(browser, baseUrl, viewport);
     }
@@ -54,7 +55,7 @@ async function verifyViewport(browser, baseUrl, viewport) {
   await page.waitForTimeout(500);
   const authCanvas = await canvasStats(page);
 
-  await page.click(`[data-demo-email="${viewport.demo}"]`);
+  await loginDemo(page, viewport.demo);
   await page.waitForSelector('.dashboard-hero');
   await page.waitForTimeout(500);
   const appCanvas = await canvasStats(page);
@@ -111,6 +112,8 @@ async function verifyViewport(browser, baseUrl, viewport) {
       false,
       `${viewport.name} rent rail item stayed active after selecting rental history: ${JSON.stringify(customerRailStats)}`
     );
+    assert.match(customerRailStats.feeNoteText, /30\.000.*30 phút.*làm tròn lên/i, `${viewport.name} late-fee note is incomplete`);
+    assert.equal(customerRailStats.feeNoteOverflow, false, `${viewport.name} late-fee note overflows its panel`);
   }
   if (mobileRailStats) {
     assert.equal(mobileRailStats.railVisible, true, `${viewport.name} bottom rail is not visible`);
@@ -153,6 +156,68 @@ async function verifyViewport(browser, baseUrl, viewport) {
   assert.deepEqual(errors, [], `${viewport.name} console errors`);
   console.log(`${viewport.name}: canvas and layout smoke passed`);
   await page.close();
+}
+
+async function verifyAuthQuickFill(browser, baseUrl) {
+  const page = await browser.newPage({ viewport: { width: 1366, height: 960 } });
+  const errors = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  await page.waitForSelector('#login-form');
+  const seededAccounts = await page.locator('[data-demo-email]').evaluateAll((items) => items.map((item) => item.dataset.demoEmail));
+  assert.equal(seededAccounts.length, 7, `auth quick-fill list is incomplete: ${JSON.stringify(seededAccounts)}`);
+  assert.deepEqual(seededAccounts.filter((email) => email.startsWith('staff')), [
+    'staff@ecopark.test',
+    'staff.greenbay@ecopark.test',
+    'staff.swanlake@ecopark.test'
+  ]);
+
+  await page.click('[data-demo-email="staff.greenbay@ecopark.test"]');
+  const filledStaff = await loginFormValues(page);
+  assert.deepEqual(filledStaff, { email: 'staff.greenbay@ecopark.test', password: 'greenbay123' });
+  const sessionBeforeSubmit = await page.evaluate(() => fetch('/api/session').then((response) => response.json()));
+  assert.equal(sessionBeforeSubmit.user, null, 'quick-fill account row logged in before form submission');
+
+  const registration = {
+    fullName: 'Quick Fill Customer',
+    email: 'quick-fill-created@ecopark.test',
+    phone: '0912345689',
+    password: 'quickfill123',
+    identityNumber: '001203456789',
+    address: 'Park River, Ecopark'
+  };
+  const registerForm = page.locator('#register-form');
+  await registerForm.scrollIntoViewIfNeeded();
+  for (const [name, value] of Object.entries(registration)) {
+    await registerForm.locator(`[name="${name}"]`).fill(value);
+  }
+  await registerForm.locator('button[type="submit"]').click();
+  await page.waitForSelector('.dashboard-hero');
+  await page.click('#logout');
+  await page.waitForSelector('#login-form');
+  const recentAccount = page.locator(`[data-demo-email="${registration.email}"]`);
+  await recentAccount.waitFor();
+  await recentAccount.click();
+  assert.deepEqual(await loginFormValues(page), { email: registration.email, password: registration.password });
+  assert.deepEqual(errors, [], 'auth quick-fill console errors');
+  console.log('auth: compact quick-fill accounts passed');
+  await page.close();
+}
+
+async function loginDemo(page, email) {
+  await page.click(`[data-demo-email="${email}"]`);
+  await page.click('#login-form button[type="submit"]');
+}
+
+async function loginFormValues(page) {
+  return page.locator('#login-form').evaluate((form) => ({
+    email: form.elements.email.value,
+    password: form.elements.password.value
+  }));
 }
 
 async function verifyGpsDemoMobile(browser, baseUrl) {
@@ -258,11 +323,14 @@ async function customerRailSelectionStats(page) {
     const rent = document.querySelector('[data-rail-target="workspace-rent"]');
     const rentals = document.querySelector('[data-rail-target="workspace-rentals"]');
     const rentalsRect = document.querySelector('#workspace-rentals')?.getBoundingClientRect();
+    const feeNote = document.querySelector('.rental-fee-note');
     return {
       rentActive: rent?.classList.contains('active') || false,
       rentalsActive: rentals?.classList.contains('active') || false,
       rentalsCurrent: rentals?.getAttribute('aria-current') || null,
-      rentalsRect: rentalsRect ? { top: rentalsRect.top, bottom: rentalsRect.bottom } : null
+      rentalsRect: rentalsRect ? { top: rentalsRect.top, bottom: rentalsRect.bottom } : null,
+      feeNoteText: feeNote?.textContent.replace(/\s+/g, ' ').trim() || '',
+      feeNoteOverflow: feeNote ? feeNote.scrollWidth > feeNote.clientWidth + 1 : true
     };
   });
 }

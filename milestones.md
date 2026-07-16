@@ -1,5 +1,45 @@
 # Milestones
 
+## 2026-07-16 - Customer late-fee disclosure
+
+- Added a live HH:MM:SS countdown to each active customer rental, driven by the
+  server demo clock and switching to estimated late-fee text after the planned
+  end time.
+- Added a compact note below the customer rental history stating the current
+  VND 30,000 charge for each started 30-minute late block.
+- Clarified that the 40% verified-resident discount applies only to the base
+  rental fee, and added desktop/mobile/UC smoke assertions for copy, overflow
+  and active-rental countdown ticking.
+- Stabilized the selected customer rail item during programmatic smooth scroll
+  so the rental-history tab remains highlighted on mobile.
+- Updated README. The use-case drawio and planning files are N/A because the
+  pricing policy and UC flow are unchanged.
+
+## 2026-07-16 - EcoBike architecture branding
+
+- Updated the generated GCP architecture diagram source from the stale EBP and
+  `introSE.ccat.io.vn` labels to the current EcoBike name and
+  `ecobike.ccat.io.vn` demo endpoint.
+- Added localized Vietnamese and English architecture outputs so the formal
+  report and each customized deck use language-consistent diagrams.
+- Updated README with the localized asset workflow. The use-case drawio is N/A
+  because actors and UC flows are unchanged.
+
+## 2026-07-16 - Compact demo login and station staff coverage
+
+- Added dedicated Green Bay Marina and Swan Lake Plaza staff demo accounts so
+  all three seeded stations have a scoped staff login, including automatic
+  backfill for existing local demo databases.
+- Replaced large auto-login account cards with compact, low-emphasis quick-fill
+  rows; selecting a row now fills the email and password fields while the single
+  login button remains the explicit confirmation.
+- Kept newly registered customer credentials available as a quick-fill row for
+  the current browser session after logout.
+- Extended backend and Playwright smoke coverage for complete station staffing,
+  fill-without-login behavior and newly registered quick-fill accounts.
+- Updated README. PDF is N/A on `main`; the use-case drawio and planning files
+  are unchanged because actors, UC scope and the submission plan do not change.
+
 ## 2026-07-10 - Responsive UI glitch audit
 
 - Audited auth, customer, staff/admin and `/gd` screens with live Playwright

@@ -966,6 +966,41 @@ test('reports aggregate completed rentals', async () => {
   }
 });
 
+test('seeds one staff demo account for each station', async () => {
+  const fixture = await startTestServer();
+  try {
+    const stationStaff = fixture.server.db.prepare(`
+      SELECT u.email, s.staff_code, st.station_name
+      FROM users u
+      JOIN staff s ON s.staff_id = u.user_id
+      JOIN stations st ON st.station_id = s.station_id
+      WHERE u.role = 'staff'
+      ORDER BY st.station_id
+    `).all();
+    assert.deepEqual(stationStaff.map((item) => ({ ...item })), [
+      { email: 'staff.greenbay@ecopark.test', staff_code: 'STF-GBM-01', station_name: 'Green Bay Marina' },
+      { email: 'staff@ecopark.test', staff_code: 'STF-SPR-01', station_name: 'Spring Park Gate' },
+      { email: 'staff.swanlake@ecopark.test', staff_code: 'STF-SLP-01', station_name: 'Swan Lake Plaza' }
+    ]);
+
+    const accounts = [
+      ['staff@ecopark.test', 'staff123'],
+      ['staff.greenbay@ecopark.test', 'greenbay123'],
+      ['staff.swanlake@ecopark.test', 'swanlake123']
+    ];
+    for (const [email, password] of accounts) {
+      const login = await client(fixture.baseUrl).request('/api/auth/login', {
+        method: 'POST',
+        body: { email, password }
+      });
+      assert.equal(login.response.status, 200, `${email} should be able to log in`);
+      assert.equal(login.payload.user.email, email);
+    }
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('supports concurrent customer and admin sessions independently', async () => {
   const fixture = await startTestServer();
   const customer = client(fixture.baseUrl);
@@ -1037,7 +1072,7 @@ test('supports concurrent customer and admin sessions independently', async () =
   }
 });
 
-test('existing demo database is backfilled with backup admin account', async () => {
+test('existing demo database is backfilled with complete operations accounts', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'ecopark-backfill-'));
   const dbPath = path.join(dir, 'backfill.sqlite');
   let server = null;
@@ -1046,6 +1081,7 @@ test('existing demo database is backfilled with backup admin account', async () 
     const backupAdmin = server.db.prepare("SELECT user_id FROM users WHERE email = 'admin2@ecopark.test'").get();
     assert.ok(backupAdmin);
     const customerDemo = server.db.prepare("SELECT user_id FROM users WHERE email = 'customer@ecopark.test'").get();
+    const greenBayStaff = server.db.prepare("SELECT user_id FROM users WHERE email = 'staff.greenbay@ecopark.test'").get();
     const fakeCardId = server.db.prepare(`
       INSERT INTO resident_cards
         (customer_id, card_number, registered_address, verification_status, verified_at, review_note)
@@ -1060,6 +1096,8 @@ test('existing demo database is backfilled with backup admin account', async () 
     `).run(fakeCardId, customerDemo.user_id);
     server.db.prepare('DELETE FROM staff WHERE staff_id = ?').run(backupAdmin.user_id);
     server.db.prepare('DELETE FROM users WHERE user_id = ?').run(backupAdmin.user_id);
+    server.db.prepare('DELETE FROM staff WHERE staff_id = ?').run(greenBayStaff.user_id);
+    server.db.prepare('DELETE FROM users WHERE user_id = ?').run(greenBayStaff.user_id);
     server.closeDatabase();
     server = null;
 
@@ -1073,6 +1111,19 @@ test('existing demo database is backfilled with backup admin account', async () 
     assert.equal(restored.email, 'admin2@ecopark.test');
     assert.equal(restored.role, 'admin');
     assert.equal(restored.staff_role, 'admin');
+    const restoredStationStaff = server.db.prepare(`
+      SELECT u.email, st.station_name
+      FROM users u
+      JOIN staff s ON s.staff_id = u.user_id
+      JOIN stations st ON st.station_id = s.station_id
+      WHERE u.role = 'staff'
+      ORDER BY st.station_id
+    `).all();
+    assert.deepEqual(restoredStationStaff.map((item) => ({ ...item })), [
+      { email: 'staff.greenbay@ecopark.test', station_name: 'Green Bay Marina' },
+      { email: 'staff@ecopark.test', station_name: 'Spring Park Gate' },
+      { email: 'staff.swanlake@ecopark.test', station_name: 'Swan Lake Plaza' }
+    ]);
     const personas = server.db.prepare(`
       SELECT u.email, cp.customer_type, cp.discount_eligible, rc.verification_status AS card_status
       FROM users u
